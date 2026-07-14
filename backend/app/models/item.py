@@ -1,0 +1,31 @@
+"""SQLAlchemy ORM models for the Warehouse Storage backend."""
+import enum
+
+from sqlalchemy import Column, Enum as SAEnum, Integer, String
+
+from app.db import Base
+
+
+
+class ItemSize(str, enum.Enum):
+    """Physical size classification used for shelving/handling decisions."""
+
+    SMALL = "small"
+    BIG = "big"
+    XL = "xl"
+
+
+class Item(Base):
+    """A single inventory item identified by a unique scannable barcode."""
+
+    __tablename__ = "items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    pn = Column(String, index=True, nullable=False)
+    barcode = Column(String, unique=True, index=True, nullable=False)
+    category = Column(String, index=True, nullable=False)
+    size = Column(SAEnum(ItemSize, native_enum=False, length=16), nullable=False)
+    quantity = Column(Integer, default=0, nullable=False)
+    # Alphanumeric shelf position, e.g. "12B" or "3A" (shelf number + level letter)
+    shelf_position = Column(String, index=True, nullable=False)

@@ -1,0 +1,57 @@
+"""Pydantic request/response schemas for items."""
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.item import ItemSize
+
+SHELF_POSITION_PATTERN = re.compile(r"^\d+[A-Za-z]$")
+
+
+class ItemBase(BaseModel):
+    name: str = Field(..., min_length=1, description="Human readable item name")
+    pn: str = Field(..., min_length=1, description="Part number")
+    barcode: str = Field(..., min_length=1, description="Unique scannable barcode value")
+    category: str = Field(..., min_length=1, description="Product category, e.g. 'Fasteners'")
+    size: ItemSize = Field(..., description="Physical size classification")
+    shelf_position: str = Field(
+        ..., description='Alphanumeric shelf position, e.g. "12B" or "3A"'
+    )
+    quantity: int = Field(default=0, ge=0, description="Current stock quantity")
+
+    @field_validator("shelf_position")
+    @classmethod
+    def validate_shelf_position(cls, value: str) -> str:
+        if not SHELF_POSITION_PATTERN.match(value):
+            raise ValueError(
+                'shelf_position must be alphanumeric like "12B" or "3A" '
+                "(shelf number followed by a level letter)"
+            )
+        return value.upper()
+
+    @field_validator("category")
+    @classmethod
+    def normalize_category(cls, value: str) -> str:
+        return value.strip()
+
+
+class ItemCreate(ItemBase):
+    pass
+
+
+class ItemOut(ItemBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class WithdrawRequest(BaseModel):
+    barcode: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0, description="Quantity to withdraw, must be positive")
+
+
+class WithdrawResponse(BaseModel):
+    item: ItemOut
+    withdrawn: int
+    message: str
