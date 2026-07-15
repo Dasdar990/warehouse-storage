@@ -8,57 +8,97 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [string] }>()
 
-function cellClass(rackCode: string, hasLowStock: boolean, hasItems: boolean) {
-  return {
-    'shelf--empty': !hasItems,
-    'shelf--stocked': hasItems && !hasLowStock,
-    'shelf--low': hasItems && hasLowStock,
-    'shelf--selected': props.selectedRack === rackCode,
-  }
+const CANVAS_WIDTH = 1400
+const CANVAS_HEIGHT = 760
+
+function rackFill(node: WarehouseLayout['nodes'][number]) {
+  if (node.item_count === 0) return 'rgba(148, 163, 184, 0.12)'
+  if (node.has_low_stock) return 'rgba(239, 68, 68, 0.22)'
+  return 'rgba(59, 130, 246, 0.22)'
 }
 
-const canvasBounds = computed(() => {
-  const boxes = [...props.layout.nodes, ...props.layout.zones]
-  const width = Math.max(...boxes.map((n) => n.x + n.width), 400)
-  const height = Math.max(...boxes.map((n) => n.y + n.height), 300)
-  return { width: width + 24, height: height + 24 }
-})
+function rackStroke(node: WarehouseLayout['nodes'][number]) {
+  if (node.rack_code === props.selectedRack) return '#22c55e'
+  if (node.item_count === 0) return 'var(--border, #374151)'
+  if (node.has_low_stock) return 'rgba(239, 68, 68, 0.7)'
+  return 'rgba(59, 130, 246, 0.7)'
+}
 </script>
 
 <template>
-  <div class="map-wrap scrollbar-slim">
-    <div class="canvas" :style="{ width: `${canvasBounds.width}px`, height: `${canvasBounds.height}px` }">
-      <!-- Zones: background layer, purely visual grouping -->
-      <div
-        v-for="zone in layout.zones"
-        :key="`zone-${zone.id}`"
-        class="zone"
-        :style="{
-          left: `${zone.x}px`,
-          top: `${zone.y}px`,
-          width: `${zone.width}px`,
-          height: `${zone.height}px`,
-          background: `${zone.color}14`,
-          borderColor: `${zone.color}55`,
-        }"
-      >
-        <span class="zone__label" :style="{ color: zone.color }">{{ zone.name }}</span>
-      </div>
+  <div class="map-wrap">
+    <div class="canvas-scroll scrollbar-slim">
+      <ClientOnly fallback="Caricamento mappa in corso...">
+        <v-stage :config="{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }" class="stage">
+          <v-layer>
+            <!-- Zones as background context -->
+            <v-group v-for="zone in layout.zones" :key="`zone-${zone.id}`" :config="{ listening: false }">
+              <v-rect
+                :config="{
+                  x: zone.x,
+                  y: zone.y,
+                  width: zone.width,
+                  height: zone.height,
+                  fill: zone.color + '14',
+                  stroke: zone.color + '55',
+                  strokeWidth: 1.5,
+                  dash: [6, 4],
+                  cornerRadius: 6,
+                }"
+              />
+              <v-text
+                :config="{
+                  x: zone.x + 8,
+                  y: zone.y + 6,
+                  text: zone.name,
+                  fontSize: 12,
+                  fontStyle: 'bold',
+                  fill: zone.color,
+                }"
+              />
+            </v-group>
 
-      <!-- Racks: clickable, colored by aggregated stock across all their levels -->
-      <button
-        v-for="node in layout.nodes"
-        :key="node.rack_code"
-        class="shelf"
-        :class="cellClass(node.rack_code, node.has_low_stock, node.item_count > 0)"
-        :style="{ left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px`, height: `${node.height}px` }"
-        :title="`${node.label || node.rack_code} — ${node.levels.length} mensola/e — ${node.item_count} item(s)`"
-        @click="emit('select', node.rack_code)"
-      >
-        <span class="shelf__label">{{ node.label || node.rack_code }}</span>
-        <span class="shelf__levels">{{ node.levels.length }} mensola/e</span>
-        <span v-if="node.item_count" class="shelf__count">{{ node.item_count }}</span>
-      </button>
+            <!-- Racks, rotated exactly as saved in the editor -->
+            <v-group
+              v-for="node in layout.nodes"
+              :key="node.rack_code"
+              :config="{
+                x: node.x,
+                y: node.y,
+                width: node.width,
+                height: node.height,
+                rotation: node.rotation,
+              }"
+              @click="emit('select', node.rack_code)"
+              @tap="emit('select', node.rack_code)"
+            >
+              <v-rect
+                :config="{
+                  width: node.width,
+                  height: node.height,
+                  fill: rackFill(node),
+                  stroke: rackStroke(node),
+                  strokeWidth: node.rack_code === selectedRack ? 3 : 2,
+                  cornerRadius: 4,
+                }"
+              />
+              <v-text
+                :config="{
+                  text: (node.label || node.rack_code) + '\n' + node.item_count + ' item(s)',
+                  fontSize: 12,
+                  fontFamily: 'Segoe UI, Arial',
+                  fill: '#e5e7eb',
+                  width: node.width,
+                  height: node.height,
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  listening: false,
+                }"
+              />
+            </v-group>
+          </v-layer>
+        </v-stage>
+      </ClientOnly>
     </div>
 
     <div class="legend">
@@ -71,95 +111,28 @@ const canvasBounds = computed(() => {
 
 <style scoped>
 .map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.canvas-scroll {
   overflow: auto;
-  padding-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: #0a0e14;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
   max-height: 65vh;
 }
 
-.canvas {
-  position: relative;
-}
-
-.zone {
-  position: absolute;
-  border: 2px dashed;
-  border-radius: 10px;
-  pointer-events: none;
-  padding: 6px 8px;
-}
-
-.zone__label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  opacity: 0.85;
-}
-
-.shelf {
-  position: absolute;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--text);
-  transition: transform 0.08s ease, box-shadow 0.15s ease;
-  padding: 4px;
-  z-index: 1;
-}
-
-.shelf:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  z-index: 2;
-}
-
-.shelf--empty {
-  background: var(--bg-elevated);
-}
-
-.shelf--stocked {
-  background: rgba(59, 130, 246, 0.18);
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-.shelf--low {
-  background: rgba(239, 68, 68, 0.18);
-  border-color: rgba(239, 68, 68, 0.55);
-}
-
-.shelf--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  z-index: 3;
-}
-
-.shelf__label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.shelf__levels {
-  font-size: 0.6rem;
-  color: var(--text-dim);
-}
-
-.shelf__count {
-  font-size: 0.65rem;
-  color: var(--text-dim);
+.stage {
+  display: block;
 }
 
 .legend {
   display: flex;
   gap: 18px;
-  margin-top: 14px;
   flex-wrap: wrap;
 }
 

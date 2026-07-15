@@ -1,276 +1,424 @@
 <script setup lang="ts">
-import type { ShelfNode, Zone } from '~/composables/useWarehouseApi'
+import type { ShelfNode, ZoneInput } from '~/composables/useWarehouseApi'
 
 /**
- * Freeform drag-and-drop canvas for placing racks ("scaffali") on the
- * warehouse map. Each rack is an absolutely-positioned box the user can
- * drag, resize, rename, assign to a zone, and give one or more levels
- * ("mensole", e.g. "A,B,C"). The parent page owns the `nodes` array and
- * persists it to the backend; this component only edits it in place.
- * Saved zones are rendered underneath as a non-interactive backdrop so
- * racks can be positioned inside the right zone.
+ * Konva-based freeform canvas for placing racks ("scaffali") exactly as
+ * they physically sit in the room: drag to position, use the transformer
+ * handles to resize and -- unlike the plain zone editor -- rotate. Same
+ * coordinate space (1400x760) as ZoneMapEditor so zones drawn there line
+ * up visually as background context here.
  */
 
-interface EditorNode extends ShelfNode {
+interface EditorRack extends ShelfNode {
   _key: string
 }
 
 const props = defineProps<{
   modelValue: ShelfNode[]
-  zones: Zone[]
+  zones: (ZoneInput & { id: number })[]
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [ShelfNode[]] }>()
 
 const CANVAS_WIDTH = 1400
 const CANVAS_HEIGHT = 760
-const MIN_SIZE = 40
-const GRID_STEP = 20
+const GRID_STEP = 10
 
 let keySeed = 0
 function nextKey() {
   keySeed += 1
-  return `n${Date.now()}-${keySeed}`
+  return `r${Date.now()}-${keySeed}`
 }
 
-const nodes = ref<EditorNode[]>(props.modelValue.map((n) => ({ ...n, _key: nextKey() })))
-const snapToGrid = ref(true)
-const selectedKey = ref<string | null>(null)
+function toEditorRack(node: ShelfNode): EditorRack {
+  return { ...node, _key: nextKey() }
+}
 
-// Keep local editor state in sync if the parent swaps the whole array
-// (e.g. after loading from the API or after "Generate from stock").
+const racks = ref<EditorRack[]>(props.modelValue.map(toEditorRack))
+const selectedKey = ref<string | null>(null)
+const snapToGrid = ref(true)
+const stageRef = ref<any>(null)
+const transformerRef = ref<any>(null)
+
+let lastEmitted: ShelfNode[] | null = null
 watch(
   () => props.modelValue,
   (value) => {
-    if (value.length !== nodes.value.length || value !== lastEmitted) {
-      nodes.value = value.map((n) => ({ ...n, _key: nextKey() }))
+    if (value !== lastEmitted) {
+      racks.value = value.map(toEditorRack)
+      selectedKey.value = null
     }
   }
 )
 
-let lastEmitted: ShelfNode[] | null = null
 function commit() {
-  const plain = nodes.value.map(({ _key, ...rest }) => rest)
+  const plain = racks.value.map(({ _key, ...rest }) => rest)
   lastEmitted = plain
   emit('update:modelValue', plain)
+}
+
+const selectedRack = computed(() => racks.value.find((r) => r._key === selectedKey.value) || null)
+
+const zoneById = computed(() => {
+  const map = new Map<number, (typeof props.zones)[number]>()
+  for (const z of props.zones) map.set(z.id, z)
+  return map
+})
+
+function zoneColor(zoneId: number | null) {
+  if (zoneId == null) return null
+  return zoneById.value.get(zoneId)?.color || null
 }
 
 function snap(value: number) {
   return snapToGrid.value ? Math.round(value / GRID_STEP) * GRID_STEP : Math.round(value)
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
+function nextRackCode(): string {
+  const used = new Set(racks.value.map((r) => r.rack_code))
+  let n = 1
+  while (used.has(String(n))) n += 1
+  return String(n)
 }
 
-function addShelf() {
-  const cascade = (nodes.value.length % 8) * 24
-  const node: EditorNode = {
+const RACK_PRESETS = [
+  { key: 'standard', label: 'Scaffale standard', width: 90, height: 140 },
+  { key: 'wide', label: 'Scaffale largo', width: 160, height: 70 },
+  { key: 'tall', label: 'Scaffale alto', width: 70, height: 180 },
+] as const
+
+function createRack(x: number, y: number, width: number, height: number): EditorRack {
+  return {
     _key: nextKey(),
-    rack_code: '',
+    rack_code: nextRackCode(),
     label: null,
-    x: 24 + cascade,
-    y: 24 + cascade,
-    width: 90,
-    height: 140,
+    x,
+    y,
+    width,
+    height,
     levels: ['A'],
     zone_id: null,
-    // editor-only helper field kept in sync with `levels`, see levelsText()
-  } as EditorNode
-  nodes.value.push(node)
-  selectedKey.value = node._key
-  commit()
-  nextTick(() => {
-    const input = document.getElementById(`shelf-name-${node._key}`) as HTMLInputElement | null
-    input?.focus()
-  })
+    rotation: 0,
+  }
 }
 
-function removeShelf(key: string) {
-  nodes.value = nodes.value.filter((n) => n._key !== key)
+function addRack() {
+  const cascade = (racks.value.length % 8) * 24
+  const rack = createRack(40 + cascade, 40 + cascade, 90, 140)
+  racks.value.push(rack)
+  selectedKey.value = rack._key
+  commit()
+}
+
+// --- Drag-and-drop from the palette onto the canvas ---
+function onPaletteDragStart(e: DragEvent, preset: (typeof RACK_PRESETS)[number]) {
+  e.dataTransfer?.setData('application/json', JSON.stringify(preset))
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy'
+}
+
+function onCanvasDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+function onCanvasDrop(e: DragEvent) {
+  e.preventDefault()
+  const raw = e.dataTransfer?.getData('application/json')
+  if (!raw) return
+  let preset: (typeof RACK_PRESETS)[number]
+  try {
+    preset = JSON.parse(raw)
+  } catch {
+    return
+  }
+  const stage = stageRef.value?.getStage?.()
+  const containerEl: HTMLElement | undefined = stage?.container()
+  const rect = containerEl?.getBoundingClientRect()
+  const dropX = rect ? e.clientX - rect.left : CANVAS_WIDTH / 2
+  const dropY = rect ? e.clientY - rect.top : CANVAS_HEIGHT / 2
+
+  const rack = createRack(
+    Math.max(0, snap(dropX - preset.width / 2)),
+    Math.max(0, snap(dropY - preset.height / 2)),
+    preset.width,
+    preset.height
+  )
+  racks.value.push(rack)
+  selectedKey.value = rack._key
+  commit()
+}
+
+function selectRack(key: string) {
+  selectedKey.value = key
+}
+
+function deleteSelected() {
+  if (!selectedKey.value) return
+  racks.value = racks.value.filter((r) => r._key !== selectedKey.value)
+  selectedKey.value = null
   commit()
 }
 
 function clearAll() {
-  if (nodes.value.length && !confirm('Remove every rack from the canvas?')) return
-  nodes.value = []
+  if (racks.value.length && !confirm('Remove every rack from the canvas?')) return
+  racks.value = []
+  selectedKey.value = null
   commit()
 }
 
-// --- Levels text input helpers ("A,B,C" <-> string[]) ---
-function levelsText(node: EditorNode) {
-  return node.levels.join(',')
+function handleStageMouseDown(e: any) {
+  if (e.target === e.target.getStage()) {
+    selectedKey.value = null
+  }
 }
 
-function onLevelsChange(node: EditorNode, raw: string) {
-  const parsed = raw
-    .split(',')
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean)
-  node.levels = parsed.length ? Array.from(new Set(parsed)) : ['A']
+// Fired after a drag (position only) or a transform (resize/rotate) ends.
+// Konva expresses resizing as a scale change rather than new width/height,
+// so we bake the scale back into width/height and reset it to 1 to keep
+// subsequent drags/rotations clean.
+function handleTransformEnd(e: any, rack: EditorRack) {
+  const node = e.target
+  rack.x = snap(node.x())
+  rack.y = snap(node.y())
+  rack.rotation = Math.round(((node.rotation() % 360) + 360) % 360)
+  rack.width = Math.max(20, Math.round(node.width() * node.scaleX()))
+  rack.height = Math.max(20, Math.round(node.height() * node.scaleY()))
+  node.scaleX(1)
+  node.scaleY(1)
   commit()
 }
 
-function zoneName(zoneId: number | null) {
-  if (zoneId == null) return null
-  return props.zones.find((z) => z.id === zoneId)?.name ?? null
-}
-
-// --- Drag to move ---
-let dragState: { key: string; startX: number; startY: number; nodeX: number; nodeY: number } | null = null
-
-function startDrag(event: PointerEvent, node: EditorNode) {
-  if ((event.target as HTMLElement).closest('.shelf-box__handle, .shelf-box__delete, .shelf-box__field')) return
-  selectedKey.value = node._key
-  dragState = { key: node._key, startX: event.clientX, startY: event.clientY, nodeX: node.x, nodeY: node.y }
-  ;(event.target as HTMLElement).setPointerCapture(event.pointerId)
-  window.addEventListener('pointermove', onDragMove)
-  window.addEventListener('pointerup', onDragEnd)
-}
-
-function onDragMove(event: PointerEvent) {
-  if (!dragState) return
-  const node = nodes.value.find((n) => n._key === dragState!.key)
-  if (!node) return
-  const dx = event.clientX - dragState.startX
-  const dy = event.clientY - dragState.startY
-  node.x = clamp(snap(dragState.nodeX + dx), 0, CANVAS_WIDTH - node.width)
-  node.y = clamp(snap(dragState.nodeY + dy), 0, CANVAS_HEIGHT - node.height)
-}
-
-function onDragEnd() {
-  dragState = null
-  window.removeEventListener('pointermove', onDragMove)
-  window.removeEventListener('pointerup', onDragEnd)
+function rotateBy(delta: number) {
+  if (!selectedRack.value) return
+  selectedRack.value.rotation = Math.round(((selectedRack.value.rotation + delta) % 360 + 360) % 360)
   commit()
 }
 
-// --- Resize handle ---
-let resizeState: { key: string; startX: number; startY: number; w: number; h: number } | null = null
-
-function startResize(event: PointerEvent, node: EditorNode) {
-  event.stopPropagation()
-  selectedKey.value = node._key
-  resizeState = { key: node._key, startX: event.clientX, startY: event.clientY, w: node.width, h: node.height }
-  ;(event.target as HTMLElement).setPointerCapture(event.pointerId)
-  window.addEventListener('pointermove', onResizeMove)
-  window.addEventListener('pointerup', onResizeEnd)
-}
-
-function onResizeMove(event: PointerEvent) {
-  if (!resizeState) return
-  const node = nodes.value.find((n) => n._key === resizeState!.key)
-  if (!node) return
-  const dx = event.clientX - resizeState.startX
-  const dy = event.clientY - resizeState.startY
-  node.width = clamp(snap(resizeState.w + dx), MIN_SIZE, CANVAS_WIDTH - node.x)
-  node.height = clamp(snap(resizeState.h + dy), MIN_SIZE, CANVAS_HEIGHT - node.y)
-}
-
-function onResizeEnd() {
-  resizeState = null
-  window.removeEventListener('pointermove', onResizeMove)
-  window.removeEventListener('pointerup', onResizeEnd)
-  commit()
-}
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', onDragMove)
-  window.removeEventListener('pointerup', onDragEnd)
-  window.removeEventListener('pointermove', onResizeMove)
-  window.removeEventListener('pointerup', onResizeEnd)
+// --- Side-panel field helpers ---
+const levelsText = computed({
+  get: () => selectedRack.value?.levels.join(',') || '',
+  set: (value: string) => {
+    if (!selectedRack.value) return
+    const parsed = Array.from(
+      new Set(
+        value
+          .split(',')
+          .map((s) => s.trim().toUpperCase())
+          .filter((s) => s.length > 0)
+      )
+    )
+    selectedRack.value.levels = parsed
+  },
 })
 
-defineExpose({ addShelf, clearAll })
+function onFieldChange() {
+  commit()
+}
+
+watch(selectedKey, async () => {
+  await nextTick()
+  const transformer = transformerRef.value?.getNode()
+  if (!transformer) return
+  if (selectedKey.value) {
+    const stage = transformer.getStage()
+    const node = stage.findOne('#' + selectedKey.value)
+    if (node) {
+      transformer.nodes([node])
+      transformer.getLayer().batchDraw()
+      return
+    }
+  }
+  transformer.nodes([])
+  transformer.getLayer().batchDraw()
+})
+
+defineExpose({ addRack, clearAll })
 </script>
 
 <template>
   <div class="editor">
     <div class="editor__toolbar">
-      <button class="btn btn--confirm" type="button" @click="addShelf">+ Add rack</button>
+      <button class="btn btn--confirm" type="button" @click="addRack">+ Aggiungi scaffale</button>
       <label class="snap-toggle">
         <input v-model="snapToGrid" type="checkbox" />
         Snap to grid
       </label>
-      <button class="btn btn--ghost" type="button" :disabled="!nodes.length" @click="clearAll">
+      <button class="btn btn--ghost" type="button" :disabled="!racks.length" @click="clearAll">
         Clear canvas
       </button>
-      <span class="editor__count">{{ nodes.length }} rack(s)</span>
+      <span class="editor__count">{{ racks.length }} scaffale/i</span>
     </div>
 
-    <div class="canvas-scroll scrollbar-slim">
+    <div class="palette">
+      <span class="palette__hint">Trascina uno scaffale sulla mappa per posizionarlo:</span>
       <div
-        class="canvas"
-        :class="{ 'canvas--snap': snapToGrid }"
-        :style="{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }"
-        @pointerdown="selectedKey = null"
+        v-for="preset in RACK_PRESETS"
+        :key="preset.key"
+        class="palette__item"
+        draggable="true"
+        @dragstart="onPaletteDragStart($event, preset)"
       >
-        <!-- Read-only zone backdrop, for visual reference only -->
-        <div
-          v-for="zone in zones"
-          :key="`zone-bg-${zone.id}`"
-          class="zone-backdrop"
-          :style="{
-            left: `${zone.x}px`,
-            top: `${zone.y}px`,
-            width: `${zone.width}px`,
-            height: `${zone.height}px`,
-            background: `${zone.color}14`,
-            borderColor: `${zone.color}55`,
-          }"
-        >
-          <span class="zone-backdrop__label" :style="{ color: zone.color }">{{ zone.name }}</span>
-        </div>
-
-        <div
-          v-for="node in nodes"
-          :key="node._key"
-          class="shelf-box"
-          :class="{ 'shelf-box--selected': selectedKey === node._key, 'shelf-box--invalid': !node.rack_code }"
-          :style="{ left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px`, height: `${node.height}px` }"
-          @pointerdown.stop="startDrag($event, node)"
-        >
-          <button class="shelf-box__delete" type="button" title="Remove rack" @pointerdown.stop @click="removeShelf(node._key)">
-            ×
-          </button>
-          <input
-            :id="`shelf-name-${node._key}`"
-            v-model="node.rack_code"
-            class="shelf-box__field shelf-box__input"
-            type="text"
-            placeholder="e.g. 12"
-            maxlength="8"
-            @pointerdown.stop
-            @change="commit"
-          />
-          <input
-            :value="levelsText(node)"
-            class="shelf-box__field shelf-box__levels"
-            type="text"
-            title="Levels / mensole, comma separated"
-            placeholder="A,B,C"
-            @pointerdown.stop
-            @change="onLevelsChange(node, ($event.target as HTMLInputElement).value)"
-          />
-          <select
-            v-model.number="node.zone_id"
-            class="shelf-box__field shelf-box__zone"
-            @pointerdown.stop
-            @change="commit"
-          >
-            <option :value="null">No zone</option>
-            <option v-for="zone in zones" :key="zone.id" :value="zone.id">{{ zone.name }}</option>
-          </select>
-          <div class="shelf-box__handle" @pointerdown.stop="startResize($event, node)"></div>
-        </div>
+        <span class="palette__swatch" :style="{ width: preset.width / 5 + 'px', height: preset.height / 5 + 'px' }"></span>
+        {{ preset.label }}
       </div>
     </div>
 
-    <p class="editor__hint">
-      Drag a rack to move it, drag its bottom-right corner to resize. Give it a numeric code (must match the
-      shelf codes used on items, e.g. "12"), the levels/mensole it has (e.g. "A,B,C,D"), and optionally a
-      zone. Click "Save layout" above when done.
-    </p>
+    <div class="editor__body">
+      <div class="canvas-scroll scrollbar-slim" @dragover="onCanvasDragOver" @drop="onCanvasDrop">
+        <ClientOnly fallback="Caricamento mappa in corso...">
+          <v-stage
+            ref="stageRef"
+            :config="{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }"
+            class="stage"
+            @mousedown="handleStageMouseDown"
+            @touchstart="handleStageMouseDown"
+          >
+            <v-layer>
+              <!-- Zone rectangles drawn first, purely as background context -->
+              <v-group v-for="zone in zones" :key="`zone-${zone.id}`" :config="{ listening: false }">
+                <v-rect
+                  :config="{
+                    x: zone.x,
+                    y: zone.y,
+                    width: zone.width,
+                    height: zone.height,
+                    fill: zone.color + '18',
+                    stroke: zone.color + '55',
+                    strokeWidth: 1.5,
+                    dash: [6, 4],
+                    cornerRadius: 6,
+                  }"
+                />
+                <v-text
+                  :config="{
+                    x: zone.x + 8,
+                    y: zone.y + 6,
+                    text: zone.name,
+                    fontSize: 12,
+                    fontStyle: 'bold',
+                    fill: zone.color,
+                  }"
+                />
+              </v-group>
+
+              <!-- Racks -->
+              <v-group
+                v-for="rack in racks"
+                :key="rack._key"
+                :config="{
+                  id: rack._key,
+                  x: rack.x,
+                  y: rack.y,
+                  width: rack.width,
+                  height: rack.height,
+                  rotation: rack.rotation,
+                  draggable: true,
+                }"
+                @dragend="handleTransformEnd($event, rack)"
+                @transformend="handleTransformEnd($event, rack)"
+                @click="selectRack(rack._key)"
+                @tap="selectRack(rack._key)"
+              >
+                <v-rect
+                  :config="{
+                    width: rack.width,
+                    height: rack.height,
+                    fill: selectedKey === rack._key ? 'rgba(59,130,246,0.65)' : 'rgba(75,85,99,0.75)',
+                    stroke: zoneColor(rack.zone_id) || (selectedKey === rack._key ? '#60a5fa' : '#9ca3af'),
+                    strokeWidth: selectedKey === rack._key ? 3 : 2,
+                    cornerRadius: 4,
+                  }"
+                />
+                <v-text
+                  :config="{
+                    text: (rack.label || rack.rack_code) + '\n' + rack.levels.join(','),
+                    fontSize: 12,
+                    fontFamily: 'Segoe UI, Arial',
+                    fill: '#ffffff',
+                    width: rack.width,
+                    height: rack.height,
+                    align: 'center',
+                    verticalAlign: 'middle',
+                    listening: false,
+                  }"
+                />
+              </v-group>
+
+              <v-transformer
+                ref="transformerRef"
+                :config="{
+                  enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+                  rotateEnabled: true,
+                  keepRatio: false,
+                  anchorStroke: '#60a5fa',
+                  anchorFill: '#ffffff',
+                  borderStroke: '#3b82f6',
+                }"
+              />
+            </v-layer>
+          </v-stage>
+        </ClientOnly>
+      </div>
+
+      <aside class="panel">
+        <template v-if="selectedRack">
+          <h3 class="panel__title">Proprietà scaffale</h3>
+
+          <label class="field">
+            <span>Codice (numerico, es. 12)</span>
+            <input v-model="selectedRack.rack_code" type="text" @change="onFieldChange" />
+          </label>
+
+          <label class="field">
+            <span>Etichetta (opzionale)</span>
+            <input v-model="selectedRack.label" type="text" placeholder="es. Scaffale ricambi" @change="onFieldChange" />
+          </label>
+
+          <label class="field">
+            <span>Mensole (lettere separate da virgola)</span>
+            <input v-model="levelsText" type="text" placeholder="A,B,C" @change="onFieldChange" />
+          </label>
+
+          <label class="field">
+            <span>Zona</span>
+            <select v-model="selectedRack.zone_id" @change="onFieldChange">
+              <option :value="null">Nessuna zona</option>
+              <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name || '(senza nome)' }}</option>
+            </select>
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Larghezza (px)</span>
+              <input v-model.number="selectedRack.width" type="number" min="20" @change="onFieldChange" />
+            </label>
+            <label class="field">
+              <span>Altezza (px)</span>
+              <input v-model.number="selectedRack.height" type="number" min="20" @change="onFieldChange" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Rotazione (gradi °)</span>
+            <input v-model.number="selectedRack.rotation" type="number" @change="onFieldChange" />
+          </label>
+
+          <div class="rotate-quick">
+            <button class="btn btn--ghost btn--small" type="button" @click="rotateBy(-90)">-90°</button>
+            <button class="btn btn--ghost btn--small" type="button" @click="rotateBy(90)">+90°</button>
+            <button class="btn btn--ghost btn--small" type="button" @click="rotateBy(-selectedRack.rotation)">
+              Reset
+            </button>
+          </div>
+
+          <button class="btn btn--danger" type="button" @click="deleteSelected">Elimina scaffale</button>
+        </template>
+        <p v-else class="panel__hint">
+          Seleziona uno scaffale sulla mappa per modificarne le proprietà, oppure trascinalo e usa le maniglie
+          agli angoli per ridimensionarlo o ruotarlo — esattamente come è posizionato fisicamente nella stanza.
+        </p>
+      </aside>
+    </div>
   </div>
 </template>
 
@@ -302,6 +450,125 @@ defineExpose({ addShelf, clearAll })
   font-size: 0.8rem;
 }
 
+.palette {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.palette__hint {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-right: 4px;
+}
+
+.palette__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  user-select: none;
+}
+
+.palette__item:active {
+  cursor: grabbing;
+}
+
+.palette__swatch {
+  display: inline-block;
+  background: rgba(59, 130, 246, 0.45);
+  border: 1.5px solid rgba(59, 130, 246, 0.8);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.editor__body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.canvas-scroll {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: #0a0e14;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+  max-height: 65vh;
+  flex: 1;
+}
+
+.stage {
+  display: block;
+}
+
+.panel {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel__title {
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin: 0;
+}
+
+.panel__hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.field input,
+.field select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rotate-quick {
+  display: flex;
+  gap: 8px;
+}
+
 .btn {
   cursor: pointer;
   border: none;
@@ -322,136 +589,20 @@ defineExpose({ addShelf, clearAll })
   color: var(--text);
 }
 
+.btn--small {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  flex: 1;
+}
+
+.btn--danger {
+  background: var(--red-dim);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.canvas-scroll {
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #0a0e14;
-  max-height: 65vh;
-}
-
-.canvas {
-  position: relative;
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-.zone-backdrop {
-  position: absolute;
-  border: 2px dashed;
-  border-radius: 10px;
-  pointer-events: none;
-  padding: 6px 8px;
-}
-
-.zone-backdrop__label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  opacity: 0.85;
-}
-
-.shelf-box {
-  position: absolute;
-  background: rgba(59, 130, 246, 0.16);
-  border: 1px solid rgba(59, 130, 246, 0.55);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  padding: 4px;
-  z-index: 1;
-}
-
-.shelf-box:active {
-  cursor: grabbing;
-}
-
-.shelf-box--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  z-index: 2;
-}
-
-.shelf-box--invalid {
-  border-color: rgba(239, 68, 68, 0.6);
-  background: rgba(239, 68, 68, 0.12);
-}
-
-.shelf-box__field {
-  width: 90%;
-  text-align: center;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.72rem;
-  padding: 2px 4px;
-  pointer-events: auto;
-}
-
-.shelf-box__input {
-  font-weight: 700;
-  font-size: 0.75rem;
-}
-
-.shelf-box__levels {
-  font-size: 0.68rem;
-  letter-spacing: 0.03em;
-}
-
-.shelf-box__zone {
-  font-size: 0.65rem;
-  max-width: 90%;
-}
-
-.shelf-box__delete {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-dim);
-  cursor: pointer;
-  line-height: 1;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.shelf-box__delete:hover {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.6);
-}
-
-.shelf-box__handle {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 12px;
-  height: 12px;
-  cursor: se-resize;
-  border-right: 2px solid var(--text-dim);
-  border-bottom: 2px solid var(--text-dim);
-  opacity: 0.6;
-}
-
-.editor__hint {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 0.8rem;
 }
 </style>

@@ -72,6 +72,7 @@ def _shelf_to_node_out(shelf: Shelf) -> ShelfNodeOut:
         height=shelf.height,
         levels=_levels_from_str(shelf.levels),
         zone_id=shelf.zone_id,
+        rotation=shelf.rotation,
     )
 
 
@@ -116,6 +117,7 @@ def replace_shelf_layout(db: Session, nodes: list[ShelfNodeBase]) -> list[ShelfN
             height=node.height,
             levels=_levels_to_str(node.levels),
             zone_id=node.zone_id,
+            rotation=node.rotation,
         )
         db.add(shelf)
         created.append(shelf)
@@ -194,6 +196,7 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
                 height=shelf.height,
                 levels=rack_levels,
                 zone_id=shelf.zone_id,
+                rotation=shelf.rotation,
                 item_count=agg["item_count"],
                 total_quantity=agg["total_quantity"],
                 categories=agg["categories"],

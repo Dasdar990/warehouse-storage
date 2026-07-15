@@ -14,6 +14,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db import Base, engine
@@ -24,6 +25,25 @@ settings = get_settings()
 # Create tables on startup (simple approach suitable for SQLite; a real
 # multi-environment project would use Alembic migrations instead).
 Base.metadata.create_all(bind=engine)
+
+
+def _add_missing_columns() -> None:
+    """
+    `create_all` never alters an already-existing table, so a rack layout
+    saved before the `rotation` column existed would otherwise crash on
+    read. Add it in place for SQLite if it's missing; harmless no-op on a
+    freshly created database.
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return
+    with engine.connect() as conn:
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(shelves)"))}
+        if "rotation" not in columns:
+            conn.execute(text("ALTER TABLE shelves ADD COLUMN rotation FLOAT NOT NULL DEFAULT 0"))
+            conn.commit()
+
+
+_add_missing_columns()
 
 app = FastAPI(
     title="Warehouse Storage API",

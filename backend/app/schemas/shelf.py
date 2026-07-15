@@ -22,6 +22,17 @@ class ShelfNodeBase(BaseModel):
         description='Level letters for this rack\'s shelves, e.g. ["A", "B", "C"]',
     )
     zone_id: int | None = Field(default=None, description="Optional zone this rack belongs to")
+    rotation: float = Field(
+        default=0,
+        description="Rotation in degrees, matching the rack's physical orientation in the room",
+    )
+
+    @field_validator("rotation")
+    @classmethod
+    def normalize_rotation(cls, value: float) -> float:
+        # Keep angles in a small, predictable range instead of accumulating
+        # arbitrarily large values after repeated edits/transforms.
+        return round(value % 360, 2)
 
     @field_validator("rack_code")
     @classmethod

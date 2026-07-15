@@ -34,3 +34,6 @@ class Shelf(Base):
     # Comma-separated level letters for this rack's shelves, e.g. "A,B,C,D".
     levels = Column(String, nullable=False, default="A")
     zone_id = Column(Integer, ForeignKey("zones.id", ondelete="SET NULL"), nullable=True)
+    # Rotation in degrees, matching how the rack is physically oriented in
+    # the room (set via the Konva transformer on the map editor canvas).
+    rotation = Column(Float, nullable=False, default=0)

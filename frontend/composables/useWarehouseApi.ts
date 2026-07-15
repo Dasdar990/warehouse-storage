@@ -42,6 +42,8 @@ export interface ShelfNode {
   height: number
   levels: string[]
   zone_id: number | null
+  /** Degrees, matching how the rack is physically oriented in the room. */
+  rotation: number
 }
 
 export interface ShelfNodeOut extends ShelfNode {

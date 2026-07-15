@@ -124,6 +124,7 @@ async function generateFromStock() {
         height: 140,
         levels: Array.from(levelSet).sort(),
         zone_id: null,
+        rotation: 0,
       })
       existing.add(rackCode)
       index += 1
