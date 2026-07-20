@@ -1,9 +1,10 @@
 """
 Printable Code128 barcode label generation.
 
-Produces a 400x200px PNG suitable for common industrial/thermal label
-printers, containing the item name, part number, shelf position, and a
-scannable Code128 barcode rendered from the item's barcode value.
+Produces a 712x224px PNG -- a 28x89mm thermal label at the standard
+~203 DPI (8 dots/mm) industrial label-printer resolution -- containing the
+item name, part number, shelf position, and a scannable Code128 barcode
+rendered from the item's barcode value.
 """
 import io
 import os
@@ -17,8 +18,9 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-LABEL_WIDTH = 400
-LABEL_HEIGHT = 200
+# 28mm x 89mm at 8 dots/mm (203 DPI thermal printer standard).
+LABEL_WIDTH = 712
+LABEL_HEIGHT = 224
 
 
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
@@ -58,28 +60,37 @@ def generate_label_image(
     item_id: int, name: str, pn: str, shelf_position: str, barcode_value: str
 ) -> Path:
     """
-    Build the full 400x200 label (text + barcode) and persist it to
-    LABELS_DIR/{item_id}.png. Returns the path to the saved file.
+    Build the full 712x224px (28x89mm) label -- a text header block on top
+    (name / P/N / shelf, with shelf position emphasized so it's readable at
+    a glance when placing/picking stock) and the scannable Code128 barcode
+    filling the bottom band -- and persist it to LABELS_DIR/{item_id}.png.
+    Returns the path to the saved file.
     """
     canvas = Image.new("RGB", (LABEL_WIDTH, LABEL_HEIGHT), "white")
     draw = ImageDraw.Draw(canvas)
 
-    title_font = _load_font(20)
-    label_font = _load_font(14)
+    padding = 18
+    name_font = _load_font(30)
+    shelf_font = _load_font(40)
+    pn_font = _load_font(22)
 
-    padding = 10
+    # --- Header row: item name (left) + shelf position (right, large) ---
     y = padding
+    draw.text((padding, y), name[:40], fill="black", font=name_font)
 
-    draw.text((padding, y), name[:32], fill="black", font=title_font)
-    y += 26
+    shelf_text = shelf_position
+    shelf_bbox = draw.textbbox((0, 0), shelf_text, font=shelf_font)
+    shelf_w = shelf_bbox[2] - shelf_bbox[0]
+    draw.text((LABEL_WIDTH - padding - shelf_w, y - 4), shelf_text, fill="black", font=shelf_font)
 
-    draw.text((padding, y), f"P/N: {pn}", fill="black", font=label_font)
-    y += 20
+    y += 40
+    draw.text((padding, y), f"P/N: {pn}", fill="black", font=pn_font)
+    y += 34
 
-    draw.text((padding, y), f"Shelf: {shelf_position}", fill="black", font=label_font)
-    y += 24
+    draw.line([(padding, y), (LABEL_WIDTH - padding, y)], fill="black", width=2)
+    y += 14
 
-    # Render and paste the barcode image, scaled to fit the remaining space.
+    # --- Bottom band: barcode, scaled to fill the remaining width/height ---
     barcode_img = _generate_barcode_image(barcode_value)
     available_height = LABEL_HEIGHT - y - padding
     scale = min(
@@ -91,7 +102,8 @@ def generate_label_image(
         max(1, int(barcode_img.height * scale)),
     )
     barcode_img = barcode_img.resize(new_size)
-    canvas.paste(barcode_img, (padding, y))
+    barcode_x = (LABEL_WIDTH - new_size[0]) // 2
+    canvas.paste(barcode_img, (barcode_x, y))
 
     output_path = settings.labels_dir / f"{item_id}.png"
     canvas.save(output_path, format="PNG")

@@ -107,7 +107,12 @@ async function confirmWithdrawal() {
   }
 
   try {
-    const res = await withdrawItem(activeItem.value.barcode, withdrawQty.value)
+    const res = await withdrawItem({
+      barcode: activeItem.value.barcode,
+      quantity: withdrawQty.value,
+      source: 'barcode',
+      operator: 'Operatore',
+    })
     show('success', res.message)
   } catch (err: any) {
     show('error', err?.data?.detail || 'Withdrawal failed')

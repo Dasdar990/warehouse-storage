@@ -143,10 +143,35 @@ export interface ItemFilters {
   low_stock?: boolean
 }
 
-export interface WithdrawResult {
+export type MovementAction = 'withdraw' | 'deposit'
+export type MovementSource = 'barcode' | 'manual'
+
+export interface StockMoveResult {
   item: Item
-  withdrawn: number
+  moved: number
+  action: MovementAction
   message: string
+}
+
+export interface StockMoveInput {
+  barcode: string
+  quantity: number
+  source: MovementSource
+  operator: string
+}
+
+export interface Movement {
+  id: number
+  timestamp: string
+  item_id: number | null
+  item_name: string
+  pn: string
+  shelf_position: string
+  action: MovementAction
+  quantity: number
+  balance_after: number
+  source: MovementSource
+  operator: string
 }
 
 /**
@@ -201,11 +226,22 @@ export function useWarehouseApi() {
     return $fetch<ShelfPositionOption[]>(`${apiBase}/shelves/positions`)
   }
 
-  function withdrawItem(barcode: string, quantity: number) {
-    return $fetch<WithdrawResult>(`${apiBase}/items/withdraw`, {
+  function withdrawItem(payload: StockMoveInput) {
+    return $fetch<StockMoveResult>(`${apiBase}/items/withdraw`, {
       method: 'POST',
-      body: { barcode, quantity },
+      body: payload,
     })
+  }
+
+  function depositItem(payload: StockMoveInput) {
+    return $fetch<StockMoveResult>(`${apiBase}/items/deposit`, {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
+  function listMovements(limit = 50) {
+    return $fetch<Movement[]>(`${apiBase}/movements`, { params: { limit } })
   }
 
   function labelUrl(id: number) {
@@ -269,6 +305,8 @@ export function useWarehouseApi() {
     deleteCategory,
     getShelfPositions,
     withdrawItem,
+    depositItem,
+    listMovements,
     labelUrl,
     getWarehouseLayout,
     getRackLevels,

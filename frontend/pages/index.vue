@@ -1,59 +1,95 @@
 <template>
   <div class="flex flex-col gap-5">
     <section>
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="mb-1.5 text-[1.15rem]">Warehouse Map</h2>
-          <p v-if="layout?.has_custom_layout" class="m-0 text-sm text-muted">
-            Click a rack to see its levels, then a level to see what's stored
-            there.
-          </p>
-          <p v-else class="m-0 text-sm text-muted">
-            Click a shelf to see what's stored there. Columns are shelf numbers,
-            rows are levels.
+          <h2 class="mb-1.5 text-[1.15rem]">Warehouse Storage</h2>
+          <p class="m-0 text-sm text-muted">
+            Scansiona un barcode per prelevare/depositare all'istante, oppure cerca un articolo per localizzarlo sulla mappa.
           </p>
         </div>
-        <NuxtLink
-          to="/map-config"
-          class="whitespace-nowrap rounded-lg border border-edge bg-transparent px-4 py-2.5 text-[0.85rem] font-semibold text-ink no-underline"
-        >Configure map</NuxtLink>
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 text-[0.8rem] text-muted">
+            Operatore:
+            <input
+              :value="operator"
+              type="text"
+              class="field-input w-[150px] py-1.5 text-[0.85rem]"
+              @change="setOperator(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <NuxtLink
+            to="/map-config"
+            class="whitespace-nowrap rounded-lg border border-edge bg-transparent px-4 py-2.5 text-[0.85rem] font-semibold text-ink no-underline"
+          >Configura mappa</NuxtLink>
+        </div>
       </div>
     </section>
 
-    <section class="card">
-      <p v-if="loadingLayout" class="text-muted">Loading warehouse layout…</p>
-      <MapFreeformMap
-        v-else-if="layout?.has_custom_layout"
-        :layout="layout"
-        :selected-rack="selectedRack"
-        @select="selectRack"
-      />
-      <MapWarehouseMap
-        v-else-if="layout"
-        :layout="layout"
-        :selected-shelf="selectedLevel"
-        @select="selectFlatShelf"
-      />
-    </section>
-
-    <MapRackLevelsPanel
-      v-if="layout?.has_custom_layout && selectedRack && rackLevels"
-      :rack="rackLevels"
-      :selected-level="selectedLevel"
-      :loading="loadingRack"
-      @select-level="selectLevel"
-      @close="closeAll"
+    <UnifiedSearchBar
+      ref="searchBarRef"
+      @scan-item="handleScanItem"
+      @scan-not-found="handleScanNotFound"
+      @locate-item="handleLocateItem"
     />
 
-    <MapShelfDetailPanel
-      v-if="selectedLevel"
-      :shelf-position="selectedLevel"
-      :items="levelItems"
-      :loading="loadingLevelItems"
-      :show-back="!!(layout?.has_custom_layout && selectedRack)"
-      @close="closeAll"
-      @back="backToRack"
-    />
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <!-- Interactive map -->
+      <section class="card">
+        <p v-if="loadingLayout" class="text-muted">Caricamento mappa magazzino…</p>
+        <MapFreeformMap
+          v-else-if="layout?.has_custom_layout"
+          :layout="layout"
+          :selected-rack="highlightRackCode"
+          @select="selectRack"
+        />
+        <MapWarehouseMap
+          v-else-if="layout"
+          :layout="layout"
+          :selected-shelf="highlightShelfPosition"
+          @select="selectFlatShelf"
+        />
+      </section>
+
+      <!-- Right column: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
+      <div class="flex flex-col gap-5">
+        <ItemDetailCard
+          v-if="selectedItem"
+          :key="selectedItem.id"
+          :item="selectedItem"
+          :low-stock-threshold="layout?.low_stock_threshold"
+          :zone-label="selectedItemZoneLabel"
+          :default-source="lastSelectionSource"
+          @close="clearSelection"
+          @updated="handleItemUpdated"
+        />
+
+        <MapRackLevelsPanel
+          v-else-if="layout?.has_custom_layout && selectedRack && rackLevels"
+          :rack="rackLevels"
+          :selected-level="selectedLevel"
+          :loading="loadingRack"
+          @select-level="selectLevel"
+          @close="closeDrilldown"
+        />
+
+        <MapShelfDetailPanel
+          v-if="!selectedItem && selectedLevel"
+          :shelf-position="selectedLevel"
+          :items="levelItems"
+          :loading="loadingLevelItems"
+          :show-back="!!(layout?.has_custom_layout && selectedRack)"
+          @close="closeDrilldown"
+          @back="backToRack"
+        />
+
+        <p v-if="!selectedItem && !selectedLevel && !(layout?.has_custom_layout && selectedRack)" class="card text-sm text-muted">
+          Scansiona un codice, cerca un articolo, oppure clicca uno scaffale sulla mappa per iniziare.
+        </p>
+      </div>
+    </div>
+
+    <ActivityLog ref="activityLogRef" />
   </div>
 </template>
 
@@ -64,13 +100,30 @@ import type {
   WarehouseLayout,
 } from "~/composables/useWarehouseApi";
 
-const { getWarehouseLayout, getRackLevels, getShelfItems } = useWarehouseApi();
+const { getWarehouseLayout, getRackLevels, getShelfItems, getZones, withdrawItem, depositItem } = useWarehouseApi();
+const { operator, setOperator } = useOperator();
+const { mode } = useOperationMode();
+const { show } = useToast();
+
+const searchBarRef = ref<{ focus: () => void } | null>(null);
+const activityLogRef = ref<{ refresh: () => void } | null>(null);
 
 const layout = ref<WarehouseLayout | null>(null);
 const loadingLayout = ref(false);
 
-// Drill-down state: rack selected first, then a level
-// within it, then that level's items.
+// --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
+const selectedItem = ref<Item | null>(null);
+const lastSelectionSource = ref<'barcode' | 'manual'>('manual');
+const zoneNameById = ref<Map<number, string>>(new Map());
+
+const selectedItemZoneLabel = computed(() => {
+  if (!selectedItem.value || !layout.value?.has_custom_layout) return undefined;
+  const node = layout.value.nodes.find((n) => n.rack_code === parseRackCode(selectedItem.value!.shelf_position));
+  if (!node || node.zone_id == null) return undefined;
+  return zoneNameById.value.get(node.zone_id);
+});
+
+// --- Direct map-click drill-down (rack -> level -> items), unchanged from before ---
 const selectedRack = ref<string | null>(null);
 const rackLevels = ref<RackLevelsResponse | null>(null);
 const loadingRack = ref(false);
@@ -79,16 +132,75 @@ const selectedLevel = ref<string | null>(null);
 const levelItems = ref<Item[]>([]);
 const loadingLevelItems = ref(false);
 
+// Whichever flow set it, this is what the maps highlight/pan to.
+const highlightShelfPosition = computed(() => selectedItem.value?.shelf_position ?? selectedLevel.value);
+const highlightRackCode = computed(() =>
+  selectedItem.value ? parseRackCode(selectedItem.value.shelf_position) : selectedRack.value
+);
+
+function parseRackCode(shelfPosition: string): string | null {
+  const match = shelfPosition.match(/^(\d+)/);
+  return match ? match[1] : null;
+}
+
 async function loadLayout() {
   loadingLayout.value = true;
   try {
     layout.value = await getWarehouseLayout();
+    if (layout.value.has_custom_layout) {
+      const zones = await getZones();
+      zoneNameById.value = new Map(zones.map((z) => [z.id, z.name]));
+    }
   } finally {
     loadingLayout.value = false;
   }
 }
 
+// --- UnifiedSearchBar handlers ---
+
+async function handleScanItem(item: Item) {
+  lastSelectionSource.value = 'barcode';
+  closeDrilldown();
+
+  // Scan & Confirm: barcode reads execute the toggled action immediately with qty 1.
+  try {
+    const payload = { barcode: item.barcode, quantity: 1, source: 'barcode' as const, operator: operator.value };
+    const res = mode.value === 'deposit' ? await depositItem(payload) : await withdrawItem(payload);
+    selectedItem.value = res.item;
+    show('success', res.message);
+    activityLogRef.value?.refresh();
+  } catch (err: any) {
+    // Still show the item card even if the auto-action failed (e.g. insufficient stock),
+    // so the operator can see what's there and act manually.
+    selectedItem.value = item;
+    show('error', err?.data?.detail || "Operazione automatica non riuscita");
+  }
+}
+
+function handleScanNotFound(code: string) {
+  show('error', `Nessun articolo trovato per il codice "${code}"`);
+}
+
+function handleLocateItem(item: Item) {
+  lastSelectionSource.value = 'manual';
+  closeDrilldown();
+  selectedItem.value = item;
+}
+
+function handleItemUpdated(item: Item) {
+  selectedItem.value = item;
+  activityLogRef.value?.refresh();
+}
+
+function clearSelection() {
+  selectedItem.value = null;
+  searchBarRef.value?.focus();
+}
+
+// --- Direct map click flow (kept for browsing without search) ---
+
 async function selectRack(rackCode: string) {
+  selectedItem.value = null;
   selectedRack.value = rackCode;
   selectedLevel.value = null;
   levelItems.value = [];
@@ -101,6 +213,7 @@ async function selectRack(rackCode: string) {
 }
 
 async function selectLevel(shelfPosition: string) {
+  selectedItem.value = null;
   selectedLevel.value = shelfPosition;
   loadingLevelItems.value = true;
   try {
@@ -122,7 +235,7 @@ function backToRack() {
   levelItems.value = [];
 }
 
-function closeAll() {
+function closeDrilldown() {
   selectedRack.value = null;
   rackLevels.value = null;
   selectedLevel.value = null;

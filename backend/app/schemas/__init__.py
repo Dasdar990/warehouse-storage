@@ -5,9 +5,8 @@ from .item import (
     ItemCreate,
     ItemOut,
     SHELF_POSITION_PATTERN,
-    WithdrawRequest,
-    WithdrawResponse,
 )
+from .movement import MovementOut, StockMoveRequest, StockMoveResponse
 from .shelf import (
     LevelSummary,
     RackLevelsResponse,
@@ -31,8 +30,9 @@ __all__ = [
     "ItemCreate",
     "ItemOut",
     "SHELF_POSITION_PATTERN",
-    "WithdrawRequest",
-    "WithdrawResponse",
+    "MovementOut",
+    "StockMoveRequest",
+    "StockMoveResponse",
     "LevelSummary",
     "RackLevelsResponse",
     "ShelfItemsResponse",

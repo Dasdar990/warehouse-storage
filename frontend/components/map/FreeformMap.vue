@@ -1,10 +1,24 @@
 <template>
   <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <p class="m-0 text-[0.8rem] text-muted">Trascina per spostare la vista, rotellina per zoom. Clicca uno scaffale per i dettagli.</p>
+      <button
+        v-if="isZoomed"
+        type="button"
+        class="btn btn--ghost btn--small"
+        @click="resetView"
+      >↺ Reimposta vista</button>
+    </div>
+
     <div
-      class="scrollbar-slim min-h-0 max-h-[65vh] overflow-auto rounded-card border border-edge bg-input bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-[length:20px_20px]"
+      class="scrollbar-slim min-h-0 max-h-[65vh] overflow-hidden rounded-card border border-edge bg-input bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-[length:20px_20px]"
     >
       <ClientOnly fallback="Loading map…">
-        <v-stage :config="{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }" class="block">
+        <v-stage
+          :config="stageConfig"
+          class="block"
+          @wheel="onWheel"
+        >
           <v-layer>
             <!-- Room outline (walls + door): background context only, for orientation -->
             <v-group :config="{ listening: false }">
@@ -113,6 +127,24 @@
               @click="emit('select', node.rack_code)"
               @tap="emit('select', node.rack_code)"
             >
+              <!-- Glow halo behind the selected rack -->
+              <v-rect
+                v-if="node.rack_code === selectedRack"
+                :config="{
+                  x: -6,
+                  y: -6,
+                  width: node.width + 12,
+                  height: node.height + 12,
+                  cornerRadius: 8,
+                  fill: 'transparent',
+                  stroke: '#22c55e',
+                  strokeWidth: 3,
+                  shadowColor: '#22c55e',
+                  shadowBlur: glowBlur,
+                  shadowOpacity: 0.9,
+                  listening: false,
+                }"
+              />
               <v-rect
                 :config="{
                   width: node.width,
@@ -162,6 +194,31 @@ const emit = defineEmits<{ select: [string] }>()
 
 const CANVAS_WIDTH = 1400
 const CANVAS_HEIGHT = 760
+const FOCUS_SCALE = 1.7
+const ANIM_MS = 450
+
+const stageX = ref(0)
+const stageY = ref(0)
+const stageScale = ref(1)
+const isZoomed = computed(() => stageScale.value > 1.02)
+
+// Pulsing glow radius for the selected rack's halo.
+const glowBlur = ref(14)
+let glowRaf: number | null = null
+function animateGlow(timestamp: number) {
+  glowBlur.value = 14 + Math.sin(timestamp / 250) * 8
+  glowRaf = requestAnimationFrame(animateGlow)
+}
+
+const stageConfig = computed(() => ({
+  width: CANVAS_WIDTH,
+  height: CANVAS_HEIGHT,
+  x: stageX.value,
+  y: stageY.value,
+  scaleX: stageScale.value,
+  scaleY: stageScale.value,
+  draggable: true,
+}))
 
 function rackFill(node: WarehouseLayout['nodes'][number]) {
   if (node.item_count === 0) return 'rgba(148, 163, 184, 0.12)'
@@ -175,4 +232,64 @@ function rackStroke(node: WarehouseLayout['nodes'][number]) {
   if (node.has_low_stock) return 'rgba(239, 68, 68, 0.7)'
   return 'rgba(59, 130, 246, 0.7)'
 }
+
+/** Smoothly tween the stage transform from its current values to a target. */
+let animFrame: number | null = null
+function animateTo(targetX: number, targetY: number, targetScale: number) {
+  if (animFrame) cancelAnimationFrame(animFrame)
+  const startX = stageX.value
+  const startY = stageY.value
+  const startScale = stageScale.value
+  const startTime = performance.now()
+
+  function step(now: number) {
+    const t = Math.min(1, (now - startTime) / ANIM_MS)
+    const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
+    stageX.value = startX + (targetX - startX) * eased
+    stageY.value = startY + (targetY - startY) * eased
+    stageScale.value = startScale + (targetScale - startScale) * eased
+    if (t < 1) {
+      animFrame = requestAnimationFrame(step)
+    } else {
+      animFrame = null
+    }
+  }
+  animFrame = requestAnimationFrame(step)
+}
+
+function focusOnRack(rackCode: string) {
+  const node = props.layout.nodes.find((n) => n.rack_code === rackCode)
+  if (!node) return
+  const cx = node.x + node.width / 2
+  const cy = node.y + node.height / 2
+  animateTo(CANVAS_WIDTH / 2 - cx * FOCUS_SCALE, CANVAS_HEIGHT / 2 - cy * FOCUS_SCALE, FOCUS_SCALE)
+}
+
+function resetView() {
+  animateTo(0, 0, 1)
+}
+
+function onWheel(e: any) {
+  e.evt.preventDefault()
+  const scaleBy = 1.08
+  const newScale = e.evt.deltaY < 0 ? stageScale.value * scaleBy : stageScale.value / scaleBy
+  stageScale.value = Math.min(3, Math.max(0.5, newScale))
+}
+
+watch(
+  () => props.selectedRack,
+  (val) => {
+    if (val) focusOnRack(val)
+  }
+)
+
+onMounted(() => {
+  glowRaf = requestAnimationFrame(animateGlow)
+  if (props.selectedRack) focusOnRack(props.selectedRack)
+})
+
+onUnmounted(() => {
+  if (animFrame) cancelAnimationFrame(animFrame)
+  if (glowRaf) cancelAnimationFrame(glowRaf)
+})
 </script>

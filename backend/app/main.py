@@ -13,6 +13,7 @@ Route modules live in app/routers/:
     zones.py       -> GET/PUT /zones (delimited map areas)
     room.py        -> GET/PUT /room-layout (walls + door, purely visual orientation aid)
     categories.py  -> GET/POST /categories, DELETE /categories/{id}
+    movements.py   -> GET /movements (live deposit/withdraw audit log)
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +21,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db import Base, engine
-from app.routers import categories, health, items, labels, room, shelves, zones
+from app.routers import categories, health, items, labels, movements, room, shelves, zones
 
 settings = get_settings()
 
@@ -88,3 +89,4 @@ app.include_router(shelves.router)
 app.include_router(zones.router)
 app.include_router(room.router)
 app.include_router(categories.router)
+app.include_router(movements.router)

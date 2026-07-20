@@ -1,5 +1,5 @@
 <template>
-  <div class="scrollbar-slim overflow-x-auto pb-1.5">
+  <div ref="scrollContainer" class="scrollbar-slim overflow-x-auto pb-1.5">
     <div
       class="grid w-max gap-1"
       :style="{ gridTemplateColumns: `56px repeat(${layout.shelf_numbers.length}, 52px)` }"
@@ -14,8 +14,10 @@
         <button
           v-for="n in layout.shelf_numbers"
           :key="`${n}${level}`"
+          :ref="(el) => setCellRef(`${n}${level}`, el)"
           class="relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-lg border text-ink transition duration-[80ms] ease-out hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
           :class="cellClass(n, level)"
+          :style="cellStyle(n, level)"
           :title="`Shelf ${n}${level}${shelfAt(n, level) ? ` — ${shelfAt(n, level)!.item_count} item(s)` : ' — empty'}`"
           @click="emit('select', `${n}${level}`)"
         >
@@ -34,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import type { WarehouseLayout } from '~/composables/useWarehouseApi'
 
 const props = defineProps<{
@@ -42,6 +45,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ select: [string] }>()
+
+const scrollContainer = ref<HTMLElement | null>(null)
+const cellRefs = new Map<string, HTMLElement>()
+
+function setCellRef(position: string, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLElement) cellRefs.set(position, el)
+}
 
 const shelfByPosition = computed(() => {
   const map = new Map<string, WarehouseLayout['shelves'][number]>()
@@ -57,13 +67,47 @@ function shelfAt(shelfNumber: number, level: string) {
 
 function cellClass(shelfNumber: number, level: string) {
   const shelf = shelfAt(shelfNumber, level)
-  const position = `${shelfNumber}${level}`
   const base = !shelf
     ? 'bg-surface border-edge'
     : shelf.has_low_stock
       ? 'bg-bad/[0.18] border-bad/55'
       : 'bg-accent/[0.18] border-accent/50'
-  const selected = props.selectedShelf === position ? 'outline outline-2 outline-offset-2 outline-accent' : ''
-  return [base, selected]
+  return base
 }
+
+// Pulsing glow animation loop, only runs while a shelf is actually selected.
+const glowBlur = ref(8)
+let glowRaf: number | null = null
+function tickGlow(timestamp: number) {
+  glowBlur.value = 8 + Math.sin(timestamp / 250) * 5
+  glowRaf = requestAnimationFrame(tickGlow)
+}
+
+function cellStyle(shelfNumber: number, level: string) {
+  const position = `${shelfNumber}${level}`
+  if (props.selectedShelf !== position) return {}
+  return {
+    outline: '2px solid #22c55e',
+    outlineOffset: '2px',
+    boxShadow: `0 0 ${glowBlur.value}px 2px rgba(34, 197, 94, 0.75)`,
+  }
+}
+
+watch(
+  () => props.selectedShelf,
+  (position) => {
+    if (!position) return
+    nextTick(() => {
+      cellRefs.get(position)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    })
+  }
+)
+
+onMounted(() => {
+  glowRaf = requestAnimationFrame(tickGlow)
+})
+
+onUnmounted(() => {
+  if (glowRaf) cancelAnimationFrame(glowRaf)
+})
 </script>

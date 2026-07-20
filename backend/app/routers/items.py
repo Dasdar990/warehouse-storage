@@ -8,14 +8,10 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db import get_db
 from app.models.item import Item, ItemSize
-from app.schemas.item import (
-    BarcodeSuggestion,
-    ItemCreate,
-    ItemOut,
-    WithdrawRequest,
-    WithdrawResponse,
-)
+from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut
+from app.schemas.movement import StockMoveRequest, StockMoveResponse
 from app.services.barcode_generator import generate_unique_barcode
+from app.services.movement_service import deposit_stock, withdraw_stock
 
 router = APIRouter(prefix="/items", tags=["items"])
 settings = get_settings()
@@ -100,35 +96,37 @@ def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
     return item
 
 
-@router.post("/withdraw", response_model=WithdrawResponse)
-def withdraw_item(payload: WithdrawRequest, db: Session = Depends(get_db)):
+@router.post("/withdraw", response_model=StockMoveResponse)
+def withdraw_item(payload: StockMoveRequest, db: Session = Depends(get_db)):
     """
-    Atomically withdraw stock for the item matching `barcode`.
+    Atomically withdraw stock for the item matching `barcode` (PRELEVA).
 
     Prevents the resulting quantity from going negative; returns 400 if the
-    requested quantity exceeds what's currently in stock.
+    requested quantity exceeds what's currently in stock. Every call writes
+    a matching audit-log row (see /movements) tagged with `source` so the
+    UI can show a "Barcode Verified" / "Manual Entry" badge.
     """
-    item = db.execute(select(Item).where(Item.barcode == payload.barcode)).scalar_one_or_none()
-    if item is None:
-        raise HTTPException(status_code=404, detail=f"No item found for barcode '{payload.barcode}'")
-
-    if payload.quantity > item.quantity:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Insufficient stock: requested {payload.quantity}, "
-                f"only {item.quantity} available"
-            ),
-        )
-
-    # Single UPDATE executed within the current transaction, then committed
-    # atomically -- avoids read-then-write races within this request.
-    item.quantity = item.quantity - payload.quantity
-    db.commit()
-    db.refresh(item)
-
-    return WithdrawResponse(
+    item, movement = withdraw_stock(db, payload)
+    return StockMoveResponse(
         item=item,
-        withdrawn=payload.quantity,
-        message=f"Withdrew {payload.quantity} unit(s) of '{item.name}'. {item.quantity} remaining.",
+        moved=payload.quantity,
+        action=movement.action,
+        message=f"Prelevate {payload.quantity} unità di '{item.name}'. {item.quantity} rimanenti.",
+    )
+
+
+@router.post("/deposit", response_model=StockMoveResponse)
+def deposit_item(payload: StockMoveRequest, db: Session = Depends(get_db)):
+    """
+    Atomically deposit (restock) the item matching `barcode` (DEPOSITA).
+
+    Mirrors `withdraw_item` but increases quantity; also writes a
+    matching audit-log row.
+    """
+    item, movement = deposit_stock(db, payload)
+    return StockMoveResponse(
+        item=item,
+        moved=payload.quantity,
+        action=movement.action,
+        message=f"Depositate {payload.quantity} unità di '{item.name}'. {item.quantity} totali.",
     )

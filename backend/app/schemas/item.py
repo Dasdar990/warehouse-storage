@@ -46,17 +46,6 @@ class ItemOut(ItemBase):
         from_attributes = True
 
 
-class WithdrawRequest(BaseModel):
-    barcode: str = Field(..., min_length=1)
-    quantity: int = Field(..., gt=0, description="Quantity to withdraw, must be positive")
-
-
-class WithdrawResponse(BaseModel):
-    item: ItemOut
-    withdrawn: int
-    message: str
-
-
 class BarcodeSuggestion(BaseModel):
     """A freshly generated, currently-unused barcode value the form can prefill."""
 
