@@ -1,3 +1,38 @@
+<template>
+  <div class="scrollbar-slim overflow-x-auto pb-1.5">
+    <div
+      class="grid w-max gap-1"
+      :style="{ gridTemplateColumns: `56px repeat(${layout.shelf_numbers.length}, 52px)` }"
+    >
+      <!-- Column header row -->
+      <div class="h-8 w-14"></div>
+      <div v-for="n in layout.shelf_numbers" :key="`col-${n}`" class="flex h-8 items-center justify-center text-[0.75rem] font-bold text-muted">{{ n }}</div>
+
+      <!-- One row per level -->
+      <template v-for="level in layout.levels" :key="`row-${level}`">
+        <div class="flex h-8 w-14 items-center justify-center text-[0.75rem] font-bold text-muted">{{ level }}</div>
+        <button
+          v-for="n in layout.shelf_numbers"
+          :key="`${n}${level}`"
+          class="relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-lg border text-ink transition duration-[80ms] ease-out hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+          :class="cellClass(n, level)"
+          :title="`Shelf ${n}${level}${shelfAt(n, level) ? ` — ${shelfAt(n, level)!.item_count} item(s)` : ' — empty'}`"
+          @click="emit('select', `${n}${level}`)"
+        >
+          <span class="text-[0.7rem] font-bold">{{ n }}{{ level }}</span>
+          <span v-if="shelfAt(n, level)" class="text-[0.65rem] text-muted">{{ shelfAt(n, level)!.item_count }}</span>
+        </button>
+      </template>
+    </div>
+
+    <div class="mt-3.5 flex flex-wrap gap-[18px]">
+      <span class="flex items-center gap-1.5 text-[0.8rem] text-muted"><i class="inline-block h-2.5 w-2.5 rounded-[3px] border border-edge bg-surface"></i> Empty</span>
+      <span class="flex items-center gap-1.5 text-[0.8rem] text-muted"><i class="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent/60"></i> Stocked</span>
+      <span class="flex items-center gap-1.5 text-[0.8rem] text-muted"><i class="inline-block h-2.5 w-2.5 rounded-[3px] bg-bad/60"></i> Low stock (≤ {{ layout.low_stock_threshold }})</span>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
 import type { WarehouseLayout } from '~/composables/useWarehouseApi'
 
@@ -23,163 +58,12 @@ function shelfAt(shelfNumber: number, level: string) {
 function cellClass(shelfNumber: number, level: string) {
   const shelf = shelfAt(shelfNumber, level)
   const position = `${shelfNumber}${level}`
-  return {
-    'cell--empty': !shelf,
-    'cell--stocked': !!shelf && !shelf.has_low_stock,
-    'cell--low': !!shelf && shelf.has_low_stock,
-    'cell--selected': props.selectedShelf === position,
-  }
+  const base = !shelf
+    ? 'bg-surface border-edge'
+    : shelf.has_low_stock
+      ? 'bg-bad/[0.18] border-bad/55'
+      : 'bg-accent/[0.18] border-accent/50'
+  const selected = props.selectedShelf === position ? 'outline outline-2 outline-offset-2 outline-accent' : ''
+  return [base, selected]
 }
 </script>
-
-<template>
-  <div class="map-wrap scrollbar-slim">
-    <div
-      class="map-grid"
-      :style="{ gridTemplateColumns: `56px repeat(${layout.shelf_numbers.length}, 52px)` }"
-    >
-      <!-- Column header row -->
-      <div class="corner"></div>
-      <div v-for="n in layout.shelf_numbers" :key="`col-${n}`" class="col-header">{{ n }}</div>
-
-      <!-- One row per level -->
-      <template v-for="level in layout.levels" :key="`row-${level}`">
-        <div class="row-header">{{ level }}</div>
-        <button
-          v-for="n in layout.shelf_numbers"
-          :key="`${n}${level}`"
-          class="cell"
-          :class="cellClass(n, level)"
-          :title="`Shelf ${n}${level}${shelfAt(n, level) ? ` — ${shelfAt(n, level)!.item_count} item(s)` : ' — empty'}`"
-          @click="emit('select', `${n}${level}`)"
-        >
-          <span class="cell__label">{{ n }}{{ level }}</span>
-          <span v-if="shelfAt(n, level)" class="cell__count">{{ shelfAt(n, level)!.item_count }}</span>
-        </button>
-      </template>
-    </div>
-
-    <div class="legend">
-      <span class="legend__item"><i class="dot dot--empty"></i> Empty</span>
-      <span class="legend__item"><i class="dot dot--stocked"></i> Stocked</span>
-      <span class="legend__item"><i class="dot dot--low"></i> Low stock (≤ {{ layout.low_stock_threshold }})</span>
-    </div>
-  </div>
-</template>
-
-<style scoped>
-.map-wrap {
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-
-.map-grid {
-  display: grid;
-  gap: 4px;
-  width: max-content;
-}
-
-.corner {
-  width: 56px;
-  height: 32px;
-}
-
-.col-header,
-.row-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  font-weight: 700;
-  height: 32px;
-}
-
-.row-header {
-  width: 56px;
-}
-
-.cell {
-  position: relative;
-  height: 52px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--text);
-  transition: transform 0.08s ease, box-shadow 0.15s ease;
-}
-
-.cell:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-}
-
-.cell--empty {
-  background: var(--bg-elevated);
-}
-
-.cell--stocked {
-  background: rgba(59, 130, 246, 0.18);
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-.cell--low {
-  background: rgba(239, 68, 68, 0.18);
-  border-color: rgba(239, 68, 68, 0.55);
-}
-
-.cell--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.cell__label {
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.cell__count {
-  font-size: 0.65rem;
-  color: var(--text-dim);
-}
-
-.legend {
-  display: flex;
-  gap: 18px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-
-.legend__item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.dot--empty {
-  background: var(--bg-elevated-2);
-  border: 1px solid var(--border);
-}
-
-.dot--stocked {
-  background: rgba(59, 130, 246, 0.6);
-}
-
-.dot--low {
-  background: rgba(239, 68, 68, 0.6);
-}
-</style>

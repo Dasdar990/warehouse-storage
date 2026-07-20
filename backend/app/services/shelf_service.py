@@ -4,12 +4,12 @@ aggregates item data per shelf so the frontend can color/label each cell
 without pulling the entire inventory on every page load.
 
 Also manages the user-drawn, freeform map layout: `Zone` areas and `Shelf`
-rows (each a rack/"scaffale" with one or more levels/"mensole") placed via
+rows (each a rack with one or more levels) placed via
 the drag-and-drop config page, merged with live stock aggregates.
 
 Hierarchy on the freeform map: Zone (visual grouping only) -> Shelf/rack
-(clickable, e.g. rack "12") -> mensola/level (clickable, e.g. "12B") ->
-items. Mensole are not a DB table: they're derived by combining a rack's
+(clickable, e.g. rack "12") -> level (clickable, e.g. "12B") ->
+items. Levels are not a DB table: they're derived by combining a rack's
 `rack_code` with each letter in its `levels` column, and matched against
 `Item.shelf_position` (free text, e.g. "12B").
 """
@@ -22,14 +22,16 @@ from app.core.config import get_settings
 from app.models.item import Item
 from app.models.shelf import Shelf
 from app.schemas.shelf import (
-    MensolaSummary,
+    LevelSummary,
     RackLevelsResponse,
     ShelfMapNode,
     ShelfNodeBase,
     ShelfNodeOut,
+    ShelfPositionOption,
     ShelfSummary,
     WarehouseLayout,
 )
+from app.services.room_service import get_room_layout
 from app.services.zone_service import list_zones
 
 settings = get_settings()
@@ -205,6 +207,7 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
         )
 
     zones = list_zones(db)
+    room_layout = get_room_layout(db)
 
     return WarehouseLayout(
         shelf_numbers=shelf_numbers,
@@ -214,17 +217,50 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
         has_custom_layout=len(nodes) > 0,
         nodes=nodes,
         zones=zones,
+        walls=room_layout.walls,
+        doors=room_layout.doors,
     )
 
 
+def build_shelf_position_options(db: Session) -> list[ShelfPositionOption]:
+    """
+    Every selectable shelf position for the item form's dropdown.
+
+    Uses the racks configured on the map (rack_code x levels) when a
+    layout has been saved, so the options always match what the map
+    editor knows about. Falls back to the plain auto-generated grid
+    (shelf number x level letter) when no custom layout exists yet, so
+    the dropdown is never empty on a fresh install.
+    """
+    shelf_nodes = list_shelf_nodes(db)
+    options: list[ShelfPositionOption] = []
+
+    if shelf_nodes:
+        for shelf in shelf_nodes:
+            rack_label = shelf.label or f"Rack {shelf.rack_code}"
+            for level in _levels_from_str(shelf.levels):
+                value = f"{shelf.rack_code}{level}"
+                options.append(
+                    ShelfPositionOption(value=value, label=f"{rack_label} — level {level} ({value})")
+                )
+    else:
+        for number in range(1, settings.warehouse_shelf_count + 1):
+            for level in settings.warehouse_levels:
+                value = f"{number}{level}"
+                options.append(ShelfPositionOption(value=value, label=value))
+
+    options.sort(key=lambda option: option.value)
+    return options
+
+
 def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
-    """Per-level ("mensola") stock breakdown for one rack, shown after a rack is clicked."""
+    """Per-level stock breakdown for one rack, shown after a rack is clicked."""
     shelf = get_shelf_node(db, rack_code)
     if shelf is None:
         return None
 
     rack_levels = _levels_from_str(shelf.levels)
-    result: list[MensolaSummary] = []
+    result: list[LevelSummary] = []
     for level in rack_levels:
         shelf_position = f"{shelf.rack_code}{level}"
         shelf_items = list(
@@ -232,7 +268,7 @@ def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
         )
         agg = _aggregate(shelf_items)
         result.append(
-            MensolaSummary(
+            LevelSummary(
                 shelf_position=shelf_position,
                 level=level,
                 item_count=agg["item_count"],

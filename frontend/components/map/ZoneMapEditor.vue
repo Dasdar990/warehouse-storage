@@ -1,5 +1,113 @@
+<template>
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-wrap items-center gap-3.5">
+      <button class="btn btn--confirm text-[#06280f] disabled:cursor-not-allowed disabled:opacity-50" type="button" @click="addZone">+ Add zone</button>
+      <label class="flex items-center gap-1.5 text-[0.85rem] text-muted">
+        <input v-model="snapToGrid" type="checkbox" />
+        Snap to grid
+      </label>
+      <button class="btn btn--ghost disabled:cursor-not-allowed disabled:opacity-50" type="button" :disabled="!zones.length" @click="clearAll">
+        Clear canvas
+      </button>
+      <span class="ml-auto text-[0.8rem] text-muted">{{ zones.length }} zone(s)</span>
+    </div>
+
+    <div class="scrollbar-slim min-h-0 max-h-[65vh] overflow-auto rounded-card border border-edge bg-input">
+      <div
+        class="relative bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-[length:20px_20px]"
+        :style="{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }"
+        @pointerdown="selectedKey = null"
+      >
+        <svg
+          class="pointer-events-none absolute inset-0"
+          :width="CANVAS_WIDTH"
+          :height="CANVAS_HEIGHT"
+        >
+          <line
+            v-for="(wall, idx) in walls"
+            :key="`bg-wall-${wall.id ?? idx}`"
+            :x1="wall.x1"
+            :y1="wall.y1"
+            :x2="wall.x2"
+            :y2="wall.y2"
+            stroke="#cbd5e1"
+            stroke-width="8"
+            stroke-linecap="round"
+          />
+          <path
+            v-for="(door, idx) in doors"
+            :key="`bg-door-${door.id ?? idx}`"
+            :d="doorArcPath(door)"
+            fill="none"
+            stroke="#facc15"
+            stroke-width="2"
+            stroke-dasharray="5 4"
+          />
+        </svg>
+        <div
+          v-for="zone in zones"
+          :key="zone._key"
+          class="absolute select-none rounded-[10px] border-2 border-dashed p-2 [touch-action:none]"
+          :class="[
+            selectedKey === zone._key ? 'z-[2] outline outline-2 outline-offset-2 outline-accent cursor-grabbing' : 'cursor-grab',
+            !zone.name ? 'border-bad/60!' : '',
+          ]"
+          :style="{
+            left: `${zone.x}px`,
+            top: `${zone.y}px`,
+            width: `${zone.width}px`,
+            height: `${zone.height}px`,
+            background: `${zone.color}22`,
+            borderColor: `${zone.color}88`,
+          }"
+          @pointerdown.stop="startDrag($event, zone)"
+        >
+          <button
+            class="zone-box__delete absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-edge bg-surface text-[0.9rem] leading-none text-muted hover:text-red-300 hover:border-bad/60"
+            type="button"
+            title="Remove zone"
+            @pointerdown.stop
+            @click="removeZone(zone._key)"
+          >
+            ×
+          </button>
+          <div class="flex items-center gap-1.5">
+            <input
+              :id="`zone-name-${zone._key}`"
+              v-model="zone.name"
+              class="zone-box__input min-w-0 flex-1 rounded-md border border-edge bg-black/35 px-1.5 py-1 text-[0.78rem] font-bold text-ink [pointer-events:auto]"
+              type="text"
+              placeholder="e.g. Spare parts zone"
+              maxlength="60"
+              @pointerdown.stop
+              @change="commit"
+            />
+            <input
+              v-model="zone.color"
+              class="zone-box__swatch h-6 w-6 shrink-0 cursor-pointer rounded-md border border-edge bg-transparent p-0 [pointer-events:auto]"
+              type="color"
+              title="Zone color"
+              @pointerdown.stop
+              @change="commit"
+            />
+          </div>
+          <div
+            class="zone-box__handle absolute bottom-0.5 right-0.5 h-3 w-3 cursor-se-resize border-b-2 border-r-2 border-muted opacity-60"
+            @pointerdown.stop="startResize($event, zone)"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="m-0 text-[0.8rem] text-muted">
+      Drag a zone to move it, drag its bottom-right corner to resize, and give it a name — this is purely
+      visual and helps you group racks (e.g. "Engine parts zone"). Click "Save layout" above when done.
+    </p>
+  </div>
+</template>
+
 <script setup lang="ts">
-import type { ZoneInput } from '~/composables/useWarehouseApi'
+import type { DoorInput, WallInput, ZoneInput } from '~/composables/useWarehouseApi'
 
 /**
  * Freeform drag-and-drop canvas for delimiting warehouse zones. Each zone
@@ -12,9 +120,14 @@ interface EditorZone extends ZoneInput {
   _key: string
 }
 
-const props = defineProps<{
-  modelValue: ZoneInput[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: ZoneInput[]
+    walls?: (WallInput & { id?: number })[]
+    doors?: (DoorInput & { id?: number })[]
+  }>(),
+  { walls: () => [], doors: () => [] },
+)
 
 const emit = defineEmits<{ 'update:modelValue': [ZoneInput[]] }>()
 
@@ -22,6 +135,18 @@ const CANVAS_WIDTH = 1400
 const CANVAS_HEIGHT = 760
 const MIN_SIZE = 60
 const GRID_STEP = 20
+
+// Background-only door swing symbol (hinge -> gap edge -> arc -> leaf edge -> hinge),
+// same shape drawn natively by the rack editor's Konva v-arc.
+function doorArcPath(door: DoorInput) {
+  const rad = (door.rotation * Math.PI) / 180
+  const rad90 = ((door.rotation + 90) * Math.PI) / 180
+  const gapX = door.x + door.width * Math.cos(rad)
+  const gapY = door.y + door.width * Math.sin(rad)
+  const leafX = door.x + door.width * Math.cos(rad90)
+  const leafY = door.y + door.width * Math.sin(rad90)
+  return `M ${door.x} ${door.y} L ${gapX} ${gapY} A ${door.width} ${door.width} 0 0 1 ${leafX} ${leafY} Z`
+}
 
 const PALETTE = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16']
 
@@ -158,238 +283,3 @@ onBeforeUnmount(() => {
 
 defineExpose({ addZone, clearAll })
 </script>
-
-<template>
-  <div class="editor">
-    <div class="editor__toolbar">
-      <button class="btn btn--confirm" type="button" @click="addZone">+ Add zone</button>
-      <label class="snap-toggle">
-        <input v-model="snapToGrid" type="checkbox" />
-        Snap to grid
-      </label>
-      <button class="btn btn--ghost" type="button" :disabled="!zones.length" @click="clearAll">
-        Clear canvas
-      </button>
-      <span class="editor__count">{{ zones.length }} zone(s)</span>
-    </div>
-
-    <div class="canvas-scroll scrollbar-slim">
-      <div
-        class="canvas"
-        :class="{ 'canvas--snap': snapToGrid }"
-        :style="{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }"
-        @pointerdown="selectedKey = null"
-      >
-        <div
-          v-for="zone in zones"
-          :key="zone._key"
-          class="zone-box"
-          :class="{ 'zone-box--selected': selectedKey === zone._key, 'zone-box--invalid': !zone.name }"
-          :style="{
-            left: `${zone.x}px`,
-            top: `${zone.y}px`,
-            width: `${zone.width}px`,
-            height: `${zone.height}px`,
-            background: `${zone.color}22`,
-            borderColor: `${zone.color}88`,
-          }"
-          @pointerdown.stop="startDrag($event, zone)"
-        >
-          <button class="zone-box__delete" type="button" title="Remove zone" @pointerdown.stop @click="removeZone(zone._key)">
-            ×
-          </button>
-          <div class="zone-box__header">
-            <input
-              :id="`zone-name-${zone._key}`"
-              v-model="zone.name"
-              class="zone-box__input"
-              type="text"
-              placeholder="e.g. Zona ricambi"
-              maxlength="60"
-              @pointerdown.stop
-              @change="commit"
-            />
-            <input
-              v-model="zone.color"
-              class="zone-box__swatch"
-              type="color"
-              title="Zone color"
-              @pointerdown.stop
-              @change="commit"
-            />
-          </div>
-          <div class="zone-box__handle" @pointerdown.stop="startResize($event, zone)"></div>
-        </div>
-      </div>
-    </div>
-
-    <p class="editor__hint">
-      Drag a zone to move it, drag its bottom-right corner to resize, and give it a name — this is purely
-      visual and helps you group racks (e.g. "Zona ricambi motore"). Click "Save layout" above when done.
-    </p>
-  </div>
-</template>
-
-<style scoped>
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.editor__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.snap-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
-.editor__count {
-  margin-left: auto;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.btn {
-  cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 16px;
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.btn--confirm {
-  background: var(--green);
-  color: #06280f;
-}
-
-.btn--ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.canvas-scroll {
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #0a0e14;
-  max-height: 65vh;
-}
-
-.canvas {
-  position: relative;
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-.zone-box {
-  position: absolute;
-  border: 2px dashed;
-  border-radius: 10px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  padding: 8px;
-}
-
-.zone-box:active {
-  cursor: grabbing;
-}
-
-.zone-box--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  z-index: 2;
-}
-
-.zone-box--invalid {
-  border-color: rgba(239, 68, 68, 0.6) !important;
-}
-
-.zone-box__header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.zone-box__input {
-  flex: 1;
-  min-width: 0;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-weight: 700;
-  font-size: 0.78rem;
-  padding: 4px 6px;
-  pointer-events: auto;
-}
-
-.zone-box__swatch {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  pointer-events: auto;
-  flex-shrink: 0;
-}
-
-.zone-box__delete {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-dim);
-  cursor: pointer;
-  line-height: 1;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.zone-box__delete:hover {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.6);
-}
-
-.zone-box__handle {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 12px;
-  height: 12px;
-  cursor: se-resize;
-  border-right: 2px solid var(--text-dim);
-  border-bottom: 2px solid var(--text-dim);
-  opacity: 0.6;
-}
-
-.editor__hint {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-</style>

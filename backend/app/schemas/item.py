@@ -55,3 +55,9 @@ class WithdrawResponse(BaseModel):
     item: ItemOut
     withdrawn: int
     message: str
+
+
+class BarcodeSuggestion(BaseModel):
+    """A freshly generated, currently-unused barcode value the form can prefill."""
+
+    barcode: str

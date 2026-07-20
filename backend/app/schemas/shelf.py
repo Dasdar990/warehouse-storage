@@ -1,7 +1,8 @@
-"""Pydantic schemas for the warehouse map / rack / mensola (shelf-level) endpoints."""
+"""Pydantic schemas for the warehouse map / rack / level (shelf-level) endpoints."""
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.item import ItemOut
+from app.schemas.room import DoorOut, WallOut
 from app.schemas.zone import ZoneOut
 
 _MIN_LEVELS = 1
@@ -9,7 +10,7 @@ _MAX_LEVELS = 12
 
 
 class ShelfNodeBase(BaseModel):
-    """A rack ("scaffale") box as placed on the map canvas by the drag-and-drop editor."""
+    """A rack box as placed on the map canvas by the drag-and-drop editor."""
 
     rack_code: str = Field(..., min_length=1, description='Numeric rack identifier, e.g. "12"')
     label: str | None = Field(default=None, description="Optional display label, defaults to rack_code")
@@ -65,7 +66,7 @@ class ShelfNodeBase(BaseModel):
             if level not in cleaned:
                 cleaned.append(level)
         if len(cleaned) < _MIN_LEVELS:
-            raise ValueError("a rack needs at least one level (mensola)")
+            raise ValueError("a rack needs at least one level")
         if len(cleaned) > _MAX_LEVELS:
             raise ValueError(f"a rack can have at most {_MAX_LEVELS} levels")
         return cleaned
@@ -112,6 +113,10 @@ class WarehouseLayout(BaseModel):
     (zones + racks from the config page) when one has been saved. The
     frontend renders the freeform canvas when `has_custom_layout` is true,
     and falls back to the auto-generated number x level grid otherwise.
+
+    `walls` / `doors` carry the room outline (also from the config page),
+    a purely visual orientation aid drawn as background context alongside
+    the zones and racks.
     """
 
     shelf_numbers: list[int]
@@ -121,6 +126,8 @@ class WarehouseLayout(BaseModel):
     has_custom_layout: bool = False
     nodes: list[ShelfMapNode] = Field(default_factory=list)
     zones: list[ZoneOut] = Field(default_factory=list)
+    walls: list[WallOut] = Field(default_factory=list)
+    doors: list[DoorOut] = Field(default_factory=list)
 
 
 class ShelfItemsResponse(BaseModel):
@@ -128,8 +135,8 @@ class ShelfItemsResponse(BaseModel):
     items: list[ItemOut]
 
 
-class MensolaSummary(BaseModel):
-    """One level ("mensola") within a rack, with its live stock aggregates."""
+class LevelSummary(BaseModel):
+    """One level within a rack, with its live stock aggregates."""
 
     shelf_position: str
     level: str
@@ -140,8 +147,15 @@ class MensolaSummary(BaseModel):
 
 
 class RackLevelsResponse(BaseModel):
-    """A rack's mensole (drill-down shown after clicking a rack on the map)."""
+    """A rack's levels (drill-down shown after clicking a rack on the map)."""
 
     rack_code: str
     label: str | None
-    levels: list[MensolaSummary]
+    levels: list[LevelSummary]
+
+
+class ShelfPositionOption(BaseModel):
+    """One selectable entry in the item form's shelf-position dropdown."""
+
+    value: str = Field(..., description='The shelf_position value to store, e.g. "12B"')
+    label: str = Field(..., description="Human-readable text shown in the dropdown")

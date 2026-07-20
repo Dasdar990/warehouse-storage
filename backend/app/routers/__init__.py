@@ -1,3 +1,3 @@
-from . import health, items, labels, shelves, zones
+from . import categories, health, items, labels, room, shelves, zones
 
-__all__ = ["health", "items", "labels", "shelves", "zones"]
+__all__ = ["categories", "health", "items", "labels", "room", "shelves", "zones"]

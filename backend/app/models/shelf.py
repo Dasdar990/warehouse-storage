@@ -1,8 +1,8 @@
 """SQLAlchemy ORM model for user-designed warehouse map layouts.
 
-A `Shelf` row represents one physical *scaffale* (rack) drawn on the map
+A `Shelf` row represents one physical rack drawn on the map
 canvas by the drag-and-drop editor: its position/size (x/y/width/height),
-which `Zone` it sits in (optional), and which levels ("mensole") it has.
+which `Zone` it sits in (optional), and which levels it has.
 
 Levels are stored as a comma-separated string of level letters (e.g.
 "A,B,C,D"). Each level combined with the rack's `rack_code` reproduces the
@@ -16,7 +16,7 @@ from app.db import Base
 
 
 class Shelf(Base):
-    """A single rack ("scaffale") positioned on the warehouse map canvas."""
+    """A single rack positioned on the warehouse map canvas."""
 
     __tablename__ = "shelves"
 

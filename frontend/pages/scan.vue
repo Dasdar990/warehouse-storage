@@ -1,3 +1,61 @@
+<template>
+  <div class="flex flex-col gap-5">
+    <section class="card">
+      <label class="mb-2.5 block text-[0.8rem] uppercase tracking-wider text-muted" for="scanner">Scan barcode</label>
+      <input
+        id="scanner"
+        ref="scannerInput"
+        v-model="barcodeValue"
+        class="w-full rounded-[10px] border-2 border-accent-dim bg-input px-[18px] py-4 text-[1.6rem] font-bold tracking-wide text-ink outline-none focus:border-accent focus:shadow-[0_0_0_4px_rgba(59,130,246,0.25)] max-[640px]:p-3.5 max-[640px]:text-xl"
+        type="text"
+        placeholder="Ready to scan…"
+        autocomplete="off"
+        autofocus
+        @keyup.enter="handleScan"
+      />
+    </section>
+
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      leave-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1.5"
+      leave-to-class="opacity-0 -translate-y-1.5"
+    >
+      <section v-if="activeItem" class="card">
+        <div class="flex items-center justify-between">
+          <h2>{{ activeItem.name }}</h2>
+          <button class="rounded-lg bg-transparent px-2.5 py-1 text-[1.1rem] text-muted" title="Cancel" @click="cancelActiveItem">✕</button>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2.5">
+          <span class="badge badge--pn">P/N {{ activeItem.pn }}</span>
+          <span class="badge badge--category">{{ activeItem.category }}</span>
+          <span class="badge badge--size" :class="`badge--size-${activeItem.size}`">{{ sizeLabel(activeItem.size) }}</span>
+          <span class="badge badge--shelf">Shelf {{ activeItem.shelf_position }}</span>
+        </div>
+
+        <div class="mt-4 text-[1.05rem] text-muted">
+          Current stock: <strong class="text-[1.3rem] text-ink">{{ activeItem.quantity }}</strong>
+        </div>
+
+        <div class="mt-[18px] flex flex-wrap items-center gap-3 max-[640px]:flex-col max-[640px]:items-stretch">
+          <label class="text-sm text-muted" for="qty">Withdraw quantity</label>
+          <input
+            id="qty"
+            v-model.number="withdrawQty"
+            type="number"
+            min="1"
+            :max="activeItem.quantity"
+            class="field-input w-[90px] text-center text-[1.1rem] max-[640px]:w-full"
+            @keyup.enter="confirmWithdrawal"
+          />
+          <button class="btn btn--confirm text-[#06280f]" @click="confirmWithdrawal">Confirm Withdrawal</button>
+        </div>
+      </section>
+    </transition>
+  </div>
+</template>
+
 <script setup lang="ts">
 import type { Item } from '~/composables/useWarehouseApi'
 
@@ -68,203 +126,3 @@ function cancelActiveItem() {
 
 onMounted(focusScanner)
 </script>
-
-<template>
-  <div class="scan-page">
-    <section class="scanner-panel">
-      <label class="scanner-label" for="scanner">Scan barcode</label>
-      <input
-        id="scanner"
-        ref="scannerInput"
-        v-model="barcodeValue"
-        class="scanner-input"
-        type="text"
-        placeholder="Ready to scan…"
-        autocomplete="off"
-        autofocus
-        @keyup.enter="handleScan"
-      />
-    </section>
-
-    <transition name="fade">
-      <section v-if="activeItem" class="active-card">
-        <div class="active-card__header">
-          <h2>{{ activeItem.name }}</h2>
-          <button class="btn btn--icon" title="Cancel" @click="cancelActiveItem">✕</button>
-        </div>
-
-        <div class="active-card__badges">
-          <span class="badge badge--pn">P/N {{ activeItem.pn }}</span>
-          <span class="badge badge--category">{{ activeItem.category }}</span>
-          <span class="badge badge--size" :class="`badge--size-${activeItem.size}`">{{ sizeLabel(activeItem.size) }}</span>
-          <span class="badge badge--shelf">Shelf {{ activeItem.shelf_position }}</span>
-        </div>
-
-        <div class="active-card__stock">
-          Current stock: <strong>{{ activeItem.quantity }}</strong>
-        </div>
-
-        <div class="active-card__withdraw">
-          <label for="qty">Withdraw quantity</label>
-          <input
-            id="qty"
-            v-model.number="withdrawQty"
-            type="number"
-            min="1"
-            :max="activeItem.quantity"
-            class="qty-input"
-            @keyup.enter="confirmWithdrawal"
-          />
-          <button class="btn btn--confirm" @click="confirmWithdrawal">Confirm Withdrawal</button>
-        </div>
-      </section>
-    </transition>
-  </div>
-</template>
-
-<style scoped>
-.scan-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.scanner-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: var(--shadow);
-}
-
-.scanner-label {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  margin-bottom: 10px;
-}
-
-.scanner-input {
-  width: 100%;
-  font-size: 1.6rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 16px 18px;
-  border-radius: 10px;
-  border: 2px solid var(--accent-dim);
-  background: #0a0e14;
-  color: var(--text);
-  outline: none;
-}
-
-.scanner-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
-}
-
-.active-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: var(--shadow);
-}
-
-.active-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.active-card__badges {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}
-
-.active-card__stock {
-  margin-top: 16px;
-  color: var(--text-dim);
-  font-size: 1.05rem;
-}
-
-.active-card__stock strong {
-  color: var(--text);
-  font-size: 1.3rem;
-}
-
-.active-card__withdraw {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.active-card__withdraw label {
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
-
-.qty-input {
-  width: 90px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #0a0e14;
-  color: var(--text);
-  font-size: 1.1rem;
-  text-align: center;
-}
-
-.btn {
-  cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.btn--confirm {
-  background: var(--green);
-  color: #06280f;
-}
-
-.btn--icon {
-  background: transparent;
-  color: var(--text-dim);
-  padding: 4px 10px;
-  font-size: 1.1rem;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-@media (max-width: 640px) {
-  .scanner-input {
-    font-size: 1.2rem;
-    padding: 14px;
-  }
-
-  .active-card__withdraw {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .qty-input {
-    width: 100%;
-  }
-}
-</style>

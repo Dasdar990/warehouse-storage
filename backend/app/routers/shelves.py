@@ -1,6 +1,6 @@
 """
 Warehouse-map endpoints: the full grid + aggregates (for the homepage map),
-per-rack mensole breakdown, per-mensola contents (for the click-through
+per-rack levels breakdown, per-level contents (for the click-through
 drill-down), and the freeform rack layout CRUD used by the drag-and-drop
 configuration page. Zone CRUD lives in routers/zones.py.
 """
@@ -15,11 +15,13 @@ from app.schemas.shelf import (
     RackLevelsResponse,
     ShelfItemsResponse,
     ShelfNodeOut,
+    ShelfPositionOption,
     WarehouseLayout,
     WarehouseMapSave,
 )
 from app.services.shelf_service import (
     build_rack_levels,
+    build_shelf_position_options,
     build_warehouse_layout,
     list_shelf_nodes_out,
     replace_shelf_layout,
@@ -57,9 +59,18 @@ def save_shelf_layout(payload: WarehouseMapSave, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/positions", response_model=list[ShelfPositionOption])
+def get_shelf_positions(db: Session = Depends(get_db)):
+    """
+    Every selectable shelf position (rack + level), used to populate the
+    item creation form's shelf dropdown instead of free-text entry.
+    """
+    return build_shelf_position_options(db)
+
+
 @router.get("/{rack_code}/levels", response_model=RackLevelsResponse)
 def get_rack_levels(rack_code: str, db: Session = Depends(get_db)):
-    """A rack's mensole with live stock aggregates (drill-down when a rack is clicked)."""
+    """A rack's levels with live stock aggregates (drill-down when a rack is clicked)."""
     result = build_rack_levels(db, rack_code)
     if result is None:
         raise HTTPException(status_code=404, detail=f'Rack "{rack_code}" is not on the saved map')
@@ -68,7 +79,7 @@ def get_rack_levels(rack_code: str, db: Session = Depends(get_db)):
 
 @router.get("/{shelf_position}/items", response_model=ShelfItemsResponse)
 def get_shelf_items(shelf_position: str, db: Session = Depends(get_db)):
-    """All items currently stored on a given mensola (drill-down when a level is clicked)."""
+    """All items currently stored on a given level (drill-down when a level is clicked)."""
     items = (
         db.execute(select(Item).where(Item.shelf_position == shelf_position.upper()))
         .scalars()

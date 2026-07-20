@@ -9,7 +9,7 @@ _HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 class ZoneBase(BaseModel):
     """A named, colored area drawn on the map canvas to delimit a zone."""
 
-    name: str = Field(..., min_length=1, max_length=60, description='e.g. "Zona ricambi motore"')
+    name: str = Field(..., min_length=1, max_length=60, description='e.g. "Engine parts zone"')
     color: str = Field(default="#3b82f6", description="Hex color, e.g. #3b82f6")
     x: float = Field(..., description="Top-left X on the canvas, in pixels")
     y: float = Field(..., description="Top-left Y on the canvas, in pixels")

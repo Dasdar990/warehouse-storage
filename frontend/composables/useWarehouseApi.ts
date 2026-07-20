@@ -33,6 +33,38 @@ export interface Zone {
 
 export type ZoneInput = Omit<Zone, 'id'>
 
+export interface Wall {
+  id: number
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+}
+
+export type WallInput = Omit<Wall, 'id'>
+
+export interface Door {
+  id: number
+  x: number
+  y: number
+  width: number
+  /** Degrees, matching how the door opening is physically oriented in the room. */
+  rotation: number
+}
+
+export type DoorInput = Omit<Door, 'id'>
+
+export interface RoomLayout {
+  walls: Wall[]
+  doors: Door[]
+}
+
+export interface RoomLayoutInput {
+  walls: WallInput[]
+  doors: DoorInput[]
+}
+
 export interface ShelfNode {
   rack_code: string
   label: string | null
@@ -65,6 +97,8 @@ export interface WarehouseLayout {
   has_custom_layout: boolean
   nodes: ShelfMapNode[]
   zones: Zone[]
+  walls: Wall[]
+  doors: Door[]
 }
 
 export interface ShelfItemsResponse {
@@ -72,7 +106,7 @@ export interface ShelfItemsResponse {
   items: Item[]
 }
 
-export interface MensolaSummary {
+export interface LevelSummary {
   shelf_position: string
   level: string
   item_count: number
@@ -84,7 +118,21 @@ export interface MensolaSummary {
 export interface RackLevelsResponse {
   rack_code: string
   label: string | null
-  levels: MensolaSummary[]
+  levels: LevelSummary[]
+}
+
+export interface Category {
+  id: number
+  name: string
+}
+
+export interface ShelfPositionOption {
+  value: string
+  label: string
+}
+
+export interface BarcodeSuggestion {
+  barcode: string
 }
 
 export interface ItemFilters {
@@ -129,6 +177,28 @@ export function useWarehouseApi() {
 
   function createItem(payload: Omit<Item, 'id'>) {
     return $fetch<Item>(`${apiBase}/items`, { method: 'POST', body: payload })
+  }
+
+  function generateBarcode() {
+    return $fetch<BarcodeSuggestion>(`${apiBase}/items/barcode/next`)
+  }
+
+  /** Admin-managed category catalog (distinct from `listCategories`, which only reflects categories already in use). */
+  function listAdminCategories() {
+    return $fetch<Category[]>(`${apiBase}/categories`)
+  }
+
+  function createCategory(name: string) {
+    return $fetch<Category>(`${apiBase}/categories`, { method: 'POST', body: { name } })
+  }
+
+  function deleteCategory(id: number) {
+    return $fetch<void>(`${apiBase}/categories/${id}`, { method: 'DELETE' })
+  }
+
+  /** Selectable shelf positions (rack + level) for the item form's dropdown. */
+  function getShelfPositions() {
+    return $fetch<ShelfPositionOption[]>(`${apiBase}/shelves/positions`)
   }
 
   function withdrawItem(barcode: string, quantity: number) {
@@ -176,12 +246,28 @@ export function useWarehouseApi() {
     })
   }
 
+  function getRoomLayout() {
+    return $fetch<RoomLayout>(`${apiBase}/room-layout`)
+  }
+
+  function saveRoomLayout(layout: RoomLayoutInput) {
+    return $fetch<RoomLayout>(`${apiBase}/room-layout`, {
+      method: 'PUT',
+      body: layout,
+    })
+  }
+
   return {
     apiBase,
     listItems,
     listCategories,
     scanItem,
     createItem,
+    generateBarcode,
+    listAdminCategories,
+    createCategory,
+    deleteCategory,
+    getShelfPositions,
     withdrawItem,
     labelUrl,
     getWarehouseLayout,
@@ -191,5 +277,7 @@ export function useWarehouseApi() {
     saveShelfConfig,
     getZones,
     saveZones,
+    getRoomLayout,
+    saveRoomLayout,
   }
 }

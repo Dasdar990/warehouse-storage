@@ -1,12 +1,111 @@
+<template>
+  <form class="grid grid-cols-2 gap-3.5 max-[640px]:grid-cols-1" @submit.prevent="submit">
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Name</label>
+      <input v-model="form.name" required type="text" placeholder="Hex Bolt M8x30" class="field-input disabled:cursor-not-allowed disabled:opacity-60" />
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Part Number</label>
+      <input v-model="form.pn" required type="text" placeholder="HB-M8-30" class="field-input disabled:cursor-not-allowed disabled:opacity-60" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Barcode</label>
+      <div class="flex gap-2">
+        <input
+          v-model="form.barcode"
+          required
+          type="text"
+          placeholder="Auto-generated"
+          class="field-input min-w-0 flex-1 font-mono disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        <button
+          class="btn btn--ghost btn--small whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          :disabled="generatingBarcode"
+          title="Generate a new unique barcode"
+          @click="suggestBarcode"
+        >
+          {{ generatingBarcode ? '…' : '↻ Generate' }}
+        </button>
+      </div>
+      <p class="m-0 text-[0.75rem] text-muted">Auto-generated, but you can type your own value instead.</p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Category</label>
+      <select v-model="form.category" required :disabled="loadingOptions" class="field-input disabled:cursor-not-allowed disabled:opacity-60">
+        <option value="" disabled>Select a category…</option>
+        <option v-for="cat in categories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
+      </select>
+      <p v-if="!loadingOptions && !categories.length" class="m-0 text-[0.75rem] text-muted">
+        No categories yet — <NuxtLink to="/categories" class="text-accent">create one first</NuxtLink>.
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Size</label>
+      <select v-model="form.size" class="field-input disabled:cursor-not-allowed disabled:opacity-60">
+        <option value="small">Small</option>
+        <option value="big">Big</option>
+        <option value="xl">XL</option>
+      </select>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Shelf Position</label>
+      <select v-model="form.shelf_position" required :disabled="loadingOptions" class="field-input disabled:cursor-not-allowed disabled:opacity-60">
+        <option value="" disabled>Select a shelf…</option>
+        <option v-for="opt in shelfOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+      </select>
+      <p v-if="!loadingOptions && !shelfOptions.length" class="m-0 text-[0.75rem] text-muted">
+        No shelves configured yet — <NuxtLink to="/map-config" class="text-accent">set up the warehouse map first</NuxtLink>.
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Initial Quantity</label>
+      <input v-model.number="form.quantity" type="number" min="0" class="field-input disabled:cursor-not-allowed disabled:opacity-60" />
+    </div>
+
+    <p v-if="error" class="col-span-full m-0 text-red-300">{{ error }}</p>
+    <button
+      class="btn btn--confirm col-span-full justify-self-start text-[#06280f] disabled:cursor-not-allowed disabled:opacity-60"
+      type="submit"
+      :disabled="submitting"
+    >
+      {{ submitting ? 'Saving…' : 'Save Item' }}
+    </button>
+
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      leave-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1.5"
+      leave-to-class="opacity-0 -translate-y-1.5"
+    >
+      <div
+        v-if="lastCreated"
+        class="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-good bg-good-dim px-4 py-3 text-green-200"
+      >
+        <div>
+          <strong>{{ lastCreated.name }}</strong> saved with barcode
+          <span class="font-mono">{{ lastCreated.barcode }}</span>
+        </div>
+        <button class="btn btn--ghost btn--small" type="button" @click="printLabel">🖨 Print Label</button>
+      </div>
+    </transition>
+  </form>
+</template>
+
 <script setup lang="ts">
-import type { Item } from '~/composables/useWarehouseApi'
+import type { Category, Item, ShelfPositionOption } from '~/composables/useWarehouseApi'
 
 const emit = defineEmits<{ created: [] }>()
 
-const { createItem } = useWarehouseApi()
+const { createItem, generateBarcode, listAdminCategories, getShelfPositions, labelUrl } = useWarehouseApi()
 const { show } = useToast()
 
-const form = ref({
+const EMPTY_FORM = {
   name: '',
   pn: '',
   barcode: '',
@@ -14,17 +113,56 @@ const form = ref({
   size: 'small' as Item['size'],
   shelf_position: '',
   quantity: 0,
-})
+}
+
+const form = ref({ ...EMPTY_FORM })
 const error = ref('')
 const submitting = ref(false)
+const generatingBarcode = ref(false)
+const loadingOptions = ref(false)
+
+const categories = ref<Category[]>([])
+const shelfOptions = ref<ShelfPositionOption[]>([])
+
+// Shown after a successful save so the barcode can be printed onto the
+// physical item right away, without leaving the form.
+const lastCreated = ref<Item | null>(null)
+
+async function loadOptions() {
+  loadingOptions.value = true
+  try {
+    const [cats, shelves] = await Promise.all([listAdminCategories(), getShelfPositions()])
+    categories.value = cats
+    shelfOptions.value = shelves
+  } catch (err: any) {
+    show('error', err?.data?.detail || 'Failed to load categories/shelves')
+  } finally {
+    loadingOptions.value = false
+  }
+}
+
+async function suggestBarcode() {
+  generatingBarcode.value = true
+  try {
+    const res = await generateBarcode()
+    form.value.barcode = res.barcode
+  } catch (err: any) {
+    show('error', err?.data?.detail || 'Failed to generate a barcode')
+  } finally {
+    generatingBarcode.value = false
+  }
+}
 
 async function submit() {
   error.value = ''
   submitting.value = true
+  lastCreated.value = null
   try {
-    await createItem({ ...form.value, quantity: Number(form.value.quantity) || 0 })
-    show('success', `Item "${form.value.name}" created`)
-    form.value = { name: '', pn: '', barcode: '', category: '', size: 'small', shelf_position: '', quantity: 0 }
+    const item = await createItem({ ...form.value, quantity: Number(form.value.quantity) || 0 })
+    lastCreated.value = item
+    show('success', `Item "${item.name}" created`)
+    form.value = { ...EMPTY_FORM }
+    await suggestBarcode()
     emit('created')
   } catch (err: any) {
     error.value = err?.data?.detail || 'Failed to create item'
@@ -32,106 +170,16 @@ async function submit() {
     submitting.value = false
   }
 }
+
+function printLabel() {
+  if (!lastCreated.value) return
+  const printWindow = window.open(labelUrl(lastCreated.value.id), '_blank')
+  // Best-effort auto-print once the label image has finished loading;
+  // if the browser blocks it, the user still has the tab open to print manually.
+  printWindow?.addEventListener?.('load', () => printWindow.print())
+}
+
+onMounted(async () => {
+  await Promise.all([loadOptions(), suggestBarcode()])
+})
 </script>
-
-<template>
-  <form class="add-form" @submit.prevent="submit">
-    <div class="field">
-      <label>Name</label>
-      <input v-model="form.name" required type="text" placeholder="Hex Bolt M8x30" />
-    </div>
-    <div class="field">
-      <label>Part Number</label>
-      <input v-model="form.pn" required type="text" placeholder="HB-M8-30" />
-    </div>
-    <div class="field">
-      <label>Barcode</label>
-      <input v-model="form.barcode" required type="text" placeholder="0123456789" />
-    </div>
-    <div class="field">
-      <label>Category</label>
-      <input v-model="form.category" required type="text" placeholder="Fasteners" />
-    </div>
-    <div class="field">
-      <label>Size</label>
-      <select v-model="form.size">
-        <option value="small">Small</option>
-        <option value="big">Big</option>
-        <option value="xl">XL</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Shelf Position</label>
-      <input v-model="form.shelf_position" required type="text" placeholder="12B" />
-    </div>
-    <div class="field">
-      <label>Initial Quantity</label>
-      <input v-model.number="form.quantity" type="number" min="0" />
-    </div>
-    <p v-if="error" class="form-error">{{ error }}</p>
-    <button class="btn btn--confirm" type="submit" :disabled="submitting">
-      {{ submitting ? 'Saving…' : 'Save Item' }}
-    </button>
-  </form>
-</template>
-
-<style scoped>
-.add-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field label {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.field input,
-.field select {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #0a0e14;
-  color: var(--text);
-}
-
-.form-error {
-  grid-column: 1 / -1;
-  color: #fca5a5;
-  margin: 0;
-}
-
-.btn {
-  cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  grid-column: 1 / -1;
-  justify-self: start;
-}
-
-.btn--confirm {
-  background: var(--green);
-  color: #06280f;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-@media (max-width: 640px) {
-  .add-form {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

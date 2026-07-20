@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db import get_db
 from app.models.item import Item, ItemSize
-from app.schemas.item import ItemCreate, ItemOut, WithdrawRequest, WithdrawResponse
+from app.schemas.item import (
+    BarcodeSuggestion,
+    ItemCreate,
+    ItemOut,
+    WithdrawRequest,
+    WithdrawResponse,
+)
+from app.services.barcode_generator import generate_unique_barcode
 
 router = APIRouter(prefix="/items", tags=["items"])
 settings = get_settings()
@@ -65,6 +72,16 @@ def scan_item(barcode: str, db: Session = Depends(get_db)):
     if item is None:
         raise HTTPException(status_code=404, detail=f"No item found for barcode '{barcode}'")
     return item
+
+
+@router.get("/barcode/next", response_model=BarcodeSuggestion)
+def get_next_barcode(db: Session = Depends(get_db)):
+    """
+    Generate a fresh, currently-unused barcode value to prefill the item
+    form with. Purely a suggestion -- the form field stays editable, and
+    the value is only reserved once the item is actually created.
+    """
+    return BarcodeSuggestion(barcode=generate_unique_barcode(db))
 
 
 @router.post("", response_model=ItemOut, status_code=201)

@@ -1,7 +1,7 @@
 """SQLAlchemy ORM model for warehouse map zones.
 
 A Zone is a purely organizational/visual rectangle drawn on the map canvas
-to delimit an area of the physical warehouse (e.g. "Zona ricambi motore").
+to delimit an area of the physical warehouse (e.g. "Engine parts zone").
 Zones have no functional link to items -- they exist so the map can group
 racks visually. A rack (Shelf) may optionally reference a zone.
 """

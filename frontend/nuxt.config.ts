@@ -1,12 +1,24 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import tailwindcss from "@tailwindcss/vite";
+
 export default defineNuxtConfig({
+  vite: {
+    plugins: [tailwindcss()],
+  },
+
   routeRules: {
-    "/api/**": { proxy: "http://localhost:8000/**" },
+    // Inside Docker, the frontend must talk to "backend", not "localhost"
+    "/api/**": {
+      proxy:
+        process.env.NODE_ENV === "development"
+          ? "http://backend:8000/**"
+          : "http://localhost:8000/**",
+    },
   },
 
   compatibilityDate: "2026-01-01",
   devtools: { enabled: true },
-  ssr: false,
+  ssr: true,
 
   css: ["~/assets/css/main.css"],
 
@@ -28,15 +40,13 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      // Base URL the BROWSER uses to reach the API. Overridable via the
-      // NUXT_PUBLIC_API_BASE env var (set in docker-compose.yml).
+      // If the browser makes the calls, use the host's public IP/localhost.
+      // If the server makes them (even with ssr: false), point to the right fallback.
       apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:8000",
     },
   },
 
   nitro: {
-    // Bind Nuxt's production server to all interfaces so it's reachable
-    // from outside the Docker container.
     experimental: {
       wasm: false,
     },
