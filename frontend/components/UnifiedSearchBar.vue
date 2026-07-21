@@ -9,7 +9,7 @@
           type="text"
           autocomplete="off"
           autofocus
-          placeholder="Scansiona un codice a barre, oppure digita Nome / P/N / Categoria…"
+          placeholder="Scan a barcode, or type Name / P/N / Category…"
           class="w-full rounded-[10px] border-2 border-accent-dim bg-input px-[18px] py-4 text-[1.15rem] font-semibold tracking-wide text-ink outline-none focus:border-accent focus:shadow-[0_0_0_4px_rgba(59,130,246,0.25)]"
           @keydown="onKeydown"
           @keyup.enter="handleEnter"
@@ -26,7 +26,7 @@
           class="scrollbar-slim absolute z-20 mt-1.5 max-h-80 w-full overflow-y-auto rounded-[10px] border border-edge bg-surface-2 shadow-card"
         >
           <li v-if="suggestions.length === 0" class="px-4 py-3 text-sm text-muted">
-            Nessun risultato per "{{ query }}"
+            No results for "{{ query }}"
           </li>
           <li
             v-for="item in suggestions"
@@ -38,19 +38,19 @@
               <div>
                 <div class="font-semibold text-ink">{{ item.name }}</div>
                 <div class="mt-0.5 text-[0.8rem] text-muted">
-                  P/N {{ item.pn }} · {{ item.category }} · Scaffale {{ item.shelf_position }}
+                  P/N {{ item.pn }} · {{ item.category }} · Shelf {{ item.shelf_position }}
                 </div>
               </div>
               <span
                 class="whitespace-nowrap rounded-full px-2.5 py-1 text-[0.75rem] font-bold"
                 :class="item.quantity === 0 ? 'bg-bad/20 text-red-300' : 'bg-good/15 text-green-300'"
-              >{{ item.quantity }} pz</span>
+              >{{ item.quantity }} pcs</span>
             </div>
           </li>
         </ul>
       </div>
 
-      <!-- DEPOSITA / PRELEVA toggle: defines the auto-action on barcode scan -->
+      <!-- DEPOSIT / WITHDRAW toggle: defines the auto-action on barcode scan -->
       <div class="flex overflow-hidden rounded-[10px] border-2 border-edge max-[640px]:w-full">
         <button
           type="button"
@@ -58,7 +58,7 @@
           :class="mode === 'deposit' ? 'bg-good text-white' : 'bg-transparent text-muted hover:text-ink'"
           @click="setMode('deposit')"
         >
-          🟢 DEPOSITA (+1)
+          🟢 DEPOSIT (+1)
         </button>
         <button
           type="button"
@@ -66,15 +66,15 @@
           :class="mode === 'withdraw' ? 'bg-bad text-white' : 'bg-transparent text-muted hover:text-ink'"
           @click="setMode('withdraw')"
         >
-          🔴 PRELEVA (-1)
+          🔴 WITHDRAW (−1)
         </button>
       </div>
     </div>
 
     <p class="mt-2.5 mb-0 text-[0.78rem] text-muted">
-      Scansione barcode → esegue automaticamente
-      <strong :class="mode === 'deposit' ? 'text-green-300' : 'text-red-300'">{{ mode === 'deposit' ? 'DEPOSITA +1' : 'PRELEVA -1' }}</strong>
-      e centra la mappa. Digitazione manuale → apre la scheda senza modificare la giacenza.
+      Barcode scan → automatically runs
+      <strong :class="mode === 'deposit' ? 'text-green-300' : 'text-red-300'">{{ mode === 'deposit' ? 'DEPOSIT +1' : 'WITHDRAW −1' }}</strong>
+      and centers the map. Manual typing → opens the item card without changing stock.
     </p>
   </section>
 </template>

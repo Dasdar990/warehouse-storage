@@ -2,11 +2,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.schemas.zone import ZoneMapSave, ZoneOut
 from app.services.zone_service import list_zones, replace_zones
 
-router = APIRouter(prefix="/zones", tags=["zones"])
+router = APIRouter(prefix="/zones", tags=["zones"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[ZoneOut])

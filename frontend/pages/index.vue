@@ -1,27 +1,23 @@
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-4">
     <section>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="mb-1.5 text-[1.15rem]">Warehouse Storage</h2>
           <p class="m-0 text-sm text-muted">
-            Scansiona un barcode per prelevare/depositare all'istante, oppure cerca un articolo per localizzarlo sulla mappa.
+            Scan a barcode to withdraw/deposit instantly, or search for an item to locate it on the map.
           </p>
         </div>
-        <div class="flex items-center gap-4">
-          <label class="flex items-center gap-2 text-[0.8rem] text-muted">
-            Operatore:
-            <input
-              :value="operator"
-              type="text"
-              class="field-input w-[150px] py-1.5 text-[0.85rem]"
-              @change="setOperator(($event.target as HTMLInputElement).value)"
-            />
-          </label>
+        <div class="flex items-center gap-2.5">
+          <button
+            type="button"
+            class="btn btn--primary whitespace-nowrap text-[0.85rem]"
+            @click="showAddItemModal = true"
+          >+ New Item</button>
           <NuxtLink
             to="/map-config"
             class="whitespace-nowrap rounded-lg border border-edge bg-transparent px-4 py-2.5 text-[0.85rem] font-semibold text-ink no-underline"
-          >Configura mappa</NuxtLink>
+          >Configure Map</NuxtLink>
         </div>
       </div>
     </section>
@@ -33,10 +29,10 @@
       @locate-item="handleLocateItem"
     />
 
-    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
       <!-- Interactive map -->
       <section class="card">
-        <p v-if="loadingLayout" class="text-muted">Caricamento mappa magazzino…</p>
+        <p v-if="loadingLayout" class="text-muted">Loading warehouse map…</p>
         <MapFreeformMap
           v-else-if="layout?.has_custom_layout"
           :layout="layout"
@@ -52,7 +48,7 @@
       </section>
 
       <!-- Right column: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
-      <div class="flex flex-col gap-5">
+      <div class="flex flex-col gap-4">
         <ItemDetailCard
           v-if="selectedItem"
           :key="selectedItem.id"
@@ -84,12 +80,16 @@
         />
 
         <p v-if="!selectedItem && !selectedLevel && !(layout?.has_custom_layout && selectedRack)" class="card text-sm text-muted">
-          Scansiona un codice, cerca un articolo, oppure clicca uno scaffale sulla mappa per iniziare.
+          Scan a code, search for an item, or click a shelf on the map to get started.
         </p>
       </div>
     </div>
 
     <ActivityLog ref="activityLogRef" />
+
+    <BaseModal v-model="showAddItemModal" title="New Item" size="md">
+      <DashboardAddItemForm @created="handleItemCreated" />
+    </BaseModal>
   </div>
 </template>
 
@@ -101,7 +101,6 @@ import type {
 } from "~/composables/useWarehouseApi";
 
 const { getWarehouseLayout, getRackLevels, getShelfItems, getZones, withdrawItem, depositItem } = useWarehouseApi();
-const { operator, setOperator } = useOperator();
 const { mode } = useOperationMode();
 const { show } = useToast();
 
@@ -110,6 +109,19 @@ const activityLogRef = ref<{ refresh: () => void } | null>(null);
 
 const layout = ref<WarehouseLayout | null>(null);
 const loadingLayout = ref(false);
+
+// --- Quick action: New Item modal ---
+const showAddItemModal = ref(false);
+
+async function handleItemCreated(item: Item) {
+  showAddItemModal.value = false;
+  show('success', `"${item.name}" created — here's where it landed`);
+  closeDrilldown();
+  lastSelectionSource.value = 'manual';
+  selectedItem.value = item;
+  // Shelf item counts on the map just changed, so refresh the layout in the background.
+  loadLayout(true);
+}
 
 // --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
 const selectedItem = ref<Item | null>(null);
@@ -143,8 +155,8 @@ function parseRackCode(shelfPosition: string): string | null {
   return match ? match[1] : null;
 }
 
-async function loadLayout() {
-  loadingLayout.value = true;
+async function loadLayout(silent = false) {
+  if (!silent) loadingLayout.value = true;
   try {
     layout.value = await getWarehouseLayout();
     if (layout.value.has_custom_layout) {
@@ -152,7 +164,7 @@ async function loadLayout() {
       zoneNameById.value = new Map(zones.map((z) => [z.id, z.name]));
     }
   } finally {
-    loadingLayout.value = false;
+    if (!silent) loadingLayout.value = false;
   }
 }
 
@@ -164,7 +176,7 @@ async function handleScanItem(item: Item) {
 
   // Scan & Confirm: barcode reads execute the toggled action immediately with qty 1.
   try {
-    const payload = { barcode: item.barcode, quantity: 1, source: 'barcode' as const, operator: operator.value };
+    const payload = { barcode: item.barcode, quantity: 1, source: 'barcode' as const };
     const res = mode.value === 'deposit' ? await depositItem(payload) : await withdrawItem(payload);
     selectedItem.value = res.item;
     show('success', res.message);
@@ -173,12 +185,12 @@ async function handleScanItem(item: Item) {
     // Still show the item card even if the auto-action failed (e.g. insufficient stock),
     // so the operator can see what's there and act manually.
     selectedItem.value = item;
-    show('error', err?.data?.detail || "Operazione automatica non riuscita");
+    show('error', err?.data?.detail || "Automatic operation failed");
   }
 }
 
 function handleScanNotFound(code: string) {
-  show('error', `Nessun articolo trovato per il codice "${code}"`);
+  show('error', `No item found for code "${code}"`);
 }
 
 function handleLocateItem(item: Item) {

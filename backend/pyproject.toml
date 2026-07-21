@@ -15,6 +15,11 @@ python-barcode = "^0.15.1"
 pillow = "^10.4.0"
 pydantic = "^2.9.2"
 python-multipart = "^0.0.12"
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }
+# Pinned: passlib's bcrypt feature-detection code errors out on bcrypt>=4.1
+# (known, unresolved upstream issue), so pin the last compatible release.
+bcrypt = "4.0.1"
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
 
 [build-system]
 requires = ["poetry-core"]

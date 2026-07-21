@@ -1,6 +1,25 @@
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-4">
     <section class="card">
+      <div class="mb-3.5 flex overflow-hidden rounded-[10px] border-2 border-edge">
+        <button
+          type="button"
+          class="flex-1 whitespace-nowrap px-5 py-3 text-[0.95rem] font-bold transition-colors"
+          :class="mode === 'deposit' ? 'bg-good text-white' : 'bg-transparent text-muted hover:text-ink'"
+          @click="setMode('deposit')"
+        >
+          🟢 DEPOSIT
+        </button>
+        <button
+          type="button"
+          class="flex-1 whitespace-nowrap px-5 py-3 text-[0.95rem] font-bold transition-colors"
+          :class="mode === 'withdraw' ? 'bg-bad text-white' : 'bg-transparent text-muted hover:text-ink'"
+          @click="setMode('withdraw')"
+        >
+          🔴 WITHDRAW
+        </button>
+      </div>
+
       <label class="mb-2.5 block text-[0.8rem] uppercase tracking-wider text-muted" for="scanner">Scan barcode</label>
       <input
         id="scanner"
@@ -39,17 +58,21 @@
         </div>
 
         <div class="mt-[18px] flex flex-wrap items-center gap-3 max-[640px]:flex-col max-[640px]:items-stretch">
-          <label class="text-sm text-muted" for="qty">Withdraw quantity</label>
+          <label class="text-sm text-muted" for="qty">{{ mode === 'deposit' ? 'Deposit quantity' : 'Withdraw quantity' }}</label>
           <input
             id="qty"
             v-model.number="withdrawQty"
             type="number"
             min="1"
-            :max="activeItem.quantity"
+            :max="mode === 'withdraw' ? activeItem.quantity : undefined"
             class="field-input w-[90px] text-center text-[1.1rem] max-[640px]:w-full"
-            @keyup.enter="confirmWithdrawal"
+            @keyup.enter="confirmAction"
           />
-          <button class="btn btn--confirm text-[#06280f]" @click="confirmWithdrawal">Confirm Withdrawal</button>
+          <button
+            class="btn text-white"
+            :class="mode === 'deposit' ? 'bg-good hover:bg-green-600' : 'bg-bad hover:bg-red-600'"
+            @click="confirmAction"
+          >{{ mode === 'deposit' ? 'Confirm Deposit' : 'Confirm Withdrawal' }}</button>
         </div>
       </section>
     </transition>
@@ -59,7 +82,8 @@
 <script setup lang="ts">
 import type { Item } from '~/composables/useWarehouseApi'
 
-const { scanItem, withdrawItem } = useWarehouseApi()
+const { scanItem, withdrawItem, depositItem } = useWarehouseApi()
+const { mode, setMode } = useOperationMode()
 const { show } = useToast()
 
 const scannerInput = ref<HTMLInputElement | null>(null)
@@ -80,9 +104,9 @@ async function handleScan() {
   if (!code) return
 
   // A second Enter on the same barcode (already active) confirms the
-  // withdrawal instead of re-looking the item up.
+  // action instead of re-looking the item up.
   if (activeItem.value && activeItem.value.barcode === code) {
-    await confirmWithdrawal()
+    await confirmAction()
     return
   }
 
@@ -99,7 +123,7 @@ async function handleScan() {
   }
 }
 
-async function confirmWithdrawal() {
+async function confirmAction() {
   if (!activeItem.value) return
   if (withdrawQty.value < 1) {
     show('error', 'Quantity must be at least 1')
@@ -107,15 +131,15 @@ async function confirmWithdrawal() {
   }
 
   try {
-    const res = await withdrawItem({
+    const payload = {
       barcode: activeItem.value.barcode,
       quantity: withdrawQty.value,
-      source: 'barcode',
-      operator: 'Operatore',
-    })
+      source: 'barcode' as const,
+    }
+    const res = mode.value === 'deposit' ? await depositItem(payload) : await withdrawItem(payload)
     show('success', res.message)
   } catch (err: any) {
-    show('error', err?.data?.detail || 'Withdrawal failed')
+    show('error', err?.data?.detail || (mode.value === 'deposit' ? 'Deposit failed' : 'Withdrawal failed'))
   } finally {
     activeItem.value = null
     barcodeValue.value = ''

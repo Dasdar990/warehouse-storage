@@ -50,6 +50,6 @@ class Movement(Base):
     balance_after = Column(Integer, nullable=False)
 
     source = Column(SAEnum(MovementSource, native_enum=False, length=16), nullable=False)
-    operator = Column(String, nullable=False, default="Operatore")
+    operator = Column(String, nullable=False, default="Operator")
 
     item = relationship("Item")

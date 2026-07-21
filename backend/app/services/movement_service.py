@@ -19,7 +19,7 @@ def _get_item_by_barcode(db: Session, barcode: str) -> Item:
     return item
 
 
-def withdraw_stock(db: Session, payload: StockMoveRequest) -> tuple[Item, Movement]:
+def withdraw_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> tuple[Item, Movement]:
     """Decrease stock; refuses to let quantity go negative."""
     item = _get_item_by_barcode(db, payload.barcode)
 
@@ -33,19 +33,19 @@ def withdraw_stock(db: Session, payload: StockMoveRequest) -> tuple[Item, Moveme
         )
 
     item.quantity -= payload.quantity
-    movement = _log_movement(db, item, MovementAction.WITHDRAW, payload)
+    movement = _log_movement(db, item, MovementAction.WITHDRAW, payload, operator=operator)
     db.commit()
     db.refresh(item)
     db.refresh(movement)
     return item, movement
 
 
-def deposit_stock(db: Session, payload: StockMoveRequest) -> tuple[Item, Movement]:
+def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> tuple[Item, Movement]:
     """Increase stock (restock / put-away confirmation)."""
     item = _get_item_by_barcode(db, payload.barcode)
 
     item.quantity += payload.quantity
-    movement = _log_movement(db, item, MovementAction.DEPOSIT, payload)
+    movement = _log_movement(db, item, MovementAction.DEPOSIT, payload, operator=operator)
     db.commit()
     db.refresh(item)
     db.refresh(movement)
@@ -53,7 +53,7 @@ def deposit_stock(db: Session, payload: StockMoveRequest) -> tuple[Item, Movemen
 
 
 def _log_movement(
-    db: Session, item: Item, action: MovementAction, payload: StockMoveRequest
+    db: Session, item: Item, action: MovementAction, payload: StockMoveRequest, *, operator: str
 ) -> Movement:
     movement = Movement(
         item_id=item.id,
@@ -64,7 +64,7 @@ def _log_movement(
         quantity=payload.quantity,
         balance_after=item.quantity,
         source=payload.source if isinstance(payload.source, MovementSource) else MovementSource(payload.source),
-        operator=payload.operator.strip() or "Operatore",
+        operator=operator.strip() or "Operator",
     )
     db.add(movement)
     return movement

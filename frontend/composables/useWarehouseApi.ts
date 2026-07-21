@@ -157,7 +157,6 @@ export interface StockMoveInput {
   barcode: string
   quantity: number
   source: MovementSource
-  operator: string
 }
 
 export interface Movement {
@@ -174,13 +173,60 @@ export interface Movement {
   operator: string
 }
 
+export type UserRole = 'admin' | 'operator'
+
+export interface AppUser {
+  id: number
+  username: string
+  full_name: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}
+
+export interface UserCreateInput {
+  username: string
+  full_name: string
+  password: string
+  role: UserRole
+}
+
+export interface UserUpdateInput {
+  full_name?: string
+  password?: string
+  role?: UserRole
+  is_active?: boolean
+}
+
 /**
  * Central place for every call to the FastAPI backend. Keeps the
- * `apiBase` + endpoint paths out of individual pages/components.
+ * `apiBase` + endpoint paths out of individual pages/components, and
+ * makes sure every request carries the logged-in user's Bearer token
+ * (a 401 anywhere logs the session out, since it means the token expired
+ * or was revoked).
  */
 export function useWarehouseApi() {
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase as string
+  const { token, logout } = useAuth()
+
+  async function apiFetch<T>(path: string, options: Record<string, any> = {}): Promise<T> {
+    try {
+      return await $fetch<T>(`${apiBase}${path}`, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          ...(token.value ? { Authorization: `Bearer ${token.value}` } : {}),
+        },
+      })
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        logout()
+        navigateTo('/login')
+      }
+      throw err
+    }
+  }
 
   function listItems(filters: ItemFilters = {}) {
     const params: Record<string, string | boolean> = {}
@@ -189,108 +235,115 @@ export function useWarehouseApi() {
     if (filters.size) params.size = filters.size
     if (filters.shelf_position) params.shelf_position = filters.shelf_position
     if (filters.low_stock) params.low_stock = true
-    return $fetch<Item[]>(`${apiBase}/items`, { params })
+    return apiFetch<Item[]>('/items', { params })
   }
 
   function listCategories() {
-    return $fetch<string[]>(`${apiBase}/items/categories`)
+    return apiFetch<string[]>('/items/categories')
   }
 
   function scanItem(barcode: string) {
-    return $fetch<Item>(`${apiBase}/items/scan`, { params: { barcode } })
+    return apiFetch<Item>('/items/scan', { params: { barcode } })
   }
 
   function createItem(payload: Omit<Item, 'id'>) {
-    return $fetch<Item>(`${apiBase}/items`, { method: 'POST', body: payload })
+    return apiFetch<Item>('/items', { method: 'POST', body: payload })
   }
 
   function generateBarcode() {
-    return $fetch<BarcodeSuggestion>(`${apiBase}/items/barcode/next`)
+    return apiFetch<BarcodeSuggestion>('/items/barcode/next')
   }
 
   /** Admin-managed category catalog (distinct from `listCategories`, which only reflects categories already in use). */
   function listAdminCategories() {
-    return $fetch<Category[]>(`${apiBase}/categories`)
+    return apiFetch<Category[]>('/categories')
   }
 
   function createCategory(name: string) {
-    return $fetch<Category>(`${apiBase}/categories`, { method: 'POST', body: { name } })
+    return apiFetch<Category>('/categories', { method: 'POST', body: { name } })
   }
 
   function deleteCategory(id: number) {
-    return $fetch<void>(`${apiBase}/categories/${id}`, { method: 'DELETE' })
+    return apiFetch<void>(`/categories/${id}`, { method: 'DELETE' })
   }
 
   /** Selectable shelf positions (rack + level) for the item form's dropdown. */
   function getShelfPositions() {
-    return $fetch<ShelfPositionOption[]>(`${apiBase}/shelves/positions`)
+    return apiFetch<ShelfPositionOption[]>('/shelves/positions')
   }
 
   function withdrawItem(payload: StockMoveInput) {
-    return $fetch<StockMoveResult>(`${apiBase}/items/withdraw`, {
-      method: 'POST',
-      body: payload,
-    })
+    return apiFetch<StockMoveResult>('/items/withdraw', { method: 'POST', body: payload })
   }
 
   function depositItem(payload: StockMoveInput) {
-    return $fetch<StockMoveResult>(`${apiBase}/items/deposit`, {
-      method: 'POST',
-      body: payload,
-    })
+    return apiFetch<StockMoveResult>('/items/deposit', { method: 'POST', body: payload })
   }
 
   function listMovements(limit = 50) {
-    return $fetch<Movement[]>(`${apiBase}/movements`, { params: { limit } })
+    return apiFetch<Movement[]>('/movements', { params: { limit } })
   }
 
   function labelUrl(id: number) {
-    return `${apiBase}/items/label/${id}`
+    // GET, HTML wrapper that auto-prints the freshly regenerated label and
+    // closes itself -- safe to use directly as an <a href target="_blank">.
+    // The token travels as a query param (not a header) because this link
+    // opens as a plain browser navigation, which can't attach one.
+    const qs = token.value ? `?token=${encodeURIComponent(token.value)}` : ''
+    return `${apiBase}/items/${id}/label${qs}`
   }
 
   function getWarehouseLayout() {
-    return $fetch<WarehouseLayout>(`${apiBase}/shelves`)
+    return apiFetch<WarehouseLayout>('/shelves')
   }
 
   function getRackLevels(rackCode: string) {
-    return $fetch<RackLevelsResponse>(`${apiBase}/shelves/${encodeURIComponent(rackCode)}/levels`)
+    return apiFetch<RackLevelsResponse>(`/shelves/${encodeURIComponent(rackCode)}/levels`)
   }
 
   function getShelfItems(shelfPosition: string) {
-    return $fetch<ShelfItemsResponse>(`${apiBase}/shelves/${encodeURIComponent(shelfPosition)}/items`)
+    return apiFetch<ShelfItemsResponse>(`/shelves/${encodeURIComponent(shelfPosition)}/items`)
   }
 
   function getShelfConfig() {
-    return $fetch<ShelfNodeOut[]>(`${apiBase}/shelves/config`)
+    return apiFetch<ShelfNodeOut[]>('/shelves/config')
   }
 
   function saveShelfConfig(nodes: ShelfNode[]) {
-    return $fetch<ShelfNodeOut[]>(`${apiBase}/shelves/config`, {
-      method: 'PUT',
-      body: { nodes },
-    })
+    return apiFetch<ShelfNodeOut[]>('/shelves/config', { method: 'PUT', body: { nodes } })
   }
 
   function getZones() {
-    return $fetch<Zone[]>(`${apiBase}/zones`)
+    return apiFetch<Zone[]>('/zones')
   }
 
   function saveZones(zones: ZoneInput[]) {
-    return $fetch<Zone[]>(`${apiBase}/zones`, {
-      method: 'PUT',
-      body: { zones },
-    })
+    return apiFetch<Zone[]>('/zones', { method: 'PUT', body: { zones } })
   }
 
   function getRoomLayout() {
-    return $fetch<RoomLayout>(`${apiBase}/room-layout`)
+    return apiFetch<RoomLayout>('/room-layout')
   }
 
   function saveRoomLayout(layout: RoomLayoutInput) {
-    return $fetch<RoomLayout>(`${apiBase}/room-layout`, {
-      method: 'PUT',
-      body: layout,
-    })
+    return apiFetch<RoomLayout>('/room-layout', { method: 'PUT', body: layout })
+  }
+
+  /** Admin-only: user management (login accounts + audit-log attribution). */
+  function listUsers() {
+    return apiFetch<AppUser[]>('/users')
+  }
+
+  function createUser(payload: UserCreateInput) {
+    return apiFetch<AppUser>('/users', { method: 'POST', body: payload })
+  }
+
+  function updateUser(id: number, payload: UserUpdateInput) {
+    return apiFetch<AppUser>(`/users/${id}`, { method: 'PATCH', body: payload })
+  }
+
+  function deleteUser(id: number) {
+    return apiFetch<void>(`/users/${id}`, { method: 'DELETE' })
   }
 
   return {
@@ -317,5 +370,9 @@ export function useWarehouseApi() {
     saveZones,
     getRoomLayout,
     saveRoomLayout,
+    listUsers,
+    createUser,
+    updateUser,
+    deleteUser,
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-4">
     <section>
       <h2 class="mb-1.5 text-[1.15rem]">Configure Warehouse Map</h2>
       <p class="m-0 max-w-[78ch] text-sm text-muted">

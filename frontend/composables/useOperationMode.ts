@@ -1,7 +1,7 @@
 export type OperationMode = 'deposit' | 'withdraw'
 
 /**
- * Shared "DEPOSITA (+1) / PRELEVA (-1)" toggle. Drives which action fires
+ * Shared "DEPOSIT (+1) / WITHDRAW (-1)" toggle. Drives which action fires
  * automatically when a barcode is scanned in the UnifiedSearchBar, and
  * pre-highlights the matching quick-action button in ItemDetailCard.
  */

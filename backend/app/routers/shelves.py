@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.models.item import Item
 from app.schemas.item import ItemOut
@@ -27,7 +28,7 @@ from app.services.shelf_service import (
     replace_shelf_layout,
 )
 
-router = APIRouter(prefix="/shelves", tags=["shelves"])
+router = APIRouter(prefix="/shelves", tags=["shelves"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=WarehouseLayout)

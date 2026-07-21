@@ -6,7 +6,7 @@ Route modules live in app/routers/:
     items.py       -> GET  /items (filterable), GET /items/categories,
                       GET  /items/scan, GET /items/barcode/next,
                       POST /items, POST /items/withdraw
-    labels.py      -> POST /items/label/{id}
+    labels.py      -> POST /items/label/{id} (raw PNG), GET /items/{id}/label (auto-print HTML)
     shelves.py     -> GET  /shelves, GET /shelves/positions,
                       GET  /shelves/{rack_code}/levels,
                       GET  /shelves/{shelf_position}/items, /shelves/config CRUD
@@ -14,14 +14,18 @@ Route modules live in app/routers/:
     room.py        -> GET/PUT /room-layout (walls + door, purely visual orientation aid)
     categories.py  -> GET/POST /categories, DELETE /categories/{id}
     movements.py   -> GET /movements (live deposit/withdraw audit log)
+    auth.py        -> POST /auth/login, GET /auth/me
+    users.py       -> GET/POST/PATCH/DELETE /users (admin-only user management)
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.core.config import get_settings
-from app.db import Base, engine
-from app.routers import categories, health, items, labels, movements, room, shelves, zones
+from app.db import Base, SessionLocal, engine
+from app.routers import auth, categories, health, items, labels, movements, room, shelves, users, zones
+from app.services.user_service import seed_default_admin
 
 settings = get_settings()
 
@@ -60,6 +64,23 @@ def _add_missing_columns() -> None:
 
 _add_missing_columns()
 
+
+def _seed_default_admin() -> None:
+    """
+    If the users table is empty (fresh DB, or upgrading from a pre-auth
+    version), create a default admin so there's a way to log in at all.
+    Credentials: settings.default_admin_username / default_admin_password
+    (admin / admin123 unless overridden) -- change the password immediately.
+    """
+    db = SessionLocal()
+    try:
+        seed_default_admin(db)
+    finally:
+        db.close()
+
+
+_seed_default_admin()
+
 app = FastAPI(
     title="Warehouse Storage API",
     description="Inventory tracking, withdrawal, and warehouse-map API for barcode-driven warehouse operations.",
@@ -83,6 +104,8 @@ app.add_middleware(
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(items.router)
 app.include_router(labels.router)
 app.include_router(shelves.router)
@@ -90,3 +113,12 @@ app.include_router(zones.router)
 app.include_router(room.router)
 app.include_router(categories.router)
 app.include_router(movements.router)
+
+# Serves generated label PNGs for the auto-print HTML page (GET /items/{id}/label)
+# so the browser always fetches the freshest file straight off disk.
+# NOTE: intentionally left unauthenticated -- only exposes label PNGs (name,
+# P/N, shelf, barcode), not stock levels or user data. Locking it down would
+# mean replacing StaticFiles with a per-request token-checked endpoint, which
+# felt like a lot of complexity for a low-value target. Happy to add it if
+# you'd rather be strict about it.
+app.mount("/labels_static", StaticFiles(directory=str(settings.labels_dir)), name="labels_static")

@@ -1,3 +1,4 @@
+from .auth import LoginRequest, Token, UserCreate, UserOut, UserUpdate
 from .category import CategoryBase, CategoryCreate, CategoryOut
 from .item import (
     BarcodeSuggestion,
@@ -22,6 +23,11 @@ from .shelf import (
 from .zone import ZoneBase, ZoneMapSave, ZoneOut
 
 __all__ = [
+    "LoginRequest",
+    "Token",
+    "UserCreate",
+    "UserOut",
+    "UserUpdate",
     "CategoryBase",
     "CategoryCreate",
     "CategoryOut",

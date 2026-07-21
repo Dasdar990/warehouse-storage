@@ -3,11 +3,12 @@ consumed as a dropdown by the item creation form."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.schemas.category import CategoryCreate, CategoryOut
 from app.services import category_service
 
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(prefix="/categories", tags=["categories"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[CategoryOut])

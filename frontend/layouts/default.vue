@@ -1,6 +1,6 @@
 <template>
-  <div class="mx-auto min-h-full max-w-[1600px] px-5 pb-[60px] pt-6">
-    <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
+  <div class="mx-auto min-h-full max-w-[1600px] px-5 pb-10 pt-5">
+    <header class="mb-5 flex flex-wrap items-center justify-between gap-4">
       <NuxtLink to="/" class="flex items-center gap-3.5 text-inherit no-underline">
         <span class="text-[2rem]">📦</span>
         <div>
@@ -40,7 +40,22 @@
         >
           Configure Map
         </NuxtLink>
+        <NuxtLink
+          v-if="isAdmin"
+          to="/admin/users"
+          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+        >
+          Users
+        </NuxtLink>
       </nav>
+
+      <div v-if="user" class="flex items-center gap-2.5 max-[640px]:w-full max-[640px]:justify-between">
+        <span class="text-sm text-muted">
+          👤 <span class="font-semibold text-ink">{{ user.full_name }}</span>
+          <span v-if="isAdmin" class="ml-1.5 rounded-full bg-accent/15 px-2 py-0.5 text-[0.7rem] font-bold text-blue-300">ADMIN</span>
+        </span>
+        <button type="button" class="btn btn--ghost btn--small" @click="handleLogout">Log out</button>
+      </div>
     </header>
 
     <transition
@@ -62,7 +77,7 @@
       </div>
     </transition>
 
-    <main class="flex flex-col gap-5">
+    <main class="flex flex-col gap-4">
       <slot />
     </main>
   </div>
@@ -70,4 +85,10 @@
 
 <script setup lang="ts">
 const { toast } = useToast()
+const { user, isAdmin, logout } = useAuth()
+
+async function handleLogout() {
+  logout()
+  await navigateTo('/login')
+}
 </script>

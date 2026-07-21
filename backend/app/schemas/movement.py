@@ -16,7 +16,8 @@ class StockMoveRequest(BaseModel):
         default=MovementSource.MANUAL,
         description="'barcode' if triggered by a scanner read, 'manual' if typed/clicked in the UI",
     )
-    operator: str = Field(default="Operatore", min_length=1, description="Name/badge of the operator performing the action")
+    # No `operator` field here on purpose: it's derived server-side from the
+    # authenticated user (see routers/items.py), so a client can't spoof it.
 
 
 class StockMoveResponse(BaseModel):

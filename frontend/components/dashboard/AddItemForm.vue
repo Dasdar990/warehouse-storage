@@ -100,7 +100,7 @@
 <script setup lang="ts">
 import type { Category, Item, ShelfPositionOption } from '~/composables/useWarehouseApi'
 
-const emit = defineEmits<{ created: [] }>()
+const emit = defineEmits<{ created: [item: Item] }>()
 
 const { createItem, generateBarcode, listAdminCategories, getShelfPositions, labelUrl } = useWarehouseApi()
 const { show } = useToast()
@@ -163,7 +163,7 @@ async function submit() {
     show('success', `Item "${item.name}" created`)
     form.value = { ...EMPTY_FORM }
     await suggestBarcode()
-    emit('created')
+    emit('created', item)
   } catch (err: any) {
     error.value = err?.data?.detail || 'Failed to create item'
   } finally {

@@ -28,14 +28,23 @@
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2.5 py-2.5 font-mono text-muted">{{ item.barcode }}</td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2.5 py-2.5">
-            <a
-              class="inline-block rounded-lg border border-edge px-3 py-1.5 text-[0.8rem] font-semibold text-ink no-underline"
-              :href="labelUrl(item.id)"
-              target="_blank"
-              rel="noopener"
-            >
-              Label
-            </a>
+            <div class="flex gap-1.5">
+              <button
+                type="button"
+                class="inline-block rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-[0.8rem] font-semibold text-blue-300"
+                @click="emit('move', item)"
+              >
+                Move
+              </button>
+              <a
+                class="inline-block rounded-lg border border-edge px-3 py-1.5 text-[0.8rem] font-semibold text-ink no-underline"
+                :href="labelUrl(item.id)"
+                target="_blank"
+                rel="noopener"
+              >
+                Label
+              </a>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -57,6 +66,8 @@ const props = withDefaults(
 )
 
 const { labelUrl } = useWarehouseApi()
+
+const emit = defineEmits<{ move: [item: Item] }>()
 
 function sizeLabel(size: string) {
   return { small: 'S', big: 'B', xl: 'XL' }[size] || size

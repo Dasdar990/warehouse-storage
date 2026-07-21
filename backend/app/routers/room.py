@@ -2,11 +2,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.schemas.room import RoomLayoutOut, RoomLayoutSave
 from app.services.room_service import get_room_layout, replace_room_layout
 
-router = APIRouter(prefix="/room-layout", tags=["room-layout"])
+router = APIRouter(prefix="/room-layout", tags=["room-layout"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=RoomLayoutOut)

@@ -6,14 +6,16 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.models.item import Item, ItemSize
+from app.models.user import User
 from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut
 from app.schemas.movement import StockMoveRequest, StockMoveResponse
 from app.services.barcode_generator import generate_unique_barcode
 from app.services.movement_service import deposit_stock, withdraw_stock
 
-router = APIRouter(prefix="/items", tags=["items"])
+router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
 
 
@@ -97,36 +99,45 @@ def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/withdraw", response_model=StockMoveResponse)
-def withdraw_item(payload: StockMoveRequest, db: Session = Depends(get_db)):
+def withdraw_item(
+    payload: StockMoveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Atomically withdraw stock for the item matching `barcode` (PRELEVA).
+    Atomically withdraw stock for the item matching `barcode` (WITHDRAW).
 
     Prevents the resulting quantity from going negative; returns 400 if the
     requested quantity exceeds what's currently in stock. Every call writes
     a matching audit-log row (see /movements) tagged with `source` so the
-    UI can show a "Barcode Verified" / "Manual Entry" badge.
+    UI can show a "Barcode Verified" / "Manual Entry" badge, and `operator`
+    set to the logged-in user -- never client-supplied, so it can't be spoofed.
     """
-    item, movement = withdraw_stock(db, payload)
+    item, movement = withdraw_stock(db, payload, operator=current_user.full_name)
     return StockMoveResponse(
         item=item,
         moved=payload.quantity,
         action=movement.action,
-        message=f"Prelevate {payload.quantity} unità di '{item.name}'. {item.quantity} rimanenti.",
+        message=f"Withdrew {payload.quantity} unit(s) of '{item.name}'. {item.quantity} remaining.",
     )
 
 
 @router.post("/deposit", response_model=StockMoveResponse)
-def deposit_item(payload: StockMoveRequest, db: Session = Depends(get_db)):
+def deposit_item(
+    payload: StockMoveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Atomically deposit (restock) the item matching `barcode` (DEPOSITA).
+    Atomically deposit (restock) the item matching `barcode` (DEPOSIT).
 
     Mirrors `withdraw_item` but increases quantity; also writes a
-    matching audit-log row.
+    matching audit-log row with `operator` derived from the logged-in user.
     """
-    item, movement = deposit_stock(db, payload)
+    item, movement = deposit_stock(db, payload, operator=current_user.full_name)
     return StockMoveResponse(
         item=item,
         moved=payload.quantity,
         action=movement.action,
-        message=f"Depositate {payload.quantity} unità di '{item.name}'. {item.quantity} totali.",
+        message=f"Deposited {payload.quantity} unit(s) of '{item.name}'. {item.quantity} total.",
     )

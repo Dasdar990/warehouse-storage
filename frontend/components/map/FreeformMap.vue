@@ -1,13 +1,13 @@
 <template>
   <div class="flex flex-col gap-3">
     <div class="flex items-center justify-between">
-      <p class="m-0 text-[0.8rem] text-muted">Trascina per spostare la vista, rotellina per zoom. Clicca uno scaffale per i dettagli.</p>
+      <p class="m-0 text-[0.8rem] text-muted">Drag to pan, scroll to zoom. Click a rack for details.</p>
       <button
         v-if="isZoomed"
         type="button"
         class="btn btn--ghost btn--small"
         @click="resetView"
-      >↺ Reimposta vista</button>
+      >↺ Reset view</button>
     </div>
 
     <div
@@ -18,6 +18,8 @@
           :config="stageConfig"
           class="block"
           @wheel="onWheel"
+          @dragmove="onStageDragMove"
+          @dragend="onStageDragMove"
         >
           <v-layer>
             <!-- Room outline (walls + door): background context only, for orientation -->
@@ -274,6 +276,18 @@ function onWheel(e: any) {
   const scaleBy = 1.08
   const newScale = e.evt.deltaY < 0 ? stageScale.value * scaleBy : stageScale.value / scaleBy
   stageScale.value = Math.min(3, Math.max(0.5, newScale))
+}
+
+// Konva moves the stage itself while dragging, independently of the reactive
+// x/y refs. Without this, stageX/stageY go stale the moment someone pans the
+// map by hand -- the *next* focus-on-rack animation then starts from that
+// stale point instead of where the view actually is, producing a visible
+// snap/glitch. Keeping the refs in sync on every drag frame fixes it.
+function onStageDragMove(e: any) {
+  const stage = e.target?.getStage?.() ?? e.target
+  if (!stage || typeof stage.x !== 'function') return
+  stageX.value = stage.x()
+  stageY.value = stage.y()
 }
 
 watch(

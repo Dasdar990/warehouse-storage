@@ -6,11 +6,11 @@
  * next shift should re-identify themselves.
  */
 export function useOperator() {
-  const operator = useState<string>('warehouse-operator', () => 'Operatore')
+  const operator = useState<string>('warehouse-operator', () => 'Operator')
 
   function setOperator(name: string) {
     const trimmed = name.trim()
-    operator.value = trimmed || 'Operatore'
+    operator.value = trimmed || 'Operator'
   }
 
   return { operator, setOperator }

@@ -2,11 +2,12 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.db import get_db
 from app.schemas.movement import MovementOut
 from app.services.movement_service import list_recent_movements
 
-router = APIRouter(prefix="/movements", tags=["movements"])
+router = APIRouter(prefix="/movements", tags=["movements"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[MovementOut])
