@@ -50,7 +50,7 @@ def get_item_label(item_id: int, db: Session = Depends(get_db), current_user: Us
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    # Genera/salva l'immagine PNG usando la funzione PIL
+    # Generate/save the PNG image using the PIL-based helper
     generate_label_image(
         item_id=item.id,
         name=item.name,
