@@ -6,7 +6,6 @@ from sqlalchemy import Column, Enum as SAEnum, Integer, String
 from app.db import Base
 
 
-
 class ItemSize(str, enum.Enum):
     """Physical size classification used for shelving/handling decisions."""
 
@@ -22,10 +21,11 @@ class Item(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    pn = Column(String, index=True, nullable=False)
+    pn = Column(String, index=True, nullable=False, default="")
     barcode = Column(String, unique=True, index=True, nullable=False)
     category = Column(String, index=True, nullable=False)
-    size = Column(SAEnum(ItemSize, native_enum=False, length=16), nullable=False)
+    size = Column(SAEnum(ItemSize, native_enum=False,
+                  length=16), nullable=False)
     quantity = Column(Integer, default=0, nullable=False)
     # Alphanumeric shelf position, e.g. "12B" or "3A" (shelf number + level letter)
     shelf_position = Column(String, index=True, nullable=False)

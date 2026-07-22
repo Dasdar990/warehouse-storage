@@ -1,7 +1,11 @@
 <template>
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-3.5">
-      <button class="btn btn--confirm text-[#06280f]" type="button" @click="addZone">
+      <button
+        class="btn btn--confirm text-[#06280f]"
+        type="button"
+        @click="addZone"
+      >
         + Add zone
       </button>
       <label class="flex items-center gap-1.5 text-[0.85rem] text-muted">
@@ -17,15 +21,17 @@
         Clear canvas
       </button>
       <span class="ml-auto text-[0.8rem] text-muted">
-        {{ zones.length }} zone(s) · {{ walls.length }} wall(s) · {{ doors.length }} door(s) ·
-        {{ racks.length }} rack(s)
+        {{ zones.length }} zone(s) · {{ walls.length }} wall(s) ·
+        {{ doors.length }} door(s) · {{ racks.length }} rack(s)
       </span>
     </div>
 
     <div
       class="flex flex-wrap items-center gap-2.5 rounded-card border border-edge bg-surface-2 px-3.5 py-2.5"
     >
-      <span class="mr-1 text-[0.8rem] text-muted">Drag onto the map to place it:</span>
+      <span class="mr-1 text-[0.8rem] text-muted"
+        >Drag onto the map to place it:</span
+      >
       <div
         v-for="preset in PALETTE_ITEMS"
         :key="preset.kind"
@@ -36,7 +42,10 @@
         <span
           v-if="preset.kind === 'rack'"
           class="inline-block shrink-0 rounded-sm border-[1.5px] border-accent/80 bg-accent/45"
-          :style="{ width: preset.width / 5 + 'px', height: preset.height / 5 + 'px' }"
+          :style="{
+            width: preset.width / 5 + 'px',
+            height: preset.height / 5 + 'px',
+          }"
         ></span>
         <span
           v-else-if="preset.kind === 'wall'"
@@ -87,7 +96,9 @@
                     width: zone.width,
                     height: zone.height,
                     fill: zone.color + '18',
-                    stroke: isSelected('zone', zone._key) ? '#60a5fa' : zone.color + '88',
+                    stroke: isSelected('zone', zone._key)
+                      ? '#60a5fa'
+                      : zone.color + '88',
                     strokeWidth: isSelected('zone', zone._key) ? 2.5 : 1.5,
                     dash: [6, 4],
                     cornerRadius: 6,
@@ -157,7 +168,9 @@
                     fillLinearGradientColorStops: isSelected('wall', wall._key)
                       ? [0, '#bfdbfe', 1, '#60a5fa']
                       : [0, '#e2e8f0', 1, '#94a3b8'],
-                    stroke: isSelected('wall', wall._key) ? '#3b82f6' : '#475569',
+                    stroke: isSelected('wall', wall._key)
+                      ? '#3b82f6'
+                      : '#475569',
                     strokeWidth: 1,
                     cornerRadius: 1,
                   }"
@@ -166,7 +179,9 @@
                 <v-line
                   :config="{
                     points: [0, wall.height / 2, wall.width, wall.height / 2],
-                    stroke: isSelected('wall', wall._key) ? '#2563eb' : '#334155',
+                    stroke: isSelected('wall', wall._key)
+                      ? '#2563eb'
+                      : '#334155',
                     strokeWidth: 1,
                     opacity: 0.5,
                     listening: false,
@@ -197,7 +212,9 @@
                     innerRadius: 0,
                     outerRadius: door.width,
                     angle: 90,
-                    stroke: isSelected('door', door._key) ? '#60a5fa' : '#facc15',
+                    stroke: isSelected('door', door._key)
+                      ? '#60a5fa'
+                      : '#facc15',
                     strokeWidth: 2,
                     dash: [5, 4],
                   }"
@@ -246,7 +263,10 @@
                 />
                 <v-text
                   :config="{
-                    text: (rack.label || rack.rack_code) + '\n' + rack.levels.join(','),
+                    text:
+                      (rack.label || rack.rack_code) +
+                      '\n' +
+                      rack.levels.join(','),
                     fontSize: 12,
                     fontFamily: 'Segoe UI, Arial',
                     fill: '#ffffff',
@@ -339,10 +359,18 @@
           </label>
 
           <div class="flex gap-2">
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateWallBy(-90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateWallBy(-90)"
+            >
               ⟲ -90°
             </button>
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateWallBy(90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateWallBy(90)"
+            >
               ⟳ +90°
             </button>
           </div>
@@ -367,10 +395,18 @@
           </label>
 
           <div class="flex gap-2">
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateDoorBy(-90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateDoorBy(-90)"
+            >
               ⟲ -90°
             </button>
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateDoorBy(90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateDoorBy(90)"
+            >
               ⟳ +90°
             </button>
           </div>
@@ -381,7 +417,9 @@
         </template>
 
         <template v-else-if="selectedRack">
-          <h3 class="m-0 border-b border-edge pb-2 text-[0.95rem]">Rack properties</h3>
+          <h3 class="m-0 border-b border-edge pb-2 text-[0.95rem]">
+            Rack properties
+          </h3>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Code (numeric, e.g. 12)</span>
@@ -430,10 +468,18 @@
           </label>
 
           <div class="flex gap-2">
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateRackBy(-90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateRackBy(-90)"
+            >
               ⟲ -90°
             </button>
-            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateRackBy(90)">
+            <button
+              class="btn btn--ghost btn--small flex-1"
+              type="button"
+              @click="rotateRackBy(90)"
+            >
               ⟳ +90°
             </button>
           </div>
@@ -444,10 +490,10 @@
         </template>
 
         <p v-else class="m-0 text-[0.82rem] leading-relaxed text-muted">
-          Sketch the room first — walls and the door are purely for
-          orientation — then delimit zones and place racks inside them.
-          Select anything on the map to edit or delete it; drag the corner
-          handles to resize, or the top handle to rotate.
+          Sketch the room first — walls and the door are purely for orientation
+          — then delimit zones and place racks inside them. Select anything on
+          the map to edit or delete it; drag the corner handles to resize, or
+          the top handle to rotate.
         </p>
       </aside>
     </div>
@@ -455,7 +501,12 @@
 </template>
 
 <script setup lang="ts">
-import type { DoorInput, ShelfNode, WallInput, ZoneInput } from "~/composables/useWarehouseApi";
+import type {
+  DoorInput,
+  ShelfNode,
+  WallInput,
+  ZoneInput,
+} from "~/composables/useWarehouseApi";
 
 interface EditorZone extends ZoneInput {
   _key: string;
@@ -494,7 +545,16 @@ const emit = defineEmits<{
 const CANVAS_WIDTH = 1400;
 const CANVAS_HEIGHT = 760;
 const GRID_STEP = 10;
-const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
+const PALETTE = [
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#a855f7",
+  "#06b6d4",
+  "#ec4899",
+  "#84cc16",
+];
 
 let keySeed = 0;
 function nextKey(prefix: string) {
@@ -502,10 +562,18 @@ function nextKey(prefix: string) {
   return `${prefix}${Date.now()}-${keySeed}`;
 }
 
-const zones = ref<EditorZone[]>(props.zones.map((z) => ({ ...z, _key: nextKey("zone-") })));
-const walls = ref<EditorWall[]>(props.walls.map((w) => ({ ...w, _key: nextKey("wall-") })));
-const doors = ref<EditorDoor[]>(props.doors.map((d) => ({ ...d, _key: nextKey("door-") })));
-const racks = ref<EditorRack[]>(props.nodes.map((n) => ({ ...n, _key: nextKey("rack-") })));
+const zones = ref<EditorZone[]>(
+  props.zones.map((z) => ({ ...z, _key: nextKey("zone-") })),
+);
+const walls = ref<EditorWall[]>(
+  props.walls.map((w) => ({ ...w, _key: nextKey("wall-") })),
+);
+const doors = ref<EditorDoor[]>(
+  props.doors.map((d) => ({ ...d, _key: nextKey("door-") })),
+);
+const racks = ref<EditorRack[]>(
+  props.nodes.map((n) => ({ ...n, _key: nextKey("rack-") })),
+);
 
 const snapToGrid = ref(true);
 const stageRef = ref<any>(null);
@@ -513,7 +581,11 @@ const transformerRef = ref<any>(null);
 const selected = ref<{ kind: Kind; key: string } | null>(null);
 
 const hasAnything = computed(
-  () => zones.value.length > 0 || walls.value.length > 0 || doors.value.length > 0 || racks.value.length > 0,
+  () =>
+    zones.value.length > 0 ||
+    walls.value.length > 0 ||
+    doors.value.length > 0 ||
+    racks.value.length > 0,
 );
 
 // Each array is watched independently so editing one kind never touches the
@@ -583,22 +655,34 @@ function isSelected(kind: Kind, key: string) {
 }
 
 const selectedZone = computed(() =>
-  selected.value?.kind === "zone" ? zones.value.find((z) => z._key === selected.value!.key) || null : null,
+  selected.value?.kind === "zone"
+    ? zones.value.find((z) => z._key === selected.value!.key) || null
+    : null,
 );
 const selectedWall = computed(() =>
-  selected.value?.kind === "wall" ? walls.value.find((w) => w._key === selected.value!.key) || null : null,
+  selected.value?.kind === "wall"
+    ? walls.value.find((w) => w._key === selected.value!.key) || null
+    : null,
 );
 const selectedDoor = computed(() =>
-  selected.value?.kind === "door" ? doors.value.find((d) => d._key === selected.value!.key) || null : null,
+  selected.value?.kind === "door"
+    ? doors.value.find((d) => d._key === selected.value!.key) || null
+    : null,
 );
 const selectedRack = computed(() =>
-  selected.value?.kind === "rack" ? racks.value.find((r) => r._key === selected.value!.key) || null : null,
+  selected.value?.kind === "rack"
+    ? racks.value.find((r) => r._key === selected.value!.key) || null
+    : null,
 );
 
 // Positional real/placeholder ids so the rack editor's zone dropdown and
 // stroke coloring can reference a zone before it has been saved.
 const zoneRefs = computed(() =>
-  zones.value.map((z, i) => ({ id: props.zoneIds[i] ?? -(i + 1), name: z.name, color: z.color })),
+  zones.value.map((z, i) => ({
+    id: props.zoneIds[i] ?? -(i + 1),
+    name: z.name,
+    color: z.color,
+  })),
 );
 function zoneColor(zoneId: number | null) {
   if (zoneId == null) return null;
@@ -606,7 +690,9 @@ function zoneColor(zoneId: number | null) {
 }
 
 function snap(value: number) {
-  return snapToGrid.value ? Math.round(value / GRID_STEP) * GRID_STEP : Math.round(value);
+  return snapToGrid.value
+    ? Math.round(value / GRID_STEP) * GRID_STEP
+    : Math.round(value);
 }
 function normalizeAngle(deg: number) {
   return Math.round(((deg % 360) + 360) % 360);
@@ -637,7 +723,12 @@ function nextRackCode(): string {
   return String(n);
 }
 
-function createRack(x: number, y: number, width: number, height: number): EditorRack {
+function createRack(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): EditorRack {
   return {
     _key: nextKey("rack-"),
     rack_code: nextRackCode(),
@@ -652,7 +743,12 @@ function createRack(x: number, y: number, width: number, height: number): Editor
   };
 }
 
-function createWall(x: number, y: number, width: number, height: number): EditorWall {
+function createWall(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): EditorWall {
   return { _key: nextKey("wall-"), x, y, width, height, rotation: 0 };
 }
 
@@ -664,11 +760,14 @@ function createDoor(x: number, y: number, width: number): EditorDoor {
 // doors are placed the same way, by dragging onto the canvas.
 const PALETTE_ITEMS = [
   { kind: "rack", label: "Rack (4 levels)", width: 90, height: 140 },
-  { kind: "wall", label: "Wall", width: 120, height: 10 },
+  { kind: "wall", label: "Wall", width: 120, height: 3 },
   { kind: "door", label: "Door", width: 40, height: 40 },
 ] as const;
 
-function onPaletteDragStart(e: DragEvent, preset: (typeof PALETTE_ITEMS)[number]) {
+function onPaletteDragStart(
+  e: DragEvent,
+  preset: (typeof PALETTE_ITEMS)[number],
+) {
   e.dataTransfer?.setData("application/json", JSON.stringify(preset));
   if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
 }
@@ -717,15 +816,21 @@ function deleteSelected() {
   if (!selected.value) return;
   const { kind, key } = selected.value;
   if (kind === "zone") zones.value = zones.value.filter((z) => z._key !== key);
-  else if (kind === "wall") walls.value = walls.value.filter((w) => w._key !== key);
-  else if (kind === "door") doors.value = doors.value.filter((d) => d._key !== key);
+  else if (kind === "wall")
+    walls.value = walls.value.filter((w) => w._key !== key);
+  else if (kind === "door")
+    doors.value = doors.value.filter((d) => d._key !== key);
   else racks.value = racks.value.filter((r) => r._key !== key);
   selected.value = null;
   commit(kind);
 }
 
 function clearAll() {
-  if (hasAnything.value && !confirm("Remove every zone, wall, door, and rack from the canvas?")) return;
+  if (
+    hasAnything.value &&
+    !confirm("Remove every zone, wall, door, and rack from the canvas?")
+  )
+    return;
   zones.value = [];
   walls.value = [];
   doors.value = [];
@@ -748,7 +853,11 @@ function handleStageMouseDown(e: any) {
 // so we bake the scale back into width/height and reset it to 1 to keep
 // subsequent drags/rotations clean. Doors never resize via the transformer
 // (no corner anchors), so their `width` stays whatever the side panel set.
-function handleTransformEnd(e: any, item: EditorZone | EditorWall | EditorDoor | EditorRack, kind: Kind) {
+function handleTransformEnd(
+  e: any,
+  item: EditorZone | EditorWall | EditorDoor | EditorRack,
+  kind: Kind,
+) {
   const node = e.target;
   item.x = snap(node.x());
   item.y = snap(node.y());
@@ -777,25 +886,39 @@ function handleTransformEnd(e: any, item: EditorZone | EditorWall | EditorDoor |
 // too (the <input min> attribute alone doesn't stop a typed/pasted value).
 function commitWall() {
   if (!selectedWall.value) return;
-  selectedWall.value.width = Math.max(10, Math.round(selectedWall.value.width || 0));
-  selectedWall.value.height = Math.max(4, Math.round(selectedWall.value.height || 0));
-  selectedWall.value.rotation = normalizeAngle(selectedWall.value.rotation || 0);
+  selectedWall.value.width = Math.max(
+    10,
+    Math.round(selectedWall.value.width || 0),
+  );
+  selectedWall.value.height = Math.max(
+    4,
+    Math.round(selectedWall.value.height || 0),
+  );
+  selectedWall.value.rotation = normalizeAngle(
+    selectedWall.value.rotation || 0,
+  );
   commit("wall");
 }
 function rotateWallBy(delta: number) {
   if (!selectedWall.value) return;
-  selectedWall.value.rotation = normalizeAngle(selectedWall.value.rotation + delta);
+  selectedWall.value.rotation = normalizeAngle(
+    selectedWall.value.rotation + delta,
+  );
   commit("wall");
 }
 
 function rotateRackBy(delta: number) {
   if (!selectedRack.value) return;
-  selectedRack.value.rotation = normalizeAngle(selectedRack.value.rotation + delta);
+  selectedRack.value.rotation = normalizeAngle(
+    selectedRack.value.rotation + delta,
+  );
   commit("rack");
 }
 function rotateDoorBy(delta: number) {
   if (!selectedDoor.value) return;
-  selectedDoor.value.rotation = normalizeAngle(selectedDoor.value.rotation + delta);
+  selectedDoor.value.rotation = normalizeAngle(
+    selectedDoor.value.rotation + delta,
+  );
   commit("door");
 }
 
@@ -831,7 +954,8 @@ const transformerConfig = computed(() => {
     keepRatio: false,
   };
   const kind = selected.value?.kind;
-  if (kind === "door") return { ...base, enabledAnchors: [], rotateEnabled: true };
+  if (kind === "door")
+    return { ...base, enabledAnchors: [], rotateEnabled: true };
   if (kind === "zone")
     return {
       ...base,
@@ -842,7 +966,12 @@ const transformerConfig = computed(() => {
     return {
       ...base,
       anchorSize: 14,
-      enabledAnchors: ["middle-left", "middle-right", "top-center", "bottom-center"],
+      enabledAnchors: [
+        "middle-left",
+        "middle-right",
+        "top-center",
+        "bottom-center",
+      ],
       rotateEnabled: true,
     };
   return {

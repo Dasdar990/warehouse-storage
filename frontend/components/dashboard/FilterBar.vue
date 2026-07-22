@@ -1,7 +1,9 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2.5 max-[640px]:flex-col max-[640px]:items-stretch">
+  <div
+    class="flex flex-wrap items-center gap-2 max-[640px]:flex-col max-[640px]:items-stretch"
+  >
     <input
-      class="field-input flex-1 basis-[220px]"
+      class="field-input flex-1 basis-55"
       type="text"
       placeholder="Search name, P/N, or barcode…"
       :value="modelValue.search"
@@ -14,13 +16,17 @@
       @change="update('category', ($event.target as HTMLSelectElement).value)"
     >
       <option value="">All categories</option>
-      <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+      <option v-for="cat in categories" :key="cat" :value="cat">
+        {{ cat }}
+      </option>
     </select>
 
     <select
       class="field-input"
       :value="modelValue.size || ''"
-      @change="update('size', ($event.target as HTMLSelectElement).value as any)"
+      @change="
+        update('size', ($event.target as HTMLSelectElement).value as any)
+      "
     >
       <option value="">All sizes</option>
       <option value="small">Small</option>
@@ -29,43 +35,36 @@
     </select>
 
     <input
-      class="field-input w-[140px] max-[640px]:w-full"
+      class="field-input w-35 max-[640px]:w-full"
       type="text"
       placeholder="Shelf (e.g. 12B)"
       :value="modelValue.shelf_position"
-      @input="update('shelf_position', ($event.target as HTMLInputElement).value)"
+      @input="
+        update('shelf_position', ($event.target as HTMLInputElement).value)
+      "
     />
-
-    <label class="flex items-center gap-1.5 whitespace-nowrap text-sm text-muted">
-      <input
-        type="checkbox"
-        :checked="modelValue.low_stock"
-        @change="update('low_stock', ($event.target as HTMLInputElement).checked)"
-      />
-      Low stock only
-    </label>
 
     <button class="btn btn--ghost btn--small" @click="reset">Clear</button>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { ItemFilters } from '~/composables/useWarehouseApi'
+import type { ItemFilters } from "~/composables/useWarehouseApi";
 
 const props = defineProps<{
-  modelValue: ItemFilters
-  categories: string[]
-}>()
+  modelValue: ItemFilters;
+  categories: string[];
+}>();
 
 const emit = defineEmits<{
-  'update:modelValue': [ItemFilters]
-}>()
+  "update:modelValue": [ItemFilters];
+}>();
 
 function update<K extends keyof ItemFilters>(key: K, value: ItemFilters[K]) {
-  emit('update:modelValue', { ...props.modelValue, [key]: value })
+  emit("update:modelValue", { ...props.modelValue, [key]: value });
 }
 
 function reset() {
-  emit('update:modelValue', {})
+  emit("update:modelValue", {});
 }
 </script>

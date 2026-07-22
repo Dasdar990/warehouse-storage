@@ -1,24 +1,25 @@
 <template>
   <div class="flex flex-col gap-4">
-    <section>
+    <section class="card py-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="mb-1.5 text-[1.15rem]">Warehouse Storage</h2>
+          <div
+            class="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-muted"
+          >
+            Operations
+          </div>
+          <h2 class="text-[1rem] font-semibold">Warehouse Storage</h2>
           <p class="m-0 text-sm text-muted">
-            Scan a barcode to withdraw/deposit instantly, or search for an item to locate it on the map.
+            Scan, search, and update stock from one place.
           </p>
         </div>
-        <div class="flex items-center gap-2.5">
-          <button
-            type="button"
-            class="btn btn--primary whitespace-nowrap text-[0.85rem]"
-            @click="showAddItemModal = true"
-          >+ New Item</button>
-          <NuxtLink
-            to="/map-config"
-            class="whitespace-nowrap rounded-lg border border-edge bg-transparent px-4 py-2.5 text-[0.85rem] font-semibold text-ink no-underline"
-          >Configure Map</NuxtLink>
-        </div>
+        <button
+          type="button"
+          class="btn btn--primary cursor-pointer whitespace-nowrap text-[0.82rem]"
+          @click="showAddItemModal = true"
+        >
+          New item
+        </button>
       </div>
     </section>
 
@@ -79,8 +80,15 @@
           @back="backToRack"
         />
 
-        <p v-if="!selectedItem && !selectedLevel && !(layout?.has_custom_layout && selectedRack)" class="card text-sm text-muted">
-          Scan a code, search for an item, or click a shelf on the map to get started.
+        <p
+          v-if="
+            !selectedItem &&
+            !selectedLevel &&
+            !(layout?.has_custom_layout && selectedRack)
+          "
+          class="card border border-dashed border-edge/70 text-sm text-muted"
+        >
+          Start with a search or scan to open the item details.
         </p>
       </div>
     </div>
@@ -100,7 +108,14 @@ import type {
   WarehouseLayout,
 } from "~/composables/useWarehouseApi";
 
-const { getWarehouseLayout, getRackLevels, getShelfItems, getZones, withdrawItem, depositItem } = useWarehouseApi();
+const {
+  getWarehouseLayout,
+  getRackLevels,
+  getShelfItems,
+  getZones,
+  withdrawItem,
+  depositItem,
+} = useWarehouseApi();
 const { mode } = useOperationMode();
 const { show } = useToast();
 
@@ -115,9 +130,9 @@ const showAddItemModal = ref(false);
 
 async function handleItemCreated(item: Item) {
   showAddItemModal.value = false;
-  show('success', `"${item.name}" created — here's where it landed`);
+  show("success", `"${item.name}" created — here's where it landed`);
   closeDrilldown();
-  lastSelectionSource.value = 'manual';
+  lastSelectionSource.value = "manual";
   selectedItem.value = item;
   // Shelf item counts on the map just changed, so refresh the layout in the background.
   loadLayout(true);
@@ -125,12 +140,14 @@ async function handleItemCreated(item: Item) {
 
 // --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
 const selectedItem = ref<Item | null>(null);
-const lastSelectionSource = ref<'barcode' | 'manual'>('manual');
+const lastSelectionSource = ref<"barcode" | "manual">("manual");
 const zoneNameById = ref<Map<number, string>>(new Map());
 
 const selectedItemZoneLabel = computed(() => {
   if (!selectedItem.value || !layout.value?.has_custom_layout) return undefined;
-  const node = layout.value.nodes.find((n) => n.rack_code === parseRackCode(selectedItem.value!.shelf_position));
+  const node = layout.value.nodes.find(
+    (n) => n.rack_code === parseRackCode(selectedItem.value!.shelf_position),
+  );
   if (!node || node.zone_id == null) return undefined;
   return zoneNameById.value.get(node.zone_id);
 });
@@ -145,9 +162,13 @@ const levelItems = ref<Item[]>([]);
 const loadingLevelItems = ref(false);
 
 // Whichever flow set it, this is what the maps highlight/pan to.
-const highlightShelfPosition = computed(() => selectedItem.value?.shelf_position ?? selectedLevel.value);
+const highlightShelfPosition = computed(
+  () => selectedItem.value?.shelf_position ?? selectedLevel.value,
+);
 const highlightRackCode = computed(() =>
-  selectedItem.value ? parseRackCode(selectedItem.value.shelf_position) : selectedRack.value
+  selectedItem.value
+    ? parseRackCode(selectedItem.value.shelf_position)
+    : selectedRack.value,
 );
 
 function parseRackCode(shelfPosition: string): string | null {
@@ -171,30 +192,37 @@ async function loadLayout(silent = false) {
 // --- UnifiedSearchBar handlers ---
 
 async function handleScanItem(item: Item) {
-  lastSelectionSource.value = 'barcode';
+  lastSelectionSource.value = "barcode";
   closeDrilldown();
 
   // Scan & Confirm: barcode reads execute the toggled action immediately with qty 1.
   try {
-    const payload = { barcode: item.barcode, quantity: 1, source: 'barcode' as const };
-    const res = mode.value === 'deposit' ? await depositItem(payload) : await withdrawItem(payload);
+    const payload = {
+      barcode: item.barcode,
+      quantity: 1,
+      source: "barcode" as const,
+    };
+    const res =
+      mode.value === "deposit"
+        ? await depositItem(payload)
+        : await withdrawItem(payload);
     selectedItem.value = res.item;
-    show('success', res.message);
+    show("success", res.message);
     activityLogRef.value?.refresh();
   } catch (err: any) {
     // Still show the item card even if the auto-action failed (e.g. insufficient stock),
     // so the operator can see what's there and act manually.
     selectedItem.value = item;
-    show('error', err?.data?.detail || "Automatic operation failed");
+    show("error", err?.data?.detail || "Automatic operation failed");
   }
 }
 
 function handleScanNotFound(code: string) {
-  show('error', `No item found for code "${code}"`);
+  show("error", `No item found for code "${code}"`);
 }
 
 function handleLocateItem(item: Item) {
-  lastSelectionSource.value = 'manual';
+  lastSelectionSource.value = "manual";
   closeDrilldown();
   selectedItem.value = item;
 }

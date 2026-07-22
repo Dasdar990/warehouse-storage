@@ -9,15 +9,19 @@ SHELF_POSITION_PATTERN = re.compile(r"^\d+[A-Za-z]$")
 
 
 class ItemBase(BaseModel):
-    name: str = Field(..., min_length=1, description="Human readable item name")
-    pn: str = Field(..., min_length=1, description="Part number")
-    barcode: str = Field(..., min_length=1, description="Unique scannable barcode value")
-    category: str = Field(..., min_length=1, description="Product category, e.g. 'Fasteners'")
+    name: str = Field(..., min_length=1,
+                      description="Human readable item name")
+    pn: str = Field(default="", description="Optional part number")
+    barcode: str = Field(..., min_length=1,
+                         description="Unique scannable barcode value")
+    category: str = Field(..., min_length=1,
+                          description="Product category, e.g. 'Fasteners'")
     size: ItemSize = Field(..., description="Physical size classification")
     shelf_position: str = Field(
         ..., description='Alphanumeric shelf position, e.g. "12B" or "3A"'
     )
-    quantity: int = Field(default=0, ge=0, description="Current stock quantity")
+    quantity: int = Field(
+        default=0, ge=0, description="Current stock quantity")
 
     @field_validator("shelf_position")
     @classmethod
@@ -32,6 +36,11 @@ class ItemBase(BaseModel):
     @field_validator("category")
     @classmethod
     def normalize_category(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("pn")
+    @classmethod
+    def normalize_pn(cls, value: str) -> str:
         return value.strip()
 
 
