@@ -39,6 +39,14 @@ class MovementOut(BaseModel):
     balance_after: int
     source: MovementSource
     operator: str
+    voided: bool
+    reversal_of_id: int | None
 
     class Config:
         from_attributes = True
+
+
+class RollbackResponse(BaseModel):
+    item: ItemOut
+    reversal: MovementOut
+    message: str

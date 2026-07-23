@@ -82,6 +82,34 @@ def get_next_barcode(db: Session = Depends(get_db)):
     return BarcodeSuggestion(barcode=generate_unique_barcode(db))
 
 
+@router.get("/check-duplicate", response_model=list[ItemOut])
+def check_duplicate_item(
+    name: Optional[str] = Query(default=None, description="Candidate item name"),
+    pn: Optional[str] = Query(default=None, description="Candidate part number"),
+    db: Session = Depends(get_db),
+):
+    """
+    Look up existing items that a about-to-be-created item might duplicate.
+
+    Matches case-insensitively on name and/or PN so the "New Item" form can
+    warn the user and offer to top up the existing item instead of creating
+    a near-duplicate row.
+    """
+    name = (name or "").strip()
+    pn = (pn or "").strip()
+    if not name and not pn:
+        return []
+
+    conditions = []
+    if name:
+        conditions.append(Item.name.ilike(name))
+    if pn:
+        conditions.append(Item.pn.ilike(pn))
+
+    stmt = select(Item).where(or_(*conditions)).order_by(Item.id.desc()).limit(5)
+    return db.execute(stmt).scalars().all()
+
+
 @router.post("", response_model=ItemOut, status_code=201)
 def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
     """Create a new inventory item. Fails with 409 if the barcode already exists."""

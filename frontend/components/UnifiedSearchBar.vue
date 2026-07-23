@@ -59,36 +59,6 @@
           </li>
         </ul>
       </div>
-
-      <!-- Quick action mode: add or remove stock on barcode scan -->
-      <div
-        class="flex items-center gap-1 rounded-full border border-edge bg-surface-2 p-1 max-[640px]:w-full"
-      >
-        <button
-          type="button"
-          class="flex-1 cursor-pointer whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.82rem] font-medium transition-all"
-          :class="
-            mode === 'deposit'
-              ? 'bg-accent/10 text-ink shadow-[0_0_0_1px_rgba(76,123,97,0.18)]'
-              : 'text-muted hover:bg-surface hover:text-ink'
-          "
-          @click="setMode('deposit')"
-        >
-          <span class="mr-1">＋</span> Add
-        </button>
-        <button
-          type="button"
-          class="flex-1 cursor-pointer whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.82rem] font-medium transition-all"
-          :class="
-            mode === 'withdraw'
-              ? 'bg-surface-2 text-ink shadow-[0_0_0_1px_rgba(167,95,78,0.16)]'
-              : 'text-muted hover:bg-surface hover:text-ink'
-          "
-          @click="setMode('withdraw')"
-        >
-          <span class="mr-1">−</span> Remove
-        </button>
-      </div>
     </div>
 
     <p class="mt-2 mb-0 text-[0.76rem] text-muted">

@@ -2,7 +2,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -51,5 +51,11 @@ class Movement(Base):
 
     source = Column(SAEnum(MovementSource, native_enum=False, length=16), nullable=False)
     operator = Column(String, nullable=False, default="Operator")
+
+    # Rollback support (admin-only). The audit log stays append-only: a
+    # rollback never edits or deletes the original row, it just flags it
+    # and writes a new, opposite compensating movement pointing back here.
+    voided = Column(Boolean, nullable=False, default=False)
+    reversal_of_id = Column(Integer, ForeignKey("movements.id"), nullable=True)
 
     item = relationship("Item")

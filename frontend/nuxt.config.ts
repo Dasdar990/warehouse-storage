@@ -24,7 +24,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: "Warehouse Storage",
+      title: "Industrial Engineering Warehouse",
       meta: [
         {
           name: "viewport",

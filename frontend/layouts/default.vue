@@ -5,13 +5,11 @@
         to="/"
         class="flex items-center gap-3.5 text-inherit no-underline"
       >
-        <span
-          class="flex h-10 w-10 items-center justify-center rounded-full border border-edge/80 bg-surface-2 text-[0.95rem] font-semibold text-accent"
-        >
-          WS
-        </span>
+        <img src="~/assets/images/logo_reduced.svg" class="w-8 h-auto" />
         <div>
-          <h1 class="m-0 text-[1.3rem] font-bold">Warehouse Storage</h1>
+          <h1 class="m-0 text-[1.3rem] font-bold">
+            Industrial Engineering Warehouse
+          </h1>
           <p class="mt-0.5 mb-0 text-[0.8rem] text-muted">
             Scan, search, update stock
           </p>

@@ -1,15 +1,23 @@
 <template>
   <section class="card">
-    <div class="mb-3.5 flex items-center justify-between">
+    <div class="mb-3.5 flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-[1.05rem]">Activity Log</h2>
-      <button
-        type="button"
-        class="btn btn--ghost btn--small"
-        :disabled="loading"
-        @click="refresh"
-      >
-        {{ loading ? "Refreshing…" : "Refresh" }}
-      </button>
+      <div class="flex items-center gap-2">
+        <input
+          v-model="operatorQuery"
+          type="text"
+          placeholder="Search by operator…"
+          class="field-input h-8.5 w-45 text-[0.82rem]"
+        />
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          :disabled="loading"
+          @click="refresh"
+        >
+          {{ loading ? "Refreshing…" : "Refresh" }}
+        </button>
+      </div>
     </div>
 
     <p v-if="loading && movements.length === 0" class="py-4 text-muted">
@@ -33,7 +41,8 @@
             <th class="pb-2 pr-3 font-semibold">Action</th>
             <th class="pb-2 pr-3 font-semibold text-right">Qty</th>
             <th class="pb-2 pr-3 font-semibold">Item / P/N</th>
-            <th class="pb-2 font-semibold">Source</th>
+            <th class="pb-2 pr-3 font-semibold">Source</th>
+            <th v-if="isAdmin" class="pb-2 font-semibold">Rollback</th>
           </tr>
         </thead>
         <transition-group tag="tbody" name="log-row">
@@ -41,6 +50,7 @@
             v-for="m in movements"
             :key="m.id"
             class="border-b border-edge/50 last:border-b-0"
+            :class="{ 'opacity-45': m.voided }"
           >
             <td class="whitespace-nowrap py-2.5 pr-3 text-muted">
               {{ formatTime(m.timestamp) }}
@@ -58,6 +68,13 @@
                 "
               >
                 {{ m.action === "deposit" ? "Added" : "Removed" }}
+              </span>
+              <span
+                v-if="m.reversal_of_id"
+                class="ml-1.5 rounded-full bg-surface-2 px-2 py-0.5 text-[0.68rem] font-semibold text-muted"
+                title="This entry reverses a previous movement"
+              >
+                ↩ rollback of #{{ m.reversal_of_id }}
               </span>
             </td>
             <td
@@ -85,6 +102,23 @@
                 >Manual entry</span
               >
             </td>
+            <td v-if="isAdmin" class="whitespace-nowrap py-2.5">
+              <span v-if="m.voided" class="text-[0.75rem] text-muted"
+                >Rolled back</span
+              >
+              <span v-else-if="m.reversal_of_id" class="text-[0.75rem] text-muted"
+                >—</span
+              >
+              <button
+                v-else
+                type="button"
+                class="btn btn--ghost btn--small whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="rollingBack === m.id"
+                @click="confirmRollback(m)"
+              >
+                {{ rollingBack === m.id ? "Rolling back…" : "Rollback" }}
+              </button>
+            </td>
           </tr>
         </transition-group>
       </table>
@@ -95,18 +129,49 @@
 <script setup lang="ts">
 import type { Movement } from "~/composables/useWarehouseApi";
 
-const { listMovements } = useWarehouseApi();
+const { listMovements, rollbackMovement } = useWarehouseApi();
+const { isAdmin } = useAuth();
+const { show } = useToast();
 
 const movements = ref<Movement[]>([]);
 const loading = ref(false);
+const rollingBack = ref<number | null>(null);
+const operatorQuery = ref("");
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
 async function refresh() {
   loading.value = true;
   try {
-    movements.value = await listMovements(50);
+    movements.value = await listMovements(50, {
+      operator: operatorQuery.value.trim() || undefined,
+    });
   } finally {
     loading.value = false;
+  }
+}
+
+watch(operatorQuery, () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(refresh, 300);
+});
+
+async function confirmRollback(m: Movement) {
+  const verb = m.action === "deposit" ? "removing" : "adding back";
+  const ok = window.confirm(
+    `Roll back this movement? This will log a compensating entry ${verb} ${m.quantity} unit(s) of "${m.item_name}".`,
+  );
+  if (!ok) return;
+
+  rollingBack.value = m.id;
+  try {
+    const res = await rollbackMovement(m.id);
+    show("success", res.message);
+    await refresh();
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to roll back this movement");
+  } finally {
+    rollingBack.value = null;
   }
 }
 

@@ -34,8 +34,7 @@ services:
         PORT: 3000
         WATCHPACK_POLLING: "true"
       volumes:
-        - ./frontend:/app # Mounts your local code
-        # 👇 KEY: protects the node_modules generated inside the container
+        - ./frontend:/app 
         - /app/node_modules 
       depends_on:
         backend:

@@ -4,8 +4,8 @@ FROM python:3.11-slim
 # libjpeg/zlib dev headers are needed by Pillow's wheel fallback build.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        fonts-dejavu-core \
-        curl \
+    fonts-dejavu-core \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
@@ -25,11 +25,13 @@ RUN poetry install --no-root --only main
 
 # Copy application source
 COPY app ./app
+COPY assets ./assets
 
 # Persistent data / label directories (also mounted as volumes via compose)
 RUN mkdir -p /app/data /app/labels
 ENV DATA_DIR=/app/data \
-    LABELS_DIR=/app/labels
+    LABELS_DIR=/app/labels \
+    ASSETS_DIR=/app/assets
 
 EXPOSE 8000
 

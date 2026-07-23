@@ -171,6 +171,8 @@ export interface Movement {
   balance_after: number
   source: MovementSource
   operator: string
+  voided: boolean
+  reversal_of_id: number | null
 }
 
 export type UserRole = 'admin' | 'operator'
@@ -250,6 +252,14 @@ export function useWarehouseApi() {
     return apiFetch<Item>('/items', { method: 'POST', body: payload })
   }
 
+  /** Existing items that look like duplicates of a candidate name/PN (used by the New Item form). */
+  function checkDuplicateItems(candidate: { name?: string; pn?: string }) {
+    const params: Record<string, string> = {}
+    if (candidate.name) params.name = candidate.name
+    if (candidate.pn) params.pn = candidate.pn
+    return apiFetch<Item[]>('/items/check-duplicate', { params })
+  }
+
   function generateBarcode() {
     return apiFetch<BarcodeSuggestion>('/items/barcode/next')
   }
@@ -280,9 +290,20 @@ export function useWarehouseApi() {
     return apiFetch<StockMoveResult>('/items/deposit', { method: 'POST', body: payload })
   }
 
-  function listMovements(limit = 50) {
-    return apiFetch<Movement[]>('/movements', { params: { limit } })
+  function listMovements(limit = 50, filters: { operator?: string; item_id?: number } = {}) {
+    return apiFetch<Movement[]>('/movements', {
+      params: { limit, ...filters },
+    })
   }
+
+  /** Admin-only: undo a past movement (see backend for the compensating-entry logic). */
+  function rollbackMovement(movementId: number) {
+    return apiFetch<{ item: Item; reversal: Movement; message: string }>(
+      `/movements/${movementId}/rollback`,
+      { method: 'POST' },
+    )
+  }
+
 
   function labelUrl(id: number) {
     // GET, HTML wrapper that auto-prints the freshly regenerated label and
@@ -352,6 +373,7 @@ export function useWarehouseApi() {
     listCategories,
     scanItem,
     createItem,
+    checkDuplicateItems,
     generateBarcode,
     listAdminCategories,
     createCategory,
@@ -360,6 +382,7 @@ export function useWarehouseApi() {
     withdrawItem,
     depositItem,
     listMovements,
+    rollbackMovement,
     labelUrl,
     getWarehouseLayout,
     getRackLevels,

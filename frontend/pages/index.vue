@@ -1,97 +1,91 @@
 <template>
   <div class="flex flex-col gap-4">
-    <section class="card py-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div
-            class="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-muted"
-          >
-            Operations
-          </div>
-          <h2 class="text-[1rem] font-semibold">Warehouse Storage</h2>
-          <p class="m-0 text-sm text-muted">
-            Scan, search, and update stock from one place.
-          </p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--primary cursor-pointer whitespace-nowrap text-[0.82rem]"
-          @click="showAddItemModal = true"
-        >
-          New item
-        </button>
-      </div>
-    </section>
-
-    <UnifiedSearchBar
-      ref="searchBarRef"
-      @scan-item="handleScanItem"
-      @scan-not-found="handleScanNotFound"
-      @locate-item="handleLocateItem"
-    />
-
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
-      <!-- Interactive map -->
-      <section class="card">
-        <p v-if="loadingLayout" class="text-muted">Loading warehouse map…</p>
-        <MapFreeformMap
-          v-else-if="layout?.has_custom_layout"
-          :layout="layout"
-          :selected-rack="highlightRackCode"
-          @select="selectRack"
-        />
-        <MapWarehouseMap
-          v-else-if="layout"
-          :layout="layout"
-          :selected-shelf="highlightShelfPosition"
-          @select="selectFlatShelf"
-        />
-      </section>
-
-      <!-- Right column: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
-      <div class="flex flex-col gap-4">
-        <ItemDetailCard
-          v-if="selectedItem"
-          :key="selectedItem.id"
-          :item="selectedItem"
-          :low-stock-threshold="layout?.low_stock_threshold"
-          :zone-label="selectedItemZoneLabel"
-          :default-source="lastSelectionSource"
-          @close="clearSelection"
-          @updated="handleItemUpdated"
-        />
-
-        <MapRackLevelsPanel
-          v-else-if="layout?.has_custom_layout && selectedRack && rackLevels"
-          :rack="rackLevels"
-          :selected-level="selectedLevel"
-          :loading="loadingRack"
-          @select-level="selectLevel"
-          @close="closeDrilldown"
-        />
-
-        <MapShelfDetailPanel
-          v-if="!selectedItem && selectedLevel"
-          :shelf-position="selectedLevel"
-          :items="levelItems"
-          :loading="loadingLevelItems"
-          :show-back="!!(layout?.has_custom_layout && selectedRack)"
-          @close="closeDrilldown"
-          @back="backToRack"
-        />
-
-        <p
-          v-if="
-            !selectedItem &&
-            !selectedLevel &&
-            !(layout?.has_custom_layout && selectedRack)
-          "
-          class="card border border-dashed border-edge/70 text-sm text-muted"
-        >
-          Start with a search or scan to open the item details.
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-[1.05rem] font-semibold">
+          Industrial Engineering Warehouse
+        </h2>
+        <p class="m-0 text-sm text-muted">
+          Scan, search, and update stock from one place.
         </p>
       </div>
     </div>
+
+    <div class="flex flex-wrap items-stretch gap-3">
+      <UnifiedSearchBar
+        ref="searchBarRef"
+        class="min-w-0 flex-1"
+        @scan-item="handleScanItem"
+        @scan-not-found="handleScanNotFound"
+        @locate-item="handleLocateItem"
+      />
+      <button
+        type="button"
+        class="btn btn--primary cursor-pointer whitespace-nowrap text-[0.82rem]"
+        @click="showAddItemModal = true"
+      >
+        + New item
+      </button>
+    </div>
+
+    <!-- Interactive map: full width, so there's real room to work with -->
+    <section class="card">
+      <p v-if="loadingLayout" class="text-muted">Loading warehouse map…</p>
+      <MapFreeformMap
+        v-else-if="layout?.has_custom_layout"
+        :layout="layout"
+        :selected-rack="highlightRackCode"
+        @select="selectRack"
+      />
+      <MapWarehouseMap
+        v-else-if="layout"
+        :layout="layout"
+        :selected-shelf="highlightShelfPosition"
+        @select="selectFlatShelf"
+      />
+    </section>
+
+    <!-- Below the map: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
+    <ItemDetailCard
+      v-if="selectedItem"
+      :key="selectedItem.id"
+      :item="selectedItem"
+      :low-stock-threshold="layout?.low_stock_threshold"
+      :zone-label="selectedItemZoneLabel"
+      :default-source="lastSelectionSource"
+      @close="clearSelection"
+      @updated="handleItemUpdated"
+    />
+
+    <MapRackLevelsPanel
+      v-else-if="layout?.has_custom_layout && selectedRack && rackLevels"
+      :rack="rackLevels"
+      :selected-level="selectedLevel"
+      :loading="loadingRack"
+      @select-level="selectLevel"
+      @close="closeDrilldown"
+    />
+
+    <MapShelfDetailPanel
+      v-if="!selectedItem && selectedLevel"
+      :shelf-position="selectedLevel"
+      :items="levelItems"
+      :loading="loadingLevelItems"
+      :show-back="!!(layout?.has_custom_layout && selectedRack)"
+      @close="closeDrilldown"
+      @back="backToRack"
+    />
+
+    <p
+      v-if="
+        !selectedItem &&
+        !selectedLevel &&
+        !(layout?.has_custom_layout && selectedRack)
+      "
+      class="card border border-dashed border-edge/70 text-sm text-muted"
+    >
+      Start with a search or scan, or click a shelf on the map, to open the item details.
+    </p>
 
     <ActivityLog ref="activityLogRef" />
 

@@ -81,17 +81,45 @@
             <div class="flex gap-1.5">
               <button
                 type="button"
-                class="inline-block rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[0.78rem] font-semibold text-emerald-200"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[0.78rem] font-semibold text-emerald-200 cursor-pointer"
+                title="Add or remove stock"
                 @click="emit('move', item)"
               >
-                Move
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M7 4v16M7 4 3 8M7 4l4 4" />
+                  <path d="M17 20V4M17 20l-4-4M17 20l4-4" />
+                </svg>
+                Adjust
               </button>
               <a
-                class="inline-block rounded-lg border border-edge px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink no-underline"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink no-underline"
                 :href="labelUrl(item.id)"
                 target="_blank"
                 rel="noopener"
               >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M8 3h8" />
+                  <path
+                    d="M8 3v3H6a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2V3"
+                  />
+                  <rect x="8" y="12" width="8" height="8" rx="1" />
+                </svg>
                 Label
               </a>
             </div>

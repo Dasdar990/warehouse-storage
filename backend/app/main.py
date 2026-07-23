@@ -61,6 +61,14 @@ def _add_missing_columns() -> None:
             conn.commit()
             Base.metadata.tables["walls"].create(bind=engine)
 
+        # Rollback support was added after the first release -- add the two
+        # new columns in place so an existing movements table keeps its rows.
+        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        if movement_columns and "voided" not in movement_columns:
+            conn.execute(text("ALTER TABLE movements ADD COLUMN voided BOOLEAN NOT NULL DEFAULT 0"))
+            conn.execute(text("ALTER TABLE movements ADD COLUMN reversal_of_id INTEGER"))
+            conn.commit()
+
 
 _add_missing_columns()
 
