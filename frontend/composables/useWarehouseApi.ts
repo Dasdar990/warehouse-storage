@@ -6,6 +6,7 @@ export interface Item {
   pn: string
   barcode: string
   category: string
+  program?: string | null
   size: ItemSize
   shelf_position: string
   quantity: number
@@ -126,9 +127,17 @@ export interface Category {
   name: string
 }
 
+export interface Program {
+  id: number
+  name: string
+}
+
 export interface ShelfPositionOption {
   value: string
   label: string
+  rack_code: string
+  rack_label: string
+  level: string
 }
 
 export interface BarcodeSuggestion {
@@ -138,12 +147,15 @@ export interface BarcodeSuggestion {
 export interface ItemFilters {
   search?: string
   category?: string
+  program?: string
   size?: ItemSize | ''
   shelf_position?: string
+  /** Exact P/N match -- finds every shelf location for one part. */
+  pn?: string
   low_stock?: boolean
 }
 
-export type MovementAction = 'withdraw' | 'deposit'
+export type MovementAction = 'withdraw' | 'deposit' | 'move'
 export type MovementSource = 'barcode' | 'manual'
 
 export interface StockMoveResult {
@@ -159,6 +171,19 @@ export interface StockMoveInput {
   source: MovementSource
 }
 
+export interface RelocateItemInput {
+  barcode: string
+  shelf_position: string
+  source?: MovementSource
+}
+
+export interface RelocateItemResult {
+  item: Item
+  from_shelf_position: string
+  to_shelf_position: string
+  message: string
+}
+
 export interface Movement {
   id: number
   timestamp: string
@@ -166,6 +191,7 @@ export interface Movement {
   item_name: string
   pn: string
   shelf_position: string
+  from_shelf_position: string | null
   action: MovementAction
   quantity: number
   balance_after: number
@@ -234,14 +260,21 @@ export function useWarehouseApi() {
     const params: Record<string, string | boolean> = {}
     if (filters.search) params.search = filters.search
     if (filters.category) params.category = filters.category
+    if (filters.program) params.program = filters.program
     if (filters.size) params.size = filters.size
     if (filters.shelf_position) params.shelf_position = filters.shelf_position
+    if (filters.pn) params.pn = filters.pn
     if (filters.low_stock) params.low_stock = true
     return apiFetch<Item[]>('/items', { params })
   }
 
   function listCategories() {
     return apiFetch<string[]>('/items/categories')
+  }
+
+  /** Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown. */
+  function listItemPrograms() {
+    return apiFetch<string[]>('/items/programs')
   }
 
   function scanItem(barcode: string) {
@@ -277,6 +310,19 @@ export function useWarehouseApi() {
     return apiFetch<void>(`/categories/${id}`, { method: 'DELETE' })
   }
 
+  /** Admin-managed program catalog (distinct from `listItemPrograms`, which only reflects programs already in use). */
+  function listAdminPrograms() {
+    return apiFetch<Program[]>('/programs')
+  }
+
+  function createProgram(name: string) {
+    return apiFetch<Program>('/programs', { method: 'POST', body: { name } })
+  }
+
+  function deleteProgram(id: number) {
+    return apiFetch<void>(`/programs/${id}`, { method: 'DELETE' })
+  }
+
   /** Selectable shelf positions (rack + level) for the item form's dropdown. */
   function getShelfPositions() {
     return apiFetch<ShelfPositionOption[]>('/shelves/positions')
@@ -290,7 +336,23 @@ export function useWarehouseApi() {
     return apiFetch<StockMoveResult>('/items/deposit', { method: 'POST', body: payload })
   }
 
-  function listMovements(limit = 50, filters: { operator?: string; item_id?: number } = {}) {
+  /** Relocate an item to a different shelf; quantity is untouched. */
+  function moveItem(payload: RelocateItemInput) {
+    return apiFetch<RelocateItemResult>('/items/move', { method: 'POST', body: payload })
+  }
+
+  function listMovements(
+    limit = 50,
+    filters: {
+      operator?: string
+      item_id?: number
+      item?: string
+      action?: MovementAction
+      source?: MovementSource
+      date_from?: string
+      date_to?: string
+    } = {},
+  ) {
     return apiFetch<Movement[]>('/movements', {
       params: { limit, ...filters },
     })
@@ -371,6 +433,7 @@ export function useWarehouseApi() {
     apiBase,
     listItems,
     listCategories,
+    listItemPrograms,
     scanItem,
     createItem,
     checkDuplicateItems,
@@ -378,9 +441,13 @@ export function useWarehouseApi() {
     listAdminCategories,
     createCategory,
     deleteCategory,
+    listAdminPrograms,
+    createProgram,
+    deleteProgram,
     getShelfPositions,
     withdrawItem,
     depositItem,
+    moveItem,
     listMovements,
     rollbackMovement,
     labelUrl,

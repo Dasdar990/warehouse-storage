@@ -26,7 +26,7 @@
       />
     </div>
 
-    <div class="flex flex-col gap-1.5">
+    <div class="flex flex-col gap-1.5 col-span-full">
       <label class="text-[0.8rem] text-muted">Barcode</label>
       <div class="flex gap-2">
         <input
@@ -34,10 +34,10 @@
           required
           type="text"
           placeholder="Auto-generated"
-          class="field-input min-w-0 flex-1 font-mono disabled:cursor-not-allowed disabled:opacity-60"
+          class="field-input min-w-0 flex-1 py-2.5 text-[0.95rem] font-mono tracking-wide disabled:cursor-not-allowed disabled:opacity-60"
         />
         <button
-          class="btn btn--ghost btn--small whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+          class="btn btn--ghost whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
           type="button"
           :disabled="generatingBarcode"
           title="Generate a new unique barcode"
@@ -76,6 +76,32 @@
     </div>
 
     <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted"
+        >Program
+        <span class="text-[0.72rem] text-muted">(optional)</span></label
+      >
+      <select
+        v-model="form.program"
+        :disabled="loadingOptions"
+        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <option value="">— None —</option>
+        <option v-for="prog in programs" :key="prog.id" :value="prog.name">
+          {{ prog.name }}
+        </option>
+      </select>
+      <p
+        v-if="!loadingOptions && !programs.length"
+        class="m-0 text-[0.75rem] text-muted"
+      >
+        No programs yet —
+        <NuxtLink to="/categories" class="text-accent"
+          >create one first</NuxtLink
+        >.
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
       <label class="text-[0.8rem] text-muted">Size</label>
       <select
         v-model="form.size"
@@ -88,20 +114,20 @@
     </div>
 
     <div class="flex flex-col gap-1.5">
-      <label class="text-[0.8rem] text-muted">Shelf Position</label>
+      <label class="text-[0.8rem] text-muted">Rack</label>
       <select
-        v-model="form.shelf_position"
+        v-model="selectedRackCode"
         required
         :disabled="loadingOptions"
         class="field-input disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <option value="" disabled>Select a shelf…</option>
-        <option v-for="opt in shelfOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
+        <option value="" disabled>Select a rack…</option>
+        <option v-for="rack in racks" :key="rack.code" :value="rack.code">
+          {{ rack.label }}
         </option>
       </select>
       <p
-        v-if="!loadingOptions && !shelfOptions.length"
+        v-if="!loadingOptions && !racks.length"
         class="m-0 text-[0.75rem] text-muted"
       >
         No shelves configured yet —
@@ -109,6 +135,27 @@
           >set up the warehouse map first</NuxtLink
         >.
       </p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Shelf</label>
+      <select
+        v-model="form.shelf_position"
+        required
+        :disabled="loadingOptions || !selectedRackCode"
+        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <option value="" disabled>
+          {{ selectedRackCode ? "Select a shelf…" : "Select a rack first" }}
+        </option>
+        <option
+          v-for="opt in shelvesForSelectedRack"
+          :key="opt.value"
+          :value="opt.value"
+        >
+          Level {{ opt.level }} ({{ opt.value }})
+        </option>
+      </select>
     </div>
 
     <div class="flex flex-col gap-1.5">
@@ -201,6 +248,7 @@
 import type {
   Category,
   Item,
+  Program,
   ShelfPositionOption,
 } from "~/composables/useWarehouseApi";
 
@@ -212,6 +260,7 @@ const {
   depositItem,
   generateBarcode,
   listAdminCategories,
+  listAdminPrograms,
   getShelfPositions,
   labelUrl,
 } = useWarehouseApi();
@@ -222,6 +271,7 @@ const EMPTY_FORM = {
   pn: "",
   barcode: "",
   category: "",
+  program: "",
   size: "small" as Item["size"],
   shelf_position: "",
   quantity: 0,
@@ -234,7 +284,30 @@ const generatingBarcode = ref(false);
 const loadingOptions = ref(false);
 
 const categories = ref<Category[]>([]);
+const programs = ref<Program[]>([]);
 const shelfOptions = ref<ShelfPositionOption[]>([]);
+const selectedRackCode = ref("");
+
+// Unique racks derived from the flat shelf-position list, in the order
+// they first appear (already sorted by value/rack code from the API).
+const racks = computed(() => {
+  const seen = new Map<string, string>();
+  for (const opt of shelfOptions.value) {
+    if (!seen.has(opt.rack_code)) seen.set(opt.rack_code, opt.rack_label);
+  }
+  return Array.from(seen, ([code, label]) => ({ code, label }));
+});
+
+// Shelves (levels) belonging to whichever rack is currently selected.
+const shelvesForSelectedRack = computed(() =>
+  shelfOptions.value.filter((opt) => opt.rack_code === selectedRackCode.value),
+);
+
+// Reset the shelf pick whenever the rack changes, since a previously
+// selected shelf_position won't belong to the newly chosen rack.
+watch(selectedRackCode, () => {
+  form.value.shelf_position = "";
+});
 
 // Shown after a successful save so the barcode can be printed onto the
 // physical item right away, without leaving the form.
@@ -278,6 +351,7 @@ async function addToExisting(dup: Item) {
     });
     show("success", res.message);
     form.value = { ...EMPTY_FORM };
+    selectedRackCode.value = "";
     duplicates.value = [];
     await suggestBarcode();
     emit("created", res.item);
@@ -291,11 +365,13 @@ async function addToExisting(dup: Item) {
 async function loadOptions() {
   loadingOptions.value = true;
   try {
-    const [cats, shelves] = await Promise.all([
+    const [cats, progs, shelves] = await Promise.all([
       listAdminCategories(),
+      listAdminPrograms(),
       getShelfPositions(),
     ]);
     categories.value = cats;
+    programs.value = progs;
     shelfOptions.value = shelves;
   } catch (err: any) {
     show("error", err?.data?.detail || "Failed to load categories/shelves");
@@ -328,6 +404,7 @@ async function submit() {
     lastCreated.value = item;
     show("success", `Item "${item.name}" created`);
     form.value = { ...EMPTY_FORM };
+    selectedRackCode.value = "";
     duplicates.value = [];
     await suggestBarcode();
     emit("created", item);

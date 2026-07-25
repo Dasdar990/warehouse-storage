@@ -17,7 +17,7 @@
         >
           Open in Dashboard
         </NuxtLink>
-        <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted" title="Close" @click="emit('close')">✕</button>
+        <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
       </div>
     </div>
 

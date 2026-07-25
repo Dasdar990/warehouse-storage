@@ -1,4 +1,4 @@
-from . import auth, categories, health, items, labels, movements, room, shelves, users, zones
+from . import auth, categories, health, items, labels, movements, programs, room, shelves, users, zones
 
 __all__ = [
     "auth",
@@ -7,6 +7,7 @@ __all__ = [
     "items",
     "labels",
     "movements",
+    "programs",
     "room",
     "shelves",
     "users",

@@ -23,6 +23,17 @@
 
     <select
       class="field-input"
+      :value="modelValue.program || ''"
+      @change="update('program', ($event.target as HTMLSelectElement).value)"
+    >
+      <option value="">All programs</option>
+      <option v-for="prog in programs" :key="prog" :value="prog">
+        {{ prog }}
+      </option>
+    </select>
+
+    <select
+      class="field-input"
       :value="modelValue.size || ''"
       @change="
         update('size', ($event.target as HTMLSelectElement).value as any)
@@ -54,6 +65,7 @@ import type { ItemFilters } from "~/composables/useWarehouseApi";
 const props = defineProps<{
   modelValue: ItemFilters;
   categories: string[];
+  programs: string[];
 }>();
 
 const emit = defineEmits<{

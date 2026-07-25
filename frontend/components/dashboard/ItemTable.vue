@@ -21,6 +21,11 @@
           <th
             class="whitespace-nowrap border-b border-edge px-2 py-2 text-left text-[0.72rem] uppercase tracking-wider text-muted"
           >
+            Program
+          </th>
+          <th
+            class="whitespace-nowrap border-b border-edge px-2 py-2 text-left text-[0.72rem] uppercase tracking-wider text-muted"
+          >
             Size
           </th>
           <th
@@ -50,11 +55,24 @@
             {{ item.name }}
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span v-if="item.pn" class="badge badge--pn">{{ item.pn }}</span>
+            <span v-if="item.pn" class="inline-flex items-center gap-1.5">
+              <span class="badge badge--pn">{{ item.pn }}</span>
+              <span
+                v-if="shelfCountByPn.get(item.pn.toLowerCase())! > 1"
+                class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[0.68rem] font-bold text-accent"
+                :title="`Also on: ${otherShelvesForPn(item).join(', ')}`"
+              >
+                ×{{ shelfCountByPn.get(item.pn.toLowerCase()) }} shelves
+              </span>
+            </span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <span class="badge badge--category">{{ item.category }}</span>
+          </td>
+          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+            <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
+            <span v-else class="text-[0.82rem] text-muted">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <span
@@ -81,7 +99,7 @@
             <div class="flex gap-1.5">
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[0.78rem] font-semibold text-emerald-200 cursor-pointer"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[0.78rem] font-semibold text-emerald-200 cursor-pointer transition-colors hover:bg-accent/20"
                 title="Add or remove stock"
                 @click="emit('move', item)"
               >
@@ -147,6 +165,27 @@ const props = withDefaults(
 const { labelUrl } = useWarehouseApi();
 
 const emit = defineEmits<{ move: [item: Item] }>();
+
+// Same part (same P/N) can legitimately live on more than one shelf --
+// count occurrences (within the currently displayed/filtered list) so the
+// table can flag it instead of looking like unrelated duplicate rows.
+const shelfCountByPn = computed(() => {
+  const counts = new Map<string, number>();
+  for (const it of props.items) {
+    if (!it.pn) continue;
+    const key = it.pn.toLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+});
+
+function otherShelvesForPn(item: Item) {
+  if (!item.pn) return [];
+  const key = item.pn.toLowerCase();
+  return props.items
+    .filter((it) => it.pn && it.pn.toLowerCase() === key && it.id !== item.id)
+    .map((it) => it.shelf_position);
+}
 
 function sizeLabel(size: string) {
   return { small: "S", big: "B", xl: "XL" }[size] || size;

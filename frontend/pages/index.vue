@@ -19,14 +19,37 @@
         @scan-not-found="handleScanNotFound"
         @locate-item="handleLocateItem"
       />
-      <button
-        type="button"
-        class="btn btn--primary cursor-pointer whitespace-nowrap text-[0.82rem]"
-        @click="showAddItemModal = true"
-      >
-        + New item
-      </button>
     </div>
+
+    <!-- Quick actions: the three most common things to do from this screen -->
+    <section class="card">
+      <div class="mb-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-muted">
+        Quick actions
+      </div>
+      <div class="flex flex-wrap gap-2.5 max-[640px]:flex-col">
+        <button
+          type="button"
+          class="btn btn--primary flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          @click="showAddItemModal = true"
+        >
+          + New item
+        </button>
+        <button
+          type="button"
+          class="btn btn--confirm flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          @click="quickAction = 'deposit'"
+        >
+          ↓ Deposit item
+        </button>
+        <button
+          type="button"
+          class="btn btn--danger flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          @click="quickAction = 'withdraw'"
+        >
+          ↑ Withdraw item
+        </button>
+      </div>
+    </section>
 
     <!-- Interactive map: full width, so there's real room to work with -->
     <section class="card">
@@ -89,8 +112,21 @@
 
     <ActivityLog ref="activityLogRef" />
 
-    <BaseModal v-model="showAddItemModal" title="New Item" size="md">
+    <BaseModal v-model="showAddItemModal" title="New Item" size="lg">
       <DashboardAddItemForm @created="handleItemCreated" />
+    </BaseModal>
+
+    <BaseModal
+      :model-value="!!quickAction"
+      :title="quickAction === 'deposit' ? 'Deposit item' : 'Withdraw item'"
+      size="md"
+      @update:model-value="quickAction = null"
+    >
+      <QuickStockModal
+        v-if="quickAction"
+        :action="quickAction"
+        @updated="handleQuickActionUpdated"
+      />
     </BaseModal>
   </div>
 </template>
@@ -121,6 +157,16 @@ const loadingLayout = ref(false);
 
 // --- Quick action: New Item modal ---
 const showAddItemModal = ref(false);
+
+// --- Quick action: Deposit / Withdraw popup ---
+const quickAction = ref<"deposit" | "withdraw" | null>(null);
+
+function handleQuickActionUpdated(item: Item) {
+  closeDrilldown();
+  lastSelectionSource.value = "manual";
+  selectedItem.value = item;
+  activityLogRef.value?.refresh();
+}
 
 async function handleItemCreated(item: Item) {
   showAddItemModal.value = false;

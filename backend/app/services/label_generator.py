@@ -1,14 +1,14 @@
 """
 Printable Code128 barcode label generation.
 
-Optimized for 28mm x 89mm thermal label printers (203 DPI native resolution).
-Canvas size: 712x224px.
+Optimized for 101mm x 54mm thermal label printers (203 DPI native resolution).
+Canvas size: 808x432px (101mm * 8.0 bits/mm x 54mm * 8.0 bits/mm).
 
 Layout:
-- Top Left: Logo
+- Top Left: Logo (Original implementation)
 - Top Right: I.E. NERVIANO + Shelf Position
 - Middle: Product Name & P/N
-- Bottom: Code128 Barcode + Human readable value
+- Bottom: Code128 Barcode + Human readable value (Optimized for entry-level scanners)
 """
 import io
 import logging
@@ -23,9 +23,25 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Native resolution at 203 DPI for 89mm x 28mm
-LABEL_WIDTH = 712
-LABEL_HEIGHT = 224
+# Risoluzione nativa a 203 DPI per 101mm x 54mm (808x432 pixel)
+LABEL_WIDTH = 808
+LABEL_HEIGHT = 432
+
+# --- Barcode generation tuning -------------------------------------------
+# IMPORTANT: python-barcode's ImageWriter defaults to 300 DPI internally.
+# If we don't pass `dpi` explicitly and match it to our printer's real
+# resolution (203 DPI), `module_width` (in mm) gets converted to a
+# non-integer pixel count per module. The writer then rounds bar-by-bar to
+# avoid cumulative drift, so neighboring bars end up 2px/3px inconsistently
+# -- the barcode still *decodes*, but the module ratios are slightly noisy,
+# which is exactly what makes entry-level laser/CCD scanners take multiple
+# passes instead of reading it instantly.
+#
+# Fix: generate at the printer's actual DPI, and pick a module width that
+# is an exact integer number of pixels at that DPI.
+BARCODE_DPI = 203
+MODULE_PX = 3  # 3px/module @ 203 DPI is a good robustness/space compromise
+MODULE_WIDTH_MM = MODULE_PX * 25.4 / BARCODE_DPI  # == 0.375mm, exact at 203 DPI
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -35,6 +51,7 @@ def _load_font(size: int, mono: bool = False, bold: bool = True) -> ImageFont.Fr
     if mono:
         candidates = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
         ]
     else:
         candidates = [
@@ -49,13 +66,17 @@ def _load_font(size: int, mono: bool = False, bold: bool = True) -> ImageFont.Fr
 
 
 def _generate_barcode_image(value: str) -> Image.Image:
-    """Render Code128 barcode with exact module size."""
+    """Render Code128 barcode at the printer's real DPI, with an exact
+    integer pixel-per-module width so bar ratios stay clean end to end."""
     code128 = barcode.get_barcode_class("code128")
     writer = ImageWriter()
+
     writer_options = {
-        "module_height": 10.0,
-        "module_width": 0.3,
-        "quiet_zone": 1.0,
+        "dpi": BARCODE_DPI,
+        "module_height": 12.0,
+        "module_width": MODULE_WIDTH_MM,
+        "quiet_zone": 6.35,  # 0.25" -- the widely-used minimum entry-level
+                             # scanners expect to reliably lock onto start/stop
         "font_size": 0,
         "text_distance": 0,
         "write_text": False,
@@ -64,114 +85,134 @@ def _generate_barcode_image(value: str) -> Image.Image:
     buffer = io.BytesIO()
     instance.write(buffer, options=writer_options)
     buffer.seek(0)
-    return Image.open(buffer).convert("RGB")
+    return Image.open(buffer).convert("1")
 
 
 def _draw_logo(canvas: Image.Image, x: int, y: int, max_w: int, max_h: int):
-    """Draws logo from ASSETS_DIR/logo.png or renders a compact text fallback."""
+    """Draws logo from ASSETS_DIR/logo.png or renders a compact text fallback (Original logic)."""
     logo_path = settings.assets_dir / "logo.png"
 
     if logo_path.exists():
         try:
             logo = Image.open(logo_path).convert("RGBA")
             logo.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-            canvas.paste(logo, (x, y), logo if logo.mode == "RGBA" else None)
+
+            # Per incollarlo sul canvas 1-bit, convertiamo temporaneamente in RGB/L
+            logo_bg = Image.new("RGB", logo.size, (255, 255, 255))
+            logo_bg.paste(logo, (0, 0), logo)
+            logo_bw = logo_bg.convert("1")
+
+            canvas.paste(logo_bw, (x, y))
             return
-        except Exception as e:
-            logger.error(f"Error loading logo: {e}")
+        except Exception:
+            logger.exception("Error loading logo")
 
     # Graphic fallback if logo.png is not present
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle([x, y, x + max_w, y + max_h], outline="black", width=2)
-    font = _load_font(14, bold=True)
-    draw.text((x + 10, y + 8), "LOGO", fill="black", font=font)
+    draw.rectangle([x, y, x + max_w, y + max_h], outline=0, width=2)
+    font = _load_font(18, bold=True)
+    draw.text((x + 15, y + 12), "LOGO", fill=0, font=font)
 
 
 def generate_label_image(
     item_id: int, name: str, pn: str, shelf_position: str, barcode_value: str
 ) -> Path:
-    """Build the 712x224 PNG label with prominent logo and persist to LABELS_DIR/{item_id}.png."""
+    """Build the 808x432 1-bit PNG label for 101x54mm thermal paper."""
     settings.labels_dir.mkdir(parents=True, exist_ok=True)
 
-    canvas = Image.new("RGB", (LABEL_WIDTH, LABEL_HEIGHT), "white")
+    # Canvas in modalità '1' (1-bit monocromatico puro: 0=Nero, 1=Bianco)
+    canvas = Image.new("1", (LABEL_WIDTH, LABEL_HEIGHT), 1)
     draw = ImageDraw.Draw(canvas)
 
-    padding = 14
+    padding = 24
     y = padding
 
     # -------------------------------------------------------------
-    # 1. TOP ROW: Prominent logo (left) + info (right)
+    # 1. TOP ROW: Logo (Left) + I.E. NERVIANO & Shelf (Right)
     # -------------------------------------------------------------
-    # Enlarged to max 240px width and 60px height
-    _draw_logo(canvas, x=padding, y=y, max_w=240, max_h=60)
+    _draw_logo(canvas, x=padding, y=y, max_w=260, max_h=80)
 
-    top_right_font = _load_font(18, bold=True)
-    meta_font = _load_font(15, bold=False)
+    top_right_font = _load_font(28, bold=True)
+    meta_font = _load_font(22, bold=False)
 
-    # "I.E. NERVIANO" text aligned with the logo area
     tag_text = "I.E. NERVIANO"
     tag_bbox = top_right_font.getbbox(tag_text)
     tag_w = tag_bbox[2] - tag_bbox[0]
     draw.text((LABEL_WIDTH - padding - tag_w, y + 4),
-              tag_text, fill="black", font=top_right_font)
+              tag_text, fill=0, font=top_right_font)
 
-    # Shelf position right below I.E. NERVIANO
     shelf_text = f"Shelf: {shelf_position}"
     shelf_bbox = meta_font.getbbox(shelf_text)
     shelf_w = shelf_bbox[2] - shelf_bbox[0]
-    draw.text((LABEL_WIDTH - padding - shelf_w, y + 28),
-              shelf_text, fill="black", font=meta_font)
+    draw.text((LABEL_WIDTH - padding - shelf_w, y + 40),
+              shelf_text, fill=0, font=meta_font)
 
-    # Lower the divider slightly to compensate for the logo height
-    y += 64
+    y += 90
 
-    # Thin divider line
-    draw.line([(padding, y), (LABEL_WIDTH - padding, y)],
-              fill="#000000", width=1)
-    y += 6
+    # Linea divisoria orizzontale
+    draw.line([(padding, y), (LABEL_WIDTH - padding, y)], fill=0, width=2)
+    y += 12
 
     # -------------------------------------------------------------
-    # 2. MIDDLE BAND: Product name and P/N
+    # 2. MIDDLE BAND: Nome Prodotto & P/N
     # -------------------------------------------------------------
-    title_font = _load_font(20, bold=True)
-    pn_font = _load_font(15, bold=False)
+    title_font = _load_font(30, bold=True)
+    pn_font = _load_font(22, bold=True)
 
-    truncated_name = name[:36] + "..." if len(name) > 36 else name
-    draw.text((padding, y), truncated_name, fill="black", font=title_font)
-    y += 24
+    truncated_name = name[:40] + "..." if len(name) > 40 else name
+    draw.text((padding, y), truncated_name, fill=0, font=title_font)
+    y += 38
 
-    draw.text((padding, y), f"P/N: {pn}", fill="black", font=pn_font)
-    y += 20
+    draw.text((padding, y), f"P/N: {pn}", fill=0, font=pn_font)
+    y += 32
 
-    # -------------------------------------------------------------
-    # 3. BOTTOM PART: Barcode + human-readable barcode text
-    # -------------------------------------------------------------
     barcode_img = _generate_barcode_image(barcode_value)
 
-    text_font = _load_font(15, mono=True, bold=True)
-    text_height = 18
-    available_width = LABEL_WIDTH - (2 * padding)
+    text_font = _load_font(22, mono=True, bold=True)
+    text_height = 26
+
+    horizontal_margin = 40
+    available_width = LABEL_WIDTH - (2 * horizontal_margin)
     available_height = LABEL_HEIGHT - y - padding - text_height
 
-    # NEAREST resizing for crisp edges and better optical scanner readability
+    # Calcolo della scala
     scale_w = available_width / barcode_img.width
     scale_h = available_height / barcode_img.height
     scale = min(scale_w, scale_h)
 
+    # Il trucco per la Netum: forzare un moltiplicatore INTERO se stiamo ingrandendo
+    # (es. 2.7 -> 2.0). Questo evita che i pixel vengano spalmati (jitter).
+    if scale >= 1.0:
+        scale = float(int(scale))
+    else:
+        # Downscaling a 1-bit con NEAREST campiona singoli pixel: può far
+        # sparire o fondere barre sottili e sballare i rapporti tra moduli
+        # senza che si veda a occhio -- causa tipica di scansioni lente o
+        # intermittenti solo su alcuni barcode/nomi più lunghi del solito.
+        # Con BARCODE_DPI/MODULE_WIDTH_MM allineati questo caso dovrebbe
+        # essere ormai raro; se capita, meglio saperlo dai log.
+        logger.warning(
+            "Barcode '%s' più largo dello spazio disponibile (scale=%.2f); "
+            "qualità di stampa a rischio, considera un barcode_value più corto.",
+            barcode_value, scale,
+        )
+
     new_w = max(1, int(barcode_img.width * scale))
     new_h = max(1, int(barcode_img.height * scale))
+
+    # NEAREST mantiene i bordi dei pixel netti come lame
     barcode_img = barcode_img.resize((new_w, new_h), Image.Resampling.NEAREST)
 
-    # Center the barcode horizontally
-    barcode_x = padding + (available_width - new_w) // 2
+    # Centra il barcode nell'area disponibile
+    barcode_x = horizontal_margin + (available_width - new_w) // 2
     canvas.paste(barcode_img, (barcode_x, y))
-    y += new_h + 2
+    y += new_h + 4
 
-    # Barcode text centered below the bars
+    # Testo del codice a barre centrato sotto le barre
     bbox = text_font.getbbox(barcode_value)
     text_w = bbox[2] - bbox[0]
-    text_x = padding + (available_width - text_w) // 2
-    draw.text((text_x, y), barcode_value, fill="black", font=text_font)
+    text_x = horizontal_margin + (available_width - text_w) // 2
+    draw.text((text_x, y), barcode_value, fill=0, font=text_font)
 
     output_path = settings.labels_dir / f"{item_id}.png"
     canvas.save(output_path, format="PNG")

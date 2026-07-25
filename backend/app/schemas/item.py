@@ -16,6 +16,9 @@ class ItemBase(BaseModel):
                          description="Unique scannable barcode value")
     category: str = Field(..., min_length=1,
                           description="Product category, e.g. 'Fasteners'")
+    program: str | None = Field(
+        default=None, description="Optional program, e.g. 'Falcon Refit'"
+    )
     size: ItemSize = Field(..., description="Physical size classification")
     shelf_position: str = Field(
         ..., description='Alphanumeric shelf position, e.g. "12B" or "3A"'
@@ -37,6 +40,14 @@ class ItemBase(BaseModel):
     @classmethod
     def normalize_category(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("program")
+    @classmethod
+    def normalize_program(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
     @field_validator("pn")
     @classmethod

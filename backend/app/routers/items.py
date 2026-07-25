@@ -11,9 +11,9 @@ from app.db import get_db
 from app.models.item import Item, ItemSize
 from app.models.user import User
 from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut
-from app.schemas.movement import StockMoveRequest, StockMoveResponse
+from app.schemas.movement import RelocateItemRequest, RelocateItemResponse, StockMoveRequest, StockMoveResponse
 from app.services.barcode_generator import generate_unique_barcode
-from app.services.movement_service import deposit_stock, withdraw_stock
+from app.services.movement_service import deposit_stock, move_item, withdraw_stock
 
 router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -26,8 +26,12 @@ def list_items(
         default=None, description="Case-insensitive match against name, P/N, or barcode"
     ),
     category: Optional[str] = Query(default=None, description="Exact category match"),
+    program: Optional[str] = Query(default=None, description="Exact program match"),
     size: Optional[ItemSize] = Query(default=None, description="Exact size match"),
     shelf_position: Optional[str] = Query(default=None, description="Exact shelf match"),
+    pn: Optional[str] = Query(
+        default=None, description="Exact P/N match -- finds every shelf location for one part"
+    ),
     low_stock: bool = Query(
         default=False, description=f"Only items with quantity <= {settings.low_stock_threshold}"
     ),
@@ -45,10 +49,14 @@ def list_items(
         )
     if category:
         stmt = stmt.where(Item.category == category)
+    if program:
+        stmt = stmt.where(Item.program == program)
     if size:
         stmt = stmt.where(Item.size == size)
     if shelf_position:
         stmt = stmt.where(Item.shelf_position == shelf_position.upper())
+    if pn:
+        stmt = stmt.where(Item.pn.ilike(pn.strip()))
     if low_stock:
         stmt = stmt.where(Item.quantity <= settings.low_stock_threshold)
 
@@ -61,6 +69,13 @@ def list_categories(db: Session = Depends(get_db)):
     """Distinct categories currently in use -- populates the dashboard filter dropdown."""
     rows = db.execute(select(Item.category).distinct()).scalars().all()
     return sorted(rows)
+
+
+@router.get("/programs", response_model=list[str])
+def list_item_programs(db: Session = Depends(get_db)):
+    """Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown."""
+    rows = db.execute(select(Item.program).distinct()).scalars().all()
+    return sorted(r for r in rows if r)
 
 
 @router.get("/scan", response_model=ItemOut)
@@ -168,4 +183,25 @@ def deposit_item(
         moved=payload.quantity,
         action=movement.action,
         message=f"Deposited {payload.quantity} unit(s) of '{item.name}'. {item.quantity} total.",
+    )
+
+
+@router.post("/move", response_model=RelocateItemResponse)
+def move_item_endpoint(
+    payload: RelocateItemRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Relocate the item matching `barcode` to a different shelf. Quantity is
+    left untouched -- this only changes where the item lives. Writes a MOVE
+    audit-log row (see /movements) recording both the origin and destination
+    shelf, with `operator` derived from the logged-in user.
+    """
+    item, movement = move_item(db, payload, operator=current_user.full_name)
+    return RelocateItemResponse(
+        item=item,
+        from_shelf_position=movement.from_shelf_position or "",
+        to_shelf_position=movement.shelf_position,
+        message=f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}.",
     )

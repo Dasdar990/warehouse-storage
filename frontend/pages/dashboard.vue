@@ -29,7 +29,7 @@
     </transition>
 
     <section class="card">
-      <DashboardFilterBar v-model="filters" :categories="categories" />
+      <DashboardFilterBar v-model="filters" :categories="categories" :programs="programs" />
     </section>
 
     <section class="card">
@@ -53,7 +53,7 @@
 import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
 
 const route = useRoute();
-const { listItems, listCategories } = useWarehouseApi();
+const { listItems, listCategories, listItemPrograms } = useWarehouseApi();
 
 const filters = ref<ItemFilters>({
   shelf_position:
@@ -63,6 +63,7 @@ const filters = ref<ItemFilters>({
 });
 const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);
+const programs = ref<string[]>([]);
 const loading = ref(false);
 const showAddForm = ref(false);
 
@@ -96,6 +97,10 @@ async function fetchCategories() {
   categories.value = await listCategories();
 }
 
+async function fetchPrograms() {
+  programs.value = await listItemPrograms();
+}
+
 watch(
   filters,
   () => {
@@ -107,11 +112,12 @@ watch(
 
 async function onItemCreated() {
   showAddForm.value = false;
-  await Promise.all([fetchItems(), fetchCategories()]);
+  await Promise.all([fetchItems(), fetchCategories(), fetchPrograms()]);
 }
 
 onMounted(() => {
   fetchItems();
   fetchCategories();
+  fetchPrograms();
 });
 </script>

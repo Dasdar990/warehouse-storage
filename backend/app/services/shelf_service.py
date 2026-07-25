@@ -241,13 +241,27 @@ def build_shelf_position_options(db: Session) -> list[ShelfPositionOption]:
             for level in _levels_from_str(shelf.levels):
                 value = f"{shelf.rack_code}{level}"
                 options.append(
-                    ShelfPositionOption(value=value, label=f"{rack_label} — level {level} ({value})")
+                    ShelfPositionOption(
+                        value=value,
+                        label=f"{rack_label} — level {level} ({value})",
+                        rack_code=shelf.rack_code,
+                        rack_label=rack_label,
+                        level=level,
+                    )
                 )
     else:
         for number in range(1, settings.warehouse_shelf_count + 1):
             for level in settings.warehouse_levels:
                 value = f"{number}{level}"
-                options.append(ShelfPositionOption(value=value, label=value))
+                options.append(
+                    ShelfPositionOption(
+                        value=value,
+                        label=value,
+                        rack_code=str(number),
+                        rack_label=f"Rack {number}",
+                        level=level,
+                    )
+                )
 
     options.sort(key=lambda option: option.value)
     return options

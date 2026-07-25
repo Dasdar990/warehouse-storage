@@ -45,7 +45,7 @@
             <td class="py-2.5 pr-3">
               <button
                 type="button"
-                class="rounded-full px-2.5 py-1 text-[0.75rem] font-semibold"
+                class="rounded-full px-2.5 py-1 text-[0.75rem] font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
                 :class="u.is_active ? 'bg-good-dim text-green-200' : 'bg-bad-dim text-red-200'"
                 :disabled="u.id === currentUserId"
                 @click="toggleActive(u)"
@@ -56,7 +56,7 @@
             <td class="py-2.5 pr-3 text-muted">{{ formatDate(u.created_at) }}</td>
             <td class="py-2.5 pr-3 text-right">
               <div class="flex justify-end gap-1.5">
-                <button type="button" class="rounded-lg border border-edge bg-transparent px-2.5 py-1 text-[0.78rem] text-ink" @click="resetPassword(u)">
+                <button type="button" class="rounded-lg border border-edge bg-transparent px-2.5 py-1 text-[0.78rem] text-ink transition-colors hover:bg-surface-2" @click="resetPassword(u)">
                   Reset Password
                 </button>
                 <button

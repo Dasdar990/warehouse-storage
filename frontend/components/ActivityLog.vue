@@ -2,26 +2,74 @@
   <section class="card">
     <div class="mb-3.5 flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-[1.05rem]">Activity Log</h2>
-      <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="btn btn--ghost btn--small"
+        :disabled="loading"
+        @click="refresh"
+      >
+        {{ loading ? "Refreshing…" : "Refresh" }}
+      </button>
+    </div>
+
+    <div
+      class="mb-3.5 flex flex-wrap items-center gap-2 max-[640px]:flex-col max-[640px]:items-stretch"
+    >
+      <input
+        v-model="itemQuery"
+        type="text"
+        placeholder="Search item name or P/N…"
+        class="field-input h-8.5 flex-1 basis-45 text-[0.82rem]"
+      />
+      <input
+        v-model="operatorQuery"
+        type="text"
+        placeholder="Search by operator…"
+        class="field-input h-8.5 flex-1 basis-40 text-[0.82rem]"
+      />
+      <select v-model="actionFilter" class="field-input h-8.5 text-[0.82rem]">
+        <option value="">All actions</option>
+        <option value="deposit">Added</option>
+        <option value="withdraw">Removed</option>
+        <option value="move">Moved</option>
+      </select>
+      <select v-model="sourceFilter" class="field-input h-8.5 text-[0.82rem]">
+        <option value="">All sources</option>
+        <option value="barcode">Barcode verified</option>
+        <option value="manual">Manual entry</option>
+      </select>
+      <div class="flex items-center gap-1.5 max-[640px]:w-full">
         <input
-          v-model="operatorQuery"
-          type="text"
-          placeholder="Search by operator…"
-          class="field-input h-8.5 w-45 text-[0.82rem]"
+          v-model="dateFrom"
+          type="date"
+          :max="dateTo || undefined"
+          class="field-input h-8.5 max-[640px]:flex-1"
+          title="From date"
         />
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          :disabled="loading"
-          @click="refresh"
-        >
-          {{ loading ? "Refreshing…" : "Refresh" }}
-        </button>
+        <span class="text-[0.8rem] text-muted">–</span>
+        <input
+          v-model="dateTo"
+          type="date"
+          :min="dateFrom || undefined"
+          class="field-input h-8.5 max-[640px]:flex-1"
+          title="To date"
+        />
       </div>
+      <button
+        v-if="hasActiveFilters"
+        type="button"
+        class="btn btn--ghost btn--small"
+        @click="clearFilters"
+      >
+        Clear filters
+      </button>
     </div>
 
     <p v-if="loading && movements.length === 0" class="py-4 text-muted">
       Loading log…
+    </p>
+    <p v-else-if="movements.length === 0 && hasActiveFilters" class="py-4 text-muted">
+      No movements match these filters.
     </p>
     <p v-else-if="movements.length === 0" class="py-4 text-muted">
       No movements recorded yet.
@@ -61,13 +109,19 @@
             <td class="whitespace-nowrap py-2.5 pr-3">
               <span
                 class="rounded-full px-2.5 py-1 text-[0.75rem] font-bold"
-                :class="
-                  m.action === 'deposit'
-                    ? 'bg-good/15 text-green-300'
-                    : 'bg-bad/15 text-red-300'
-                "
+                :class="{
+                  'bg-good/15 text-green-300': m.action === 'deposit',
+                  'bg-bad/15 text-red-300': m.action === 'withdraw',
+                  'bg-accent/15 text-accent': m.action === 'move',
+                }"
               >
-                {{ m.action === "deposit" ? "Added" : "Removed" }}
+                {{
+                  m.action === "deposit"
+                    ? "Added"
+                    : m.action === "withdraw"
+                      ? "Removed"
+                      : "Moved"
+                }}
               </span>
               <span
                 v-if="m.reversal_of_id"
@@ -80,12 +134,17 @@
             <td
               class="whitespace-nowrap py-2.5 pr-3 text-right font-semibold text-ink"
             >
-              {{ m.quantity }}
+              {{ m.action === "move" ? "—" : m.quantity }}
             </td>
             <td class="py-2.5 pr-3">
               <div class="font-medium text-ink">{{ m.item_name }}</div>
               <div class="text-[0.75rem] text-muted">
-                P/N {{ m.pn }} · Shelf {{ m.shelf_position }}
+                <template v-if="m.action === 'move'">
+                  P/N {{ m.pn }} · {{ m.from_shelf_position }} → {{ m.shelf_position }}
+                </template>
+                <template v-else>
+                  P/N {{ m.pn }} · Shelf {{ m.shelf_position }}
+                </template>
               </div>
             </td>
             <td class="whitespace-nowrap py-2.5">
@@ -127,7 +186,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Movement } from "~/composables/useWarehouseApi";
+import type {
+  Movement,
+  MovementAction,
+  MovementSource,
+} from "~/composables/useWarehouseApi";
 
 const { listMovements, rollbackMovement } = useWarehouseApi();
 const { isAdmin } = useAuth();
@@ -137,30 +200,64 @@ const movements = ref<Movement[]>([]);
 const loading = ref(false);
 const rollingBack = ref<number | null>(null);
 const operatorQuery = ref("");
+const itemQuery = ref("");
+const actionFilter = ref<"" | MovementAction>("");
+const sourceFilter = ref<"" | MovementSource>("");
+const dateFrom = ref("");
+const dateTo = ref("");
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
+
+const hasActiveFilters = computed(
+  () =>
+    !!operatorQuery.value.trim() ||
+    !!itemQuery.value.trim() ||
+    !!actionFilter.value ||
+    !!sourceFilter.value ||
+    !!dateFrom.value ||
+    !!dateTo.value,
+);
 
 async function refresh() {
   loading.value = true;
   try {
     movements.value = await listMovements(50, {
       operator: operatorQuery.value.trim() || undefined,
+      item: itemQuery.value.trim() || undefined,
+      action: actionFilter.value || undefined,
+      source: sourceFilter.value || undefined,
+      date_from: dateFrom.value || undefined,
+      date_to: dateTo.value || undefined,
     });
   } finally {
     loading.value = false;
   }
 }
 
-watch(operatorQuery, () => {
+watch([operatorQuery, itemQuery], () => {
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(refresh, 300);
 });
 
+watch([actionFilter, sourceFilter, dateFrom, dateTo], refresh);
+
+function clearFilters() {
+  operatorQuery.value = "";
+  itemQuery.value = "";
+  actionFilter.value = "";
+  sourceFilter.value = "";
+  dateFrom.value = "";
+  dateTo.value = "";
+}
+
 async function confirmRollback(m: Movement) {
-  const verb = m.action === "deposit" ? "removing" : "adding back";
-  const ok = window.confirm(
-    `Roll back this movement? This will log a compensating entry ${verb} ${m.quantity} unit(s) of "${m.item_name}".`,
-  );
+  const question =
+    m.action === "move"
+      ? `Roll back this move? This will send "${m.item_name}" back from shelf ${m.shelf_position} to shelf ${m.from_shelf_position}.`
+      : `Roll back this movement? This will log a compensating entry ${
+          m.action === "deposit" ? "removing" : "adding back"
+        } ${m.quantity} unit(s) of "${m.item_name}".`;
+  const ok = window.confirm(question);
   if (!ok) return;
 
   rollingBack.value = m.id;

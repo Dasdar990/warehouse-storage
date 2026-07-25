@@ -159,3 +159,6 @@ class ShelfPositionOption(BaseModel):
 
     value: str = Field(..., description='The shelf_position value to store, e.g. "12B"')
     label: str = Field(..., description="Human-readable text shown in the dropdown")
+    rack_code: str = Field(..., description='The rack this position belongs to, e.g. "12"')
+    rack_label: str = Field(..., description="Human-readable rack label, used to group positions by rack")
+    level: str = Field(..., description='The level within the rack, e.g. "B"')

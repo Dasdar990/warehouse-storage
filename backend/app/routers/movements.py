@@ -1,4 +1,5 @@
 """Live stock-movement audit log endpoint (powers the ActivityLog feed)."""
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_admin
 from app.db import get_db
+from app.models.movement import MovementAction, MovementSource
 from app.models.user import User
 from app.schemas.movement import MovementOut, RollbackResponse
 from app.services.movement_service import list_recent_movements, rollback_movement
@@ -18,10 +20,25 @@ def get_recent_movements(
     limit: int = Query(default=50, ge=1, le=200, description="Max rows to return, most recent first"),
     operator: Optional[str] = Query(default=None, description="Case-insensitive partial match on operator name"),
     item_id: Optional[int] = Query(default=None, description="Only movements for this item (its full history)"),
+    item: Optional[str] = Query(default=None, description="Case-insensitive partial match on item name or P/N"),
+    action: Optional[MovementAction] = Query(default=None, description="Only 'withdraw' or 'deposit' movements"),
+    source: Optional[MovementSource] = Query(default=None, description="Only 'barcode' or 'manual' movements"),
+    date_from: Optional[date] = Query(default=None, description="Only movements on/after this date"),
+    date_to: Optional[date] = Query(default=None, description="Only movements on/before this date"),
     db: Session = Depends(get_db),
 ):
-    """Most recent deposit/withdraw events, newest first. Optionally filtered by operator and/or item."""
-    return list_recent_movements(db, limit=limit, operator=operator, item_id=item_id)
+    """Most recent deposit/withdraw events, newest first. Optionally filtered by operator, item, action, source, and/or date range."""
+    return list_recent_movements(
+        db,
+        limit=limit,
+        operator=operator,
+        item_id=item_id,
+        item=item,
+        action=action,
+        source=source,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @router.post("/{movement_id}/rollback", response_model=RollbackResponse)
@@ -37,8 +54,12 @@ def rollback(
     stock wouldn't go negative.
     """
     item, reversal = rollback_movement(db, movement_id, operator=current_user.full_name)
+    if reversal.action == MovementAction.MOVE:
+        detail = f"moved back to shelf {reversal.shelf_position}"
+    else:
+        detail = f"{reversal.action.value} {reversal.quantity} unit(s)"
     return RollbackResponse(
         item=item,
         reversal=reversal,
-        message=f"Rolled back movement #{movement_id}: {reversal.action.value} {reversal.quantity} unit(s) of '{item.name}'.",
+        message=f"Rolled back movement #{movement_id}: {detail} of '{item.name}'.",
     )

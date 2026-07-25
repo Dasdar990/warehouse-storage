@@ -9,10 +9,11 @@ from app.db import Base
 
 
 class MovementAction(str, enum.Enum):
-    """Whether stock was taken out or put back."""
+    """Whether stock was taken out, put back, or relocated to another shelf."""
 
     WITHDRAW = "withdraw"
     DEPOSIT = "deposit"
+    MOVE = "move"
 
 
 class MovementSource(str, enum.Enum):
@@ -44,6 +45,10 @@ class Movement(Base):
     item_name = Column(String, nullable=False)
     pn = Column(String, nullable=False, index=True)
     shelf_position = Column(String, nullable=False)
+    # Only set on MOVE rows: the shelf the item was on *before* the move.
+    # `shelf_position` above holds the destination shelf, consistent with
+    # how it always reflects the item's shelf at the time of the entry.
+    from_shelf_position = Column(String, nullable=True)
 
     action = Column(SAEnum(MovementAction, native_enum=False, length=16), nullable=False)
     quantity = Column(Integer, nullable=False)

@@ -5,7 +5,7 @@
         <h2>Rack {{ rack.label || rack.rack_code }}</h2>
         <p class="mt-1 mb-0 text-[0.85rem] text-muted">{{ rack.levels.length }} level(s) — click a level to see its items</p>
       </div>
-      <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted" title="Close" @click="emit('close')">✕</button>
+      <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
     </div>
 
     <p v-if="loading" class="py-5 text-muted">Loading…</p>

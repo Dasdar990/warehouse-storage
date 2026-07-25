@@ -13,6 +13,7 @@ Route modules live in app/routers/:
     zones.py       -> GET/PUT /zones (delimited map areas)
     room.py        -> GET/PUT /room-layout (walls + door, purely visual orientation aid)
     categories.py  -> GET/POST /categories, DELETE /categories/{id}
+    programs.py    -> GET/POST /programs, DELETE /programs/{id}
     movements.py   -> GET /movements (live deposit/withdraw audit log)
     auth.py        -> POST /auth/login, GET /auth/me
     users.py       -> GET/POST/PATCH/DELETE /users (admin-only user management)
@@ -24,7 +25,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db import Base, SessionLocal, engine
-from app.routers import auth, categories, health, items, labels, movements, room, shelves, users, zones
+from app.routers import auth, categories, health, items, labels, movements, programs, room, shelves, users, zones
 from app.services.user_service import seed_default_admin
 
 settings = get_settings()
@@ -67,6 +68,20 @@ def _add_missing_columns() -> None:
         if movement_columns and "voided" not in movement_columns:
             conn.execute(text("ALTER TABLE movements ADD COLUMN voided BOOLEAN NOT NULL DEFAULT 0"))
             conn.execute(text("ALTER TABLE movements ADD COLUMN reversal_of_id INTEGER"))
+            conn.commit()
+
+        # Shelf-to-shelf moves were added after the first release -- add
+        # the column in place so an existing movements table keeps its rows.
+        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        if movement_columns and "from_shelf_position" not in movement_columns:
+            conn.execute(text("ALTER TABLE movements ADD COLUMN from_shelf_position VARCHAR"))
+            conn.commit()
+
+        # The optional "program" field was added after the first release --
+        # add the column in place so an existing items table keeps its rows.
+        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        if item_columns and "program" not in item_columns:
+            conn.execute(text("ALTER TABLE items ADD COLUMN program VARCHAR"))
             conn.commit()
 
 
@@ -120,6 +135,7 @@ app.include_router(shelves.router)
 app.include_router(zones.router)
 app.include_router(room.router)
 app.include_router(categories.router)
+app.include_router(programs.router)
 app.include_router(movements.router)
 
 # Serves generated label PNGs for the auto-print HTML page (GET /items/{id}/label)

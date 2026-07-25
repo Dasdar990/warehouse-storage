@@ -1,8 +1,12 @@
 <template>
-  <section class="card py-3.5">
-    <div class="flex flex-wrap items-stretch gap-2.5 max-[640px]:flex-col">
-      <!-- Unified input: barcode reader burst OR manual typing, same field -->
-      <div class="relative flex-1">
+  <div>
+    <!-- Step 1: find the item, by scan or by search -->
+    <div v-if="!foundItem" class="flex flex-col gap-3">
+      <p class="m-0 text-[0.85rem] text-muted">
+        Scan a barcode, or type to search by name / P/N.
+      </p>
+
+      <div class="relative">
         <input
           ref="inputEl"
           v-model="query"
@@ -21,7 +25,6 @@
           >…</span
         >
 
-        <!-- Autocomplete dropdown for manual typing -->
         <ul
           v-if="showDropdown"
           class="scrollbar-slim absolute z-20 mt-1.5 max-h-80 w-full overflow-y-auto rounded-[10px] border border-edge bg-surface-2 shadow-card"
@@ -65,26 +68,40 @@
       </div>
     </div>
 
-    <p class="mt-2 mb-0 text-[0.76rem] text-muted">
-      Scan applies the selected action directly; typing opens the item card.
-    </p>
-  </section>
+    <!-- Step 2: item found -- reuse ItemDetailCard, jumping straight to this action -->
+    <div v-else class="flex flex-col gap-2.5">
+      <button
+        type="button"
+        class="self-start text-[0.8rem] text-muted underline-offset-2 hover:underline"
+        @click="backToSearch"
+      >
+        ← Search a different item
+      </button>
+      <ItemDetailCard
+        :key="foundItem.id"
+        :item="foundItem"
+        :auto-start-action="action"
+        default-source="manual"
+        @updated="handleUpdated"
+        @close="backToSearch"
+      />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import type { Item } from "~/composables/useWarehouseApi";
 
+const props = defineProps<{
+  action: "deposit" | "withdraw";
+}>();
+
 const emit = defineEmits<{
-  /** Fast barcode-reader burst + Enter, resolved to a known item. */
-  "scan-item": [item: Item];
-  /** Fast barcode-reader burst + Enter, but no item matched that code. */
-  "scan-not-found": [code: string];
-  /** Manual typing, user picked (or confirmed) an item -- locate only, no stock change. */
-  "locate-item": [item: Item];
+  updated: [item: Item];
 }>();
 
 const { listItems, scanItem } = useWarehouseApi();
-const { mode, setMode } = useOperationMode();
+const { show } = useToast();
 const { onKeydown, onEnter, resetTiming } = useBarcodeScanner({
   onScan: handleScan,
   onManualSubmit: handleManualSubmit,
@@ -95,6 +112,7 @@ const query = ref("");
 const suggestions = ref<Item[]>([]);
 const loading = ref(false);
 const dropdownOpen = ref(false);
+const foundItem = ref<Item | null>(null);
 
 const showDropdown = computed(
   () => dropdownOpen.value && query.value.trim().length >= 2,
@@ -124,57 +142,56 @@ function handleEnter(event: KeyboardEvent) {
   onEnter(event, query.value);
 }
 
-/** Fast burst + Enter: treat the value as a scanned barcode. */
 async function handleScan(value: string) {
   loading.value = true;
   try {
-    const item = await scanItem(value);
-    emit("scan-item", item);
+    foundItem.value = await scanItem(value);
   } catch {
-    emit("scan-not-found", value);
+    show("error", `No item found for code "${value}"`);
   } finally {
     loading.value = false;
-    clearAndRefocus();
+    clearSearch();
   }
 }
 
-/** Slow typing + Enter with no dropdown pick: use the top suggestion if there is one. */
 async function handleManualSubmit(value: string) {
   if (suggestions.value.length > 0) {
     selectSuggestion(suggestions.value[0]);
     return;
   }
-  // Fall back to an exact barcode lookup in case it was typed rather than scanned.
   loading.value = true;
   try {
-    const item = await scanItem(value);
-    emit("locate-item", item);
+    foundItem.value = await scanItem(value);
+    clearSearch();
   } catch {
-    emit("scan-not-found", value);
+    show("error", `No item found for code "${value}"`);
   } finally {
     loading.value = false;
-    clearAndRefocus();
   }
 }
 
 function selectSuggestion(item: Item) {
-  emit("locate-item", item);
-  clearAndRefocus();
+  foundItem.value = item;
+  clearSearch();
 }
 
-function clearAndRefocus() {
+function clearSearch() {
   query.value = "";
   suggestions.value = [];
   dropdownOpen.value = false;
   resetTiming();
-  focus();
 }
 
-function focus() {
+function backToSearch() {
+  foundItem.value = null;
   nextTick(() => inputEl.value?.focus());
 }
 
-onMounted(focus);
+function handleUpdated(item: Item) {
+  emit("updated", item);
+  // Ready for the next item right away -- handy for working through a batch.
+  backToSearch();
+}
 
-defineExpose({ focus });
+onMounted(() => nextTick(() => inputEl.value?.focus()));
 </script>

@@ -24,6 +24,9 @@ class Item(Base):
     pn = Column(String, index=True, nullable=False, default="")
     barcode = Column(String, unique=True, index=True, nullable=False)
     category = Column(String, index=True, nullable=False)
+    # Optional, free-text like `category` -- populated from the admin-managed
+    # Program catalog, but never invalidated if that catalog entry is deleted.
+    program = Column(String, index=True, nullable=True)
     size = Column(SAEnum(ItemSize, native_enum=False,
                   length=16), nullable=False)
     quantity = Column(Integer, default=0, nullable=False)

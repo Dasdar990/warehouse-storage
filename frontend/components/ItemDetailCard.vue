@@ -11,6 +11,7 @@
         <div class="mt-2 flex flex-wrap gap-2">
           <span v-if="item.pn" class="badge badge--pn">P/N {{ item.pn }}</span>
           <span class="badge badge--category">{{ item.category }}</span>
+          <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
           <span class="badge badge--size" :class="`badge--size-${item.size}`">{{
             sizeLabel(item.size)
           }}</span>
@@ -20,6 +21,18 @@
             {{ item.shelf_position }}</span
           >
         </div>
+        <p v-if="otherShelves.length" class="m-0 mt-2 text-[0.78rem] text-muted">
+          Also on shelf{{ otherShelves.length > 1 ? "s" : "" }}:
+          <span
+            v-for="(o, i) in otherShelves"
+            :key="o.shelf_position"
+            class="text-ink"
+            >{{ o.shelf_position }} ({{ o.quantity }} pcs)<template
+              v-if="i < otherShelves.length - 1"
+              >, </template
+            ></span
+          >
+        </p>
       </div>
     </div>
 
@@ -52,11 +65,19 @@
       >
         Add
       </button>
+      <button
+        type="button"
+        class="btn btn--ghost flex-1 cursor-pointer py-2.5 text-[0.95rem] font-semibold"
+        :disabled="busy"
+        @click="startAction('move')"
+      >
+        Move shelf
+      </button>
     </div>
 
     <!-- Step 2: pick the quantity, then confirm -->
     <div
-      v-else
+      v-else-if="pendingAction === 'withdraw' || pendingAction === 'deposit'"
       class="mt-3 flex flex-col gap-3 rounded-[10px] border border-edge/80 bg-surface p-3"
     >
       <div class="flex items-center justify-between gap-2">
@@ -147,6 +168,76 @@
       </button>
     </div>
 
+    <!-- Step 2 (move variant): pick the destination rack/shelf, then confirm -->
+    <div
+      v-else-if="pendingAction === 'move'"
+      class="mt-3 flex flex-col gap-3 rounded-[10px] border border-edge/80 bg-surface p-3"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[0.8rem] font-semibold uppercase tracking-wide text-accent">
+          Moving to another shelf
+        </span>
+        <button
+          type="button"
+          class="text-[0.8rem] text-muted underline-offset-2 hover:underline"
+          :disabled="busy"
+          @click="cancelAction"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <p class="m-0 text-[0.85rem] text-muted">
+        Currently on <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
+      </p>
+
+      <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[0.78rem] text-muted">Rack</label>
+          <select
+            v-model="moveRackCode"
+            :disabled="loadingShelves"
+            class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="" disabled>Select a rack…</option>
+            <option v-for="rack in moveRacks" :key="rack.code" :value="rack.code">
+              {{ rack.label }}
+            </option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[0.78rem] text-muted">Shelf</label>
+          <select
+            v-model="moveShelfPosition"
+            :disabled="loadingShelves || !moveRackCode"
+            class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="" disabled>
+              {{ moveRackCode ? "Select a shelf…" : "Select a rack first" }}
+            </option>
+            <option
+              v-for="opt in moveShelvesForRack"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              Level {{ opt.level }} ({{ opt.value }})
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <p v-if="moveError" class="m-0 text-[0.8rem] text-red-300">{{ moveError }}</p>
+
+      <button
+        type="button"
+        class="btn btn--confirm cursor-pointer py-2.5 text-[0.95rem] font-semibold"
+        :disabled="busy || !moveShelfPosition || moveShelfPosition === item.shelf_position"
+        @click="confirmMove"
+      >
+        {{ busy ? "Moving…" : `Confirm move to ${moveShelfPosition || "…"}` }}
+      </button>
+    </div>
+
     <div class="mt-3.5 border-t border-edge/60 pt-3">
       <div class="mb-1.5 flex items-center justify-between">
         <span class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
@@ -165,9 +256,17 @@
           :class="{ 'opacity-45': h.voided }"
         >
           <span>
-            <strong :class="h.action === 'deposit' ? 'text-green-300' : 'text-red-300'">
-              {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
-            </strong>
+            <template v-if="h.action === 'move'">
+              <strong class="text-accent">Moved</strong>
+              <span class="text-muted">
+                {{ h.from_shelf_position }} → {{ h.shelf_position }}</span
+              >
+            </template>
+            <template v-else>
+              <strong :class="h.action === 'deposit' ? 'text-green-300' : 'text-red-300'">
+                {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
+              </strong>
+            </template>
             <span class="text-muted"> by </span>
             <span class="text-ink">{{ h.operator }}</span>
           </span>
@@ -235,13 +334,20 @@
 </template>
 
 <script setup lang="ts">
-import type { Item, Movement, MovementSource } from "~/composables/useWarehouseApi";
+import type {
+  Item,
+  Movement,
+  MovementSource,
+  ShelfPositionOption,
+} from "~/composables/useWarehouseApi";
 
 const props = defineProps<{
   item: Item;
   zoneLabel?: string;
   /** Where the current selection came from -- tags the *next* quick action for the audit log. */
   defaultSource?: MovementSource;
+  /** Skip step 1 and jump straight into this action (used by the quick-action popups). */
+  autoStartAction?: "withdraw" | "deposit" | "move";
 }>();
 
 const emit = defineEmits<{
@@ -249,7 +355,8 @@ const emit = defineEmits<{
   updated: [item: Item];
 }>();
 
-const { withdrawItem, depositItem, labelUrl, listMovements } = useWarehouseApi();
+const { withdrawItem, depositItem, moveItem, getShelfPositions, labelUrl, listMovements, listItems } =
+  useWarehouseApi();
 const { show } = useToast();
 
 const qty = ref(1);
@@ -282,8 +389,9 @@ function formatHistoryTime(iso: string) {
 }
 
 // Step 1 only picks *which* movement; step 2 (below) then asks for the
-// quantity and shows a confirmation summary before anything is sent.
-const pendingAction = ref<"withdraw" | "deposit" | null>(null);
+// quantity (or destination shelf) and shows a confirmation summary before
+// anything is sent.
+const pendingAction = ref<"withdraw" | "deposit" | "move" | null>(null);
 
 // Common quick-pick amounts, plus "All" (the full current stock) so clearing
 // out a shelf in one withdrawal doesn't require typing the exact number.
@@ -320,16 +428,6 @@ const qtyError = computed(() => {
   return "";
 });
 
-watch(
-  () => props.item.id,
-  () => {
-    pendingAction.value = null;
-    qty.value = 1;
-    loadHistory();
-  },
-  { immediate: true },
-);
-
 function sizeLabel(size: string) {
   return (
     ({ small: "Small", big: "Big", xl: "XL" } as Record<string, string>)[
@@ -338,19 +436,119 @@ function sizeLabel(size: string) {
   );
 }
 
-function startAction(action: "withdraw" | "deposit") {
+// -- Move to another shelf --------------------------------------------
+const shelfOptions = ref<ShelfPositionOption[]>([]);
+const loadingShelves = ref(false);
+const moveRackCode = ref("");
+const moveShelfPosition = ref("");
+
+// Same part (same P/N) can legitimately live on more than one shelf --
+// surface the other locations so an operator doesn't miss stock elsewhere.
+const otherShelves = ref<Item[]>([]);
+
+async function loadOtherShelves() {
+  if (!props.item.pn) {
+    otherShelves.value = [];
+    return;
+  }
+  try {
+    const matches = await listItems({ pn: props.item.pn });
+    otherShelves.value = matches.filter((i) => i.id !== props.item.id);
+  } catch {
+    otherShelves.value = [];
+  }
+}
+
+watch(
+  () => props.item.id,
+  () => {
+    pendingAction.value = null;
+    qty.value = 1;
+    moveRackCode.value = "";
+    moveShelfPosition.value = "";
+    loadHistory();
+    loadOtherShelves();
+    if (props.autoStartAction) startAction(props.autoStartAction);
+  },
+  { immediate: true },
+);
+
+async function loadShelfOptions() {
+  loadingShelves.value = true;
+  try {
+    shelfOptions.value = await getShelfPositions();
+  } catch {
+    // Non-critical: the move panel just won't have any options to pick from.
+  } finally {
+    loadingShelves.value = false;
+  }
+}
+
+const moveRacks = computed(() => {
+  const seen = new Map<string, string>();
+  for (const opt of shelfOptions.value) {
+    if (!seen.has(opt.rack_code)) seen.set(opt.rack_code, opt.rack_label);
+  }
+  return Array.from(seen, ([code, label]) => ({ code, label }));
+});
+
+const moveShelvesForRack = computed(() =>
+  shelfOptions.value.filter((opt) => opt.rack_code === moveRackCode.value),
+);
+
+const moveError = computed(() => {
+  if (pendingAction.value !== "move") return "";
+  if (moveShelfPosition.value && moveShelfPosition.value === props.item.shelf_position) {
+    return "This item is already on that shelf.";
+  }
+  return "";
+});
+
+// Reset the shelf pick whenever the rack changes.
+watch(moveRackCode, () => {
+  moveShelfPosition.value = "";
+});
+
+function startAction(action: "withdraw" | "deposit" | "move") {
   pendingAction.value = action;
   qty.value = 1;
+  if (action === "move") {
+    moveRackCode.value = "";
+    moveShelfPosition.value = "";
+    if (!shelfOptions.value.length) loadShelfOptions();
+  }
 }
 
 function cancelAction() {
   pendingAction.value = null;
   qty.value = 1;
+  moveRackCode.value = "";
+  moveShelfPosition.value = "";
+}
+
+async function confirmMove() {
+  if (!moveShelfPosition.value || moveError.value) return;
+  busy.value = true;
+  try {
+    const res = await moveItem({
+      barcode: props.item.barcode,
+      shelf_position: moveShelfPosition.value,
+      source: (props.defaultSource ?? "manual") as MovementSource,
+    });
+    show("success", res.message);
+    emit("updated", res.item);
+    cancelAction();
+    await loadHistory();
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to move item");
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function confirmAction() {
   const action = pendingAction.value;
-  if (!action || qtyError.value) return;
+  if (!action || action === "move" || qtyError.value) return;
   busy.value = true;
   try {
     const payload = {

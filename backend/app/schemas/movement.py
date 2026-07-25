@@ -27,6 +27,24 @@ class StockMoveResponse(BaseModel):
     message: str
 
 
+class RelocateItemRequest(BaseModel):
+    """Shape for POST /items/move: relocate an item to a different shelf."""
+
+    barcode: str = Field(..., min_length=1)
+    shelf_position: str = Field(..., min_length=1, description="Destination shelf, e.g. '12B'")
+    source: MovementSource = Field(
+        default=MovementSource.MANUAL,
+        description="'barcode' if triggered by a scanner read, 'manual' if typed/clicked in the UI",
+    )
+
+
+class RelocateItemResponse(BaseModel):
+    item: ItemOut
+    from_shelf_position: str
+    to_shelf_position: str
+    message: str
+
+
 class MovementOut(BaseModel):
     id: int
     timestamp: datetime
@@ -34,6 +52,7 @@ class MovementOut(BaseModel):
     item_name: str
     pn: str
     shelf_position: str
+    from_shelf_position: str | None
     action: MovementAction
     quantity: int
     balance_after: int
