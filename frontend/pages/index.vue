@@ -1,16 +1,6 @@
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-[1.05rem] font-semibold">
-          Industrial Engineering Warehouse
-        </h2>
-        <p class="m-0 text-sm text-muted">
-          Scan, search, and update stock from one place.
-        </p>
-      </div>
-    </div>
-
+    <!-- SEARCH BAR -->
     <div class="flex flex-wrap items-stretch gap-3">
       <UnifiedSearchBar
         ref="searchBarRef"
@@ -20,33 +10,100 @@
         @locate-item="handleLocateItem"
       />
     </div>
-
-    <!-- Quick actions: the three most common things to do from this screen -->
     <section class="card">
-      <div class="mb-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-muted">
+      <div
+        class="mb-2.5 text-sm font-semibold uppercase tracking-[0.22em] text-muted"
+      >
         Quick actions
       </div>
       <div class="flex flex-wrap gap-2.5 max-[640px]:flex-col">
         <button
           type="button"
-          class="btn btn--primary flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-edge/70 bg-edge/5 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent/[0.08] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:translate-y-0 active:shadow-none"
           @click="showAddItemModal = true"
         >
-          + New item
+          <span
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/12 transition-colors duration-200 group-hover:bg-accent/22"
+          >
+            <img src="~/assets/icons/add.svg" class="h-6 w-6" />
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-[1.05rem] font-semibold text-ink">New Item</span>
+            <span class="text-[0.8rem] text-muted"
+              >Create a new item in the system</span
+            >
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4 shrink-0 -translate-x-1.5 text-muted opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
         </button>
         <button
           type="button"
-          class="btn btn--confirm flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-edge/70 bg-edge/5 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-good/50 hover:bg-good/[0.08] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-good/60 active:translate-y-0 active:shadow-none"
           @click="quickAction = 'deposit'"
         >
-          ↓ Deposit item
+          <span
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-good/12 transition-colors duration-200 group-hover:bg-good/22"
+          >
+            <img src="~/assets/icons/inbox.svg" class="h-6 w-6" />
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-[1.05rem] font-semibold text-ink"
+              >Deposit Item</span
+            >
+            <span class="text-[0.8rem] text-muted"
+              >Deposit an item to the warehouse</span
+            >
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4 shrink-0 -translate-x-1.5 text-muted opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0 group-hover:text-green-300 group-hover:opacity-100"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
         </button>
         <button
           type="button"
-          class="btn btn--danger flex-1 cursor-pointer whitespace-nowrap py-2.5 text-[0.88rem] font-semibold"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-edge/70 bg-edge/5 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/50 hover:bg-bad/[0.08] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none"
           @click="quickAction = 'withdraw'"
         >
-          ↑ Withdraw item
+          <span
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-bad/12 transition-colors duration-200 group-hover:bg-bad/22"
+          >
+            <img src="~/assets/icons/outbox.svg" class="h-6 w-6" />
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-[1.05rem] font-semibold text-ink"
+              >Withdraw Item</span
+            >
+            <span class="text-[0.8rem] text-muted"
+              >Remove an item from the warehouse</span
+            >
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4 shrink-0 -translate-x-1.5 text-muted opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0 group-hover:text-red-300 group-hover:opacity-100"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
     </section>
@@ -69,48 +126,53 @@
     </section>
 
     <!-- Below the map: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
+    <div ref="resultsRef" class="flex flex-col gap-4">
+    <transition name="panel-fade" mode="out-in">
     <ItemDetailCard
       v-if="selectedItem"
-      :key="selectedItem.id"
+      :key="`${selectedItem.id}-${autoStartAction ?? 'none'}-${selectionNonce}`"
       :item="selectedItem"
       :low-stock-threshold="layout?.low_stock_threshold"
       :zone-label="selectedItemZoneLabel"
       :default-source="lastSelectionSource"
+      :auto-start-action="autoStartAction"
       @close="clearSelection"
       @updated="handleItemUpdated"
     />
 
-    <MapRackLevelsPanel
-      v-else-if="layout?.has_custom_layout && selectedRack && rackLevels"
-      :rack="rackLevels"
-      :selected-level="selectedLevel"
-      :loading="loadingRack"
-      @select-level="selectLevel"
-      @close="closeDrilldown"
-    />
+    <div v-else class="flex flex-col gap-4">
+      <MapRackLevelsPanel
+        v-if="layout?.has_custom_layout && selectedRack && rackLevels"
+        :rack="rackLevels"
+        :selected-level="selectedLevel"
+        :loading="loadingRack"
+        @select-level="selectLevel"
+        @close="closeDrilldown"
+      />
 
-    <MapShelfDetailPanel
-      v-if="!selectedItem && selectedLevel"
-      :shelf-position="selectedLevel"
-      :items="levelItems"
-      :loading="loadingLevelItems"
-      :show-back="!!(layout?.has_custom_layout && selectedRack)"
-      @close="closeDrilldown"
-      @back="backToRack"
-    />
+      <MapShelfDetailPanel
+        v-if="selectedLevel"
+        :shelf-position="selectedLevel"
+        :items="levelItems"
+        :loading="loadingLevelItems"
+        :show-back="!!(layout?.has_custom_layout && selectedRack)"
+        @close="closeDrilldown"
+        @back="backToRack"
+        @select-item="handleSelectItemFromShelf"
+      />
 
-    <p
-      v-if="
-        !selectedItem &&
-        !selectedLevel &&
-        !(layout?.has_custom_layout && selectedRack)
-      "
-      class="card border border-dashed border-edge/70 text-sm text-muted"
-    >
-      Start with a search or scan, or click a shelf on the map, to open the item details.
-    </p>
+      <p
+        v-if="!selectedLevel && !(layout?.has_custom_layout && selectedRack)"
+        class="card border border-dashed border-edge/70 text-sm text-muted"
+      >
+        Start with a search or scan, or click a shelf on the map, to open the item
+        details.
+      </p>
+    </div>
+    </transition>
+    </div>
 
-    <ActivityLog ref="activityLogRef" />
+    <ActivityLog ref="activityLogRef" collapsible default-collapsed />
 
     <BaseModal v-model="showAddItemModal" title="New Item" size="lg">
       <DashboardAddItemForm @created="handleItemCreated" />
@@ -151,6 +213,15 @@ const { show } = useToast();
 
 const searchBarRef = ref<{ focus: () => void } | null>(null);
 const activityLogRef = ref<{ refresh: () => void } | null>(null);
+const resultsRef = ref<HTMLElement | null>(null);
+
+/** Smoothly bring the drill-down/results area into view -- keeps the flow
+ *  fluid on smaller screens where the map pushes it below the fold. */
+function scrollToResults() {
+  nextTick(() => {
+    resultsRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
 
 const layout = ref<WarehouseLayout | null>(null);
 const loadingLayout = ref(false);
@@ -165,7 +236,10 @@ function handleQuickActionUpdated(item: Item) {
   closeDrilldown();
   lastSelectionSource.value = "manual";
   selectedItem.value = item;
+  autoStartAction.value = undefined;
+  selectionNonce.value += 1;
   activityLogRef.value?.refresh();
+  scrollToResults();
 }
 
 async function handleItemCreated(item: Item) {
@@ -174,6 +248,8 @@ async function handleItemCreated(item: Item) {
   closeDrilldown();
   lastSelectionSource.value = "manual";
   selectedItem.value = item;
+  autoStartAction.value = undefined;
+  selectionNonce.value += 1;
   // Shelf item counts on the map just changed, so refresh the layout in the background.
   loadLayout(true);
 }
@@ -181,6 +257,10 @@ async function handleItemCreated(item: Item) {
 // --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
 const selectedItem = ref<Item | null>(null);
 const lastSelectionSource = ref<"barcode" | "manual">("manual");
+const autoStartAction = ref<"deposit" | "withdraw" | undefined>(undefined);
+// Bumped on every selection so the card remounts (and autoStartAction jumps
+// straight to the right step) even when re-selecting the same item.
+const selectionNonce = ref(0);
 const zoneNameById = ref<Map<number, string>>(new Map());
 
 const selectedItemZoneLabel = computed(() => {
@@ -255,6 +335,9 @@ async function handleScanItem(item: Item) {
     selectedItem.value = item;
     show("error", err?.data?.detail || "Automatic operation failed");
   }
+  autoStartAction.value = undefined;
+  selectionNonce.value += 1;
+  scrollToResults();
 }
 
 function handleScanNotFound(code: string) {
@@ -265,11 +348,27 @@ function handleLocateItem(item: Item) {
   lastSelectionSource.value = "manual";
   closeDrilldown();
   selectedItem.value = item;
+  autoStartAction.value = undefined;
+  selectionNonce.value += 1;
+  scrollToResults();
 }
 
 function handleItemUpdated(item: Item) {
   selectedItem.value = item;
   activityLogRef.value?.refresh();
+}
+
+/** Row click (or a Deposit/Withdraw button) on the shelf's item list -- jump
+ *  straight into the full item card, optionally already on the right step. */
+function handleSelectItemFromShelf(
+  item: Item,
+  action?: "deposit" | "withdraw",
+) {
+  lastSelectionSource.value = "manual";
+  selectedItem.value = item;
+  autoStartAction.value = action;
+  selectionNonce.value += 1;
+  scrollToResults();
 }
 
 function clearSelection() {
@@ -290,6 +389,7 @@ async function selectRack(rackCode: string) {
   } finally {
     loadingRack.value = false;
   }
+  scrollToResults();
 }
 
 async function selectLevel(shelfPosition: string) {
@@ -302,6 +402,7 @@ async function selectLevel(shelfPosition: string) {
   } finally {
     loadingLevelItems.value = false;
   }
+  scrollToResults();
 }
 
 // Legacy fallback grid (no custom layout saved yet) has no rack/level
@@ -324,3 +425,15 @@ function closeDrilldown() {
 
 onMounted(loadLayout);
 </script>
+
+<style scoped>
+.panel-fade-enter-active,
+.panel-fade-leave-active {
+  transition: all 0.18s ease-out;
+}
+.panel-fade-enter-from,
+.panel-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>

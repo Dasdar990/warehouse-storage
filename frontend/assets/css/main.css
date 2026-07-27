@@ -79,6 +79,10 @@
     @apply border border-violet-400/25 bg-violet-500/12 text-violet-200;
   }
 
+  .badge--serial {
+    @apply border border-sky-400/25 bg-sky-500/10 text-sky-200 font-mono tracking-normal;
+  }
+
   .badge--size {
     @apply min-w-6.5 justify-center border border-slate-400/25 bg-slate-500/12 text-slate-200;
   }

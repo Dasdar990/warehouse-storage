@@ -84,6 +84,14 @@ def _add_missing_columns() -> None:
             conn.execute(text("ALTER TABLE items ADD COLUMN program VARCHAR"))
             conn.commit()
 
+        # The optional "serial" field (one specific physical unit, as opposed
+        # to `pn` which identifies the part type) was added after the first
+        # release -- add the column in place so existing rows are preserved.
+        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        if item_columns and "serial" not in item_columns:
+            conn.execute(text("ALTER TABLE items ADD COLUMN serial VARCHAR"))
+            conn.commit()
+
 
 _add_missing_columns()
 

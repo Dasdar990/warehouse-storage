@@ -22,6 +22,9 @@ class Item(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     pn = Column(String, index=True, nullable=False, default="")
+    # Optional manufacturer/unit serial number -- unlike `pn` (which identifies
+    # the part type), this identifies one specific physical unit.
+    serial = Column(String, index=True, nullable=True)
     barcode = Column(String, unique=True, index=True, nullable=False)
     category = Column(String, index=True, nullable=False)
     # Optional, free-text like `category` -- populated from the admin-managed

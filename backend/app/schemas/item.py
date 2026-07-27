@@ -12,6 +12,10 @@ class ItemBase(BaseModel):
     name: str = Field(..., min_length=1,
                       description="Human readable item name")
     pn: str = Field(default="", description="Optional part number")
+    serial: str | None = Field(
+        default=None,
+        description="Optional serial number identifying this specific unit",
+    )
     barcode: str = Field(..., min_length=1,
                          description="Unique scannable barcode value")
     category: str = Field(..., min_length=1,
@@ -53,6 +57,14 @@ class ItemBase(BaseModel):
     @classmethod
     def normalize_pn(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("serial")
+    @classmethod
+    def normalize_serial(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class ItemCreate(ItemBase):

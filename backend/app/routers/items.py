@@ -45,7 +45,12 @@ def list_items(
     if search:
         like = f"%{search.strip()}%"
         stmt = stmt.where(
-            or_(Item.name.ilike(like), Item.pn.ilike(like), Item.barcode.ilike(like))
+            or_(
+                Item.name.ilike(like),
+                Item.pn.ilike(like),
+                Item.barcode.ilike(like),
+                Item.serial.ilike(like),
+            )
         )
     if category:
         stmt = stmt.where(Item.category == category)

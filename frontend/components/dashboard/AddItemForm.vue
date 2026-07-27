@@ -26,6 +26,19 @@
       />
     </div>
 
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted"
+        >Serial Number
+        <span class="text-[0.72rem] text-muted">(optional)</span></label
+      >
+      <input
+        v-model="form.serial"
+        type="text"
+        placeholder="SN-00123"
+        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    </div>
+
     <div class="flex flex-col gap-1.5 col-span-full">
       <label class="text-[0.8rem] text-muted">Barcode</label>
       <div class="flex gap-2">
@@ -269,6 +282,7 @@ const { show } = useToast();
 const EMPTY_FORM = {
   name: "",
   pn: "",
+  serial: "",
   barcode: "",
   category: "",
   program: "",

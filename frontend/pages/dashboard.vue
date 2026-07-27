@@ -37,11 +37,17 @@
       <DashboardItemTable v-else :items="items" @move="openMoveModal" />
     </section>
 
-    <BaseModal v-model="showMoveModal" title="Stock update" size="md">
+    <BaseModal
+      v-model="showMoveModal"
+      :title="moveAction === 'deposit' ? 'Deposit item' : 'Withdraw item'"
+      size="md"
+    >
       <ItemDetailCard
         v-if="moveItem"
-        :key="moveItem.id"
+        :key="`${moveItem.id}-${moveAction}-${moveNonce}`"
         :item="moveItem"
+        :auto-start-action="moveAction"
+        default-source="manual"
         @close="showMoveModal = false"
         @updated="onItemMoved"
       />
@@ -70,9 +76,13 @@ const showAddForm = ref(false);
 // --- Quick withdraw/deposit straight from the table row, no page change ---
 const showMoveModal = ref(false);
 const moveItem = ref<Item | null>(null);
+const moveAction = ref<"deposit" | "withdraw">("deposit");
+const moveNonce = ref(0);
 
-function openMoveModal(item: Item) {
+function openMoveModal(item: Item, action: "deposit" | "withdraw") {
   moveItem.value = item;
+  moveAction.value = action;
+  moveNonce.value += 1;
   showMoveModal.value = true;
 }
 

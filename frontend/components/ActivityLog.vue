@@ -1,8 +1,34 @@
 <template>
   <section class="card">
-    <div class="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-[1.05rem]">Activity Log</h2>
+    <div class="flex flex-wrap items-center justify-between gap-2" :class="{ 'mb-3.5': expanded }">
       <button
+        v-if="collapsible"
+        type="button"
+        class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 bg-transparent text-left"
+        @click="expanded = !expanded"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="h-4 w-4 shrink-0 text-muted transition-transform duration-200 ease-out"
+          :class="{ 'rotate-90': expanded }"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+        <h2 class="text-[1.05rem]">Activity Log</h2>
+        <span
+          v-if="!expanded && movements.length"
+          class="rounded-full bg-surface-2 px-2 py-0.5 text-[0.7rem] font-semibold text-muted"
+          >{{ movements.length }}</span
+        >
+      </button>
+      <h2 v-else class="text-[1.05rem]">Activity Log</h2>
+      <button
+        v-if="expanded"
         type="button"
         class="btn btn--ghost btn--small"
         :disabled="loading"
@@ -13,6 +39,7 @@
     </div>
 
     <div
+      v-show="expanded"
       class="mb-3.5 flex flex-wrap items-center gap-2 max-[640px]:flex-col max-[640px]:items-stretch"
     >
       <input
@@ -27,13 +54,19 @@
         placeholder="Search by operator…"
         class="field-input h-8.5 flex-1 basis-40 text-[0.82rem]"
       />
-      <select v-model="actionFilter" class="field-input h-8.5 text-[0.82rem]">
+      <select
+        v-model="actionFilter"
+        class="field-input h-8.5 w-40 shrink-0 text-[0.82rem] max-[640px]:w-full"
+      >
         <option value="">All actions</option>
         <option value="deposit">Added</option>
         <option value="withdraw">Removed</option>
         <option value="move">Moved</option>
       </select>
-      <select v-model="sourceFilter" class="field-input h-8.5 text-[0.82rem]">
+      <select
+        v-model="sourceFilter"
+        class="field-input h-8.5 w-44 shrink-0 text-[0.82rem] max-[640px]:w-full"
+      >
         <option value="">All sources</option>
         <option value="barcode">Barcode verified</option>
         <option value="manual">Manual entry</option>
@@ -65,6 +98,7 @@
       </button>
     </div>
 
+    <template v-if="expanded">
     <p v-if="loading && movements.length === 0" class="py-4 text-muted">
       Loading log…
     </p>
@@ -182,6 +216,7 @@
         </transition-group>
       </table>
     </div>
+    </template>
   </section>
 </template>
 
@@ -192,9 +227,21 @@ import type {
   MovementSource,
 } from "~/composables/useWarehouseApi";
 
+const props = withDefaults(
+  defineProps<{
+    /** Show the collapse/expand arrow in the header. Set to false for a full, dedicated page. */
+    collapsible?: boolean;
+    /** Initial collapsed state when `collapsible` is true. */
+    defaultCollapsed?: boolean;
+  }>(),
+  { collapsible: false, defaultCollapsed: false },
+);
+
 const { listMovements, rollbackMovement } = useWarehouseApi();
 const { isAdmin } = useAuth();
 const { show } = useToast();
+
+const expanded = ref(!(props.collapsible && props.defaultCollapsed));
 
 const movements = ref<Movement[]>([]);
 const loading = ref(false);

@@ -4,6 +4,7 @@ export interface Item {
   id: number
   name: string
   pn: string
+  serial?: string | null
   barcode: string
   category: string
   program?: string | null

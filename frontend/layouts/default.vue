@@ -23,13 +23,19 @@
           to="/"
           class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
-          Map
+          Home
         </NuxtLink>
         <NuxtLink
           to="/dashboard"
           class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
           Dashboard
+        </NuxtLink>
+        <NuxtLink
+          to="/activity-log"
+          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+        >
+          Activity Log
         </NuxtLink>
         <NuxtLink
           v-if="isAdmin"

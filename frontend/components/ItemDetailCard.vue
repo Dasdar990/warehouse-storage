@@ -10,6 +10,7 @@
         <h2 class="mt-2 text-[1rem] font-semibold">{{ item.name }}</h2>
         <div class="mt-2 flex flex-wrap gap-2">
           <span v-if="item.pn" class="badge badge--pn">P/N {{ item.pn }}</span>
+          <span v-if="item.serial" class="badge badge--serial">S/N {{ item.serial }}</span>
           <span class="badge badge--category">{{ item.category }}</span>
           <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
           <span class="badge badge--size" :class="`badge--size-${item.size}`">{{

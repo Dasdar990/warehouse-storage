@@ -50,7 +50,12 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in items" :key="item.id">
+        <tr
+          v-for="item in items"
+          :key="item.id"
+          :class="{ 'cursor-pointer transition-colors hover:bg-surface-2/60': selectable }"
+          @click="onRowClick(item, $event)"
+        >
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             {{ item.name }}
           </td>
@@ -66,6 +71,9 @@
               </span>
             </span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
+            <div v-if="item.serial" class="mt-1 font-mono text-[0.7rem] text-muted">
+              S/N {{ item.serial }}
+            </div>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <span class="badge badge--category">{{ item.category }}</span>
@@ -99,23 +107,40 @@
             <div class="flex gap-1.5">
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[0.78rem] font-semibold text-emerald-200 cursor-pointer transition-colors hover:bg-accent/20"
-                title="Add or remove stock"
-                @click="emit('move', item)"
+                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-good/40 bg-good/10 text-green-300 transition-colors hover:bg-good/20"
+                title="Deposit stock"
+                @click="emit('move', item, 'deposit')"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  class="h-3.5 w-3.5"
+                  class="h-4 w-4"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="2.25"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path d="M7 4v16M7 4 3 8M7 4l4 4" />
-                  <path d="M17 20V4M17 20l-4-4M17 20l4-4" />
+                  <path d="M12 5v14M5 12h14" />
                 </svg>
-                Adjust
+              </button>
+              <button
+                type="button"
+                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-bad/40 bg-bad/10 text-red-300 transition-colors hover:bg-bad/20 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Withdraw stock"
+                :disabled="item.quantity <= 0"
+                @click="emit('move', item, 'withdraw')"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.25"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12h14" />
+                </svg>
               </button>
               <a
                 class="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink no-underline"
@@ -158,13 +183,25 @@ const props = withDefaults(
   defineProps<{
     items: Item[];
     showShelf?: boolean;
+    /** Makes whole rows clickable to open the item's details (used in the map drill-down). */
+    selectable?: boolean;
   }>(),
-  { showShelf: true },
+  { showShelf: true, selectable: false },
 );
 
 const { labelUrl } = useWarehouseApi();
 
-const emit = defineEmits<{ move: [item: Item] }>();
+const emit = defineEmits<{
+  move: [item: Item, action: "deposit" | "withdraw"];
+  select: [item: Item];
+}>();
+
+function onRowClick(item: Item, event: MouseEvent) {
+  if (!props.selectable) return;
+  // Don't hijack clicks on the row's own buttons/links (Deposit, Withdraw, Label).
+  if ((event.target as HTMLElement)?.closest("button, a")) return;
+  emit("select", item);
+}
 
 // Same part (same P/N) can legitimately live on more than one shelf --
 // count occurrences (within the currently displayed/filtered list) so the

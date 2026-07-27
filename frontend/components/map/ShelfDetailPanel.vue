@@ -22,7 +22,39 @@
     </div>
 
     <p v-if="loading" class="py-5 text-muted">Loading shelf contents…</p>
-    <DashboardItemTable v-else :items="items" :show-shelf="false" />
+    <template v-else>
+      <div v-if="items.length > 4" class="relative mt-3.5 mb-1">
+        <svg
+          viewBox="0 0 24 24"
+          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          v-model="query"
+          type="text"
+          placeholder="Find an item on this shelf — name, P/N, S/N, or barcode…"
+          class="field-input h-9.5 w-full py-2 pl-9 text-[0.85rem]"
+        />
+      </div>
+      <p v-if="query && !filteredItems.length" class="py-5 text-center text-muted">
+        No item on this shelf matches "{{ query }}".
+      </p>
+      <DashboardItemTable
+        v-else
+        :items="filteredItems"
+        :show-shelf="false"
+        selectable
+        @select="emit('select-item', $event)"
+        @move="(item, action) => emit('select-item', item, action)"
+      />
+    </template>
   </section>
 </template>
 
@@ -36,7 +68,32 @@ const props = defineProps<{
   showBack?: boolean
 }>()
 
-const emit = defineEmits<{ close: []; back: [] }>()
+const emit = defineEmits<{
+  close: []
+  back: []
+  'select-item': [item: Item, action?: 'deposit' | 'withdraw']
+}>()
+
+const query = ref('')
+
+// Reset the local search whenever a different shelf is opened, so a stale
+// filter from the previous shelf doesn't silently hide everything here.
+watch(
+  () => props.shelfPosition,
+  () => {
+    query.value = ''
+  },
+)
+
+const filteredItems = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return props.items
+  return props.items.filter((item) =>
+    [item.name, item.pn, item.serial, item.barcode]
+      .filter(Boolean)
+      .some((field) => field!.toLowerCase().includes(q)),
+  )
+})
 
 const totalQuantity = computed(() => props.items.reduce((sum, i) => sum + i.quantity, 0))
 </script>
