@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #08110c;
+  --color-surface: #0f1712;
+  --color-surface-2: #14211a;
+  --color-edge: #2d3d34;
+  --color-ink: #f2f6f1;
+  --color-muted: #8da28f;
+  --color-accent: #4c7b61;
+  --color-accent-dim: #2f4b3c;
+  --color-good: #5b926f;
+  --color-good-dim: #193723;
+  --color-bad: #a75f4e;
+  --color-bad-dim: #3e241f;
+  --color-warn: #c89a4f;
+  --color-input: #0b130e;
+
+  --radius-card: 16px;
+  --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #__nuxt {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: linear-gradient(135deg, #0d1610 0%, #08110c 100%);
+    @apply text-ink;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.85rem] font-bold tracking-wide;
+  }
+
+  .badge--pn {
+    @apply border border-accent/25 bg-accent/12 text-emerald-200;
+  }
+
+  .badge--shelf {
+    @apply border border-good/20 bg-good/12 text-green-200;
+  }
+
+  .badge--category {
+    @apply border border-slate-400/25 bg-slate-500/12 text-slate-200;
+  }
+
+  .badge--program {
+    @apply border border-violet-400/25 bg-violet-500/12 text-violet-200;
+  }
+
+  .badge--serial {
+    @apply border border-sky-400/25 bg-sky-500/10 text-sky-200 font-mono tracking-normal;
+  }
+
+  .badge--size {
+    @apply min-w-6.5 justify-center border border-slate-400/25 bg-slate-500/12 text-slate-200;
+  }
+
+  .badge--size-small {
+    @apply border-sky-500/20 bg-sky-500/12 text-sky-200;
+  }
+
+  .badge--size-big {
+    @apply border-amber-500/20 bg-amber-500/12 text-amber-200;
+  }
+
+  .badge--size-xl {
+    @apply border-red-500/20 bg-red-500/12 text-red-200;
+  }
+
+  .scrollbar-slim::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .scrollbar-slim::-webkit-scrollbar-thumb {
+    @apply bg-edge rounded-full;
+  }
+
+  .card {
+    @apply rounded-card border border-edge/70 bg-surface/95 p-4 shadow-card;
+  }
+
+  .btn {
+    @apply cursor-pointer rounded-lg border-none px-4.5 py-2.5 text-[0.95rem] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn--primary {
+    @apply bg-accent/90 text-white hover:bg-accent-dim;
+  }
+
+  .btn--ghost {
+    @apply border border-edge/80 bg-transparent text-ink hover:bg-surface-2;
+  }
+
+  .btn--danger {
+    @apply border border-bad/30 bg-bad/12 text-red-200 hover:bg-bad/20;
+  }
+
+  .btn--confirm {
+    @apply border-none bg-good/90 text-white hover:bg-good;
+  }
+
+  .btn--small {
+    @apply px-3 py-1.5 text-[0.85rem];
+  }
+
+  .btn--icon {
+    @apply flex items-center justify-center rounded-lg border border-edge bg-transparent p-2 text-ink transition-colors hover:bg-surface-2;
+  }
+
+  .field-input {
+    @apply rounded-lg border border-edge bg-input px-3.5 py-2.5 text-ink;
+  }
+}
