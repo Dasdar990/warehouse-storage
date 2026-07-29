@@ -2,7 +2,8 @@
   <div class="flex flex-col gap-3">
     <div class="flex items-center justify-between">
       <p class="m-0 text-[0.8rem] text-muted">
-        Drag to pan, scroll to zoom. Click a rack for details.
+        Drag to pan, scroll to zoom. Click a rack to highlight it and see
+        details.
       </p>
       <button
         v-if="isZoomed"
@@ -217,7 +218,6 @@ const emit = defineEmits<{ select: [string] }>();
 // Logical coordinate space the layout (walls/zones/racks) is authored in.
 const CANVAS_WIDTH = 1400;
 const CANVAS_HEIGHT = 760;
-const FOCUS_SCALE = 1.7;
 const ANIM_MS = 450;
 
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -300,19 +300,6 @@ function animateTo(targetX: number, targetY: number, targetZoom: number) {
   animFrame = requestAnimationFrame(step);
 }
 
-function focusOnRack(rackCode: string) {
-  const node = props.layout.nodes.find((n) => n.rack_code === rackCode);
-  if (!node) return;
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const targetScale = fitScale.value * FOCUS_SCALE;
-  animateTo(
-    containerWidth.value / 2 - cx * targetScale,
-    displayHeight.value / 2 - cy * targetScale,
-    FOCUS_SCALE,
-  );
-}
-
 function resetView() {
   animateTo(0, 0, 1);
 }
@@ -327,7 +314,7 @@ function onWheel(e: any) {
 
 // Konva moves the stage itself while dragging, independently of the reactive
 // x/y refs. Without this, stageX/stageY go stale the moment someone pans the
-// map by hand -- the *next* focus-on-rack animation then starts from that
+// map by hand -- the *next* reset-view animation then starts from that
 // stale point instead of where the view actually is, producing a visible
 // snap/glitch. Keeping the refs in sync on every drag frame fixes it.
 function onStageDragMove(e: any) {
@@ -336,13 +323,6 @@ function onStageDragMove(e: any) {
   stageX.value = stage.x();
   stageY.value = stage.y();
 }
-
-watch(
-  () => props.selectedRack,
-  (val) => {
-    if (val) focusOnRack(val);
-  },
-);
 
 onMounted(() => {
   glowRaf = requestAnimationFrame(animateGlow);
@@ -355,8 +335,6 @@ onMounted(() => {
     });
     resizeObserver.observe(wrapperRef.value);
   }
-
-  if (props.selectedRack) focusOnRack(props.selectedRack);
 });
 
 onUnmounted(() => {

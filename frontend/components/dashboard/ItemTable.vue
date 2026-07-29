@@ -93,7 +93,8 @@
             v-if="showShelf"
             class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
           >
-            <span class="badge badge--shelf">{{ item.shelf_position }}</span>
+            <span v-if="item.shelf_position" class="badge badge--shelf">{{ item.shelf_position }}</span>
+            <span v-else class="text-[0.82rem] text-muted" title="Fully withdrawn -- no shelf assigned">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             {{ item.quantity }}
@@ -106,6 +107,7 @@
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <div class="flex gap-1.5">
               <button
+                v-if="showLocate && item.shelf_position"
                 type="button"
                 class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20"
                 title="Locate on the map"
@@ -206,8 +208,12 @@ const props = withDefaults(
     showShelf?: boolean;
     /** Makes whole rows clickable to open the item's details (used in the map drill-down). */
     selectable?: boolean;
+    /** Hide the "Locate on the map" pin -- doesn't make sense when this table
+     *  is already being shown as part of the map drill-down (you're looking
+     *  right at the shelf). */
+    showLocate?: boolean;
   }>(),
-  { showShelf: true, selectable: false },
+  { showShelf: true, selectable: false, showLocate: true },
 );
 
 const { labelUrl } = useWarehouseApi();

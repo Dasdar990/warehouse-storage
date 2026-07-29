@@ -1,11 +1,11 @@
 <template>
-  <section class="card">
+  <section :class="showHeader ? 'card' : ''">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <button v-if="showBack" class="btn btn--ghost btn--small mb-2" type="button" @click="emit('back')">
           ← Back to rack
         </button>
-        <h2>Level {{ shelfPosition }}</h2>
+        <h2 v-if="showHeader">Level {{ shelfPosition }}</h2>
         <p class="mt-1 mb-0 text-[0.85rem] text-muted">
           {{ items.length }} item type(s) · {{ totalQuantity }} unit(s) total
         </p>
@@ -17,7 +17,7 @@
         >
           Open in Dashboard
         </NuxtLink>
-        <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
+        <button v-if="showHeader" class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
       </div>
     </div>
 
@@ -50,6 +50,7 @@
         v-else
         :items="filteredItems"
         :show-shelf="false"
+        :show-locate="false"
         selectable
         @select="emit('select-item', $event)"
         @move="(item, action) => emit('select-item', item, action)"
@@ -61,12 +62,16 @@
 <script setup lang="ts">
 import type { Item } from '~/composables/useWarehouseApi'
 
-const props = defineProps<{
-  shelfPosition: string
-  items: Item[]
-  loading: boolean
-  showBack?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    shelfPosition: string
+    items: Item[]
+    loading: boolean
+    showBack?: boolean
+    showHeader?: boolean
+  }>(),
+  { showHeader: true },
+)
 
 const emit = defineEmits<{
   close: []

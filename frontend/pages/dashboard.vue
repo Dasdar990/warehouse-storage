@@ -51,7 +51,12 @@
     </transition>
 
     <section class="card">
-      <DashboardFilterBar v-model="filters" :categories="categories" :programs="programs" />
+      <DashboardFilterBar
+        v-model="filters"
+        :categories="categories"
+        :programs="programs"
+        :shelves="shelves"
+      />
     </section>
 
     <section class="card">
@@ -96,7 +101,7 @@
 import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
 
 const route = useRoute();
-const { listItems, listCategories, listItemPrograms } = useWarehouseApi();
+const { listItems, listCategories, listItemPrograms, listItemShelves } = useWarehouseApi();
 
 const filters = ref<ItemFilters>({
   shelf_position:
@@ -107,6 +112,7 @@ const filters = ref<ItemFilters>({
 const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);
 const programs = ref<string[]>([]);
+const shelves = ref<string[]>([]);
 const loading = ref(false);
 const showAddForm = ref(false);
 
@@ -158,6 +164,7 @@ function onItemMoved(item: Item) {
   moveItem.value = item;
   const idx = items.value.findIndex((i) => i.id === item.id);
   if (idx !== -1) items.value[idx] = item;
+  fetchShelves();
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -179,6 +186,12 @@ async function fetchPrograms() {
   programs.value = await listItemPrograms();
 }
 
+/** Occupied shelves only -- a fully withdrawn item's shelf is cleared, so
+ *  this naturally drops out of the list once nothing's on it anymore. */
+async function fetchShelves() {
+  shelves.value = await listItemShelves();
+}
+
 watch(
   filters,
   () => {
@@ -190,12 +203,13 @@ watch(
 
 async function onItemCreated() {
   showAddForm.value = false;
-  await Promise.all([fetchItems(), fetchCategories(), fetchPrograms()]);
+  await Promise.all([fetchItems(), fetchCategories(), fetchPrograms(), fetchShelves()]);
 }
 
 onMounted(() => {
   fetchItems();
   fetchCategories();
   fetchPrograms();
+  fetchShelves();
 });
 </script>

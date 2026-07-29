@@ -1,12 +1,13 @@
 <template>
-  <section class="card">
-    <div class="mb-3.5 flex flex-wrap items-start justify-between gap-3">
+  <section :class="showHeader ? 'card' : ''">
+    <div v-if="showHeader" class="mb-3.5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2>Rack {{ rack.label || rack.rack_code }}</h2>
         <p class="mt-1 mb-0 text-[0.85rem] text-muted">{{ rack.levels.length }} level(s) — click a level to see its items</p>
       </div>
       <button class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
     </div>
+    <p v-else class="mb-3.5 text-[0.85rem] text-muted">{{ rack.levels.length }} level(s) — click a level to see its items</p>
 
     <p v-if="loading" class="py-5 text-muted">Loading…</p>
     <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2.5">
@@ -29,11 +30,15 @@
 <script setup lang="ts">
 import type { RackLevelsResponse } from '~/composables/useWarehouseApi'
 
-const props = defineProps<{
-  rack: RackLevelsResponse
-  selectedLevel: string | null
-  loading: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    rack: RackLevelsResponse
+    selectedLevel: string | null
+    loading: boolean
+    showHeader?: boolean
+  }>(),
+  { showHeader: true },
+)
 
 const emit = defineEmits<{ 'select-level': [string]; close: [] }>()
 

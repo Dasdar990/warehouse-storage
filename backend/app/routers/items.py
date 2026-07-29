@@ -32,6 +32,8 @@ def list_items(
     pn: Optional[str] = Query(
         default=None, description="Exact P/N match -- finds every shelf location for one part"
     ),
+    min_qty: Optional[int] = Query(default=None, ge=0, description="Only items with quantity >= this value"),
+    max_qty: Optional[int] = Query(default=None, ge=0, description="Only items with quantity <= this value"),
     low_stock: bool = Query(
         default=False, description=f"Only items with quantity <= {settings.low_stock_threshold}"
     ),
@@ -62,6 +64,10 @@ def list_items(
         stmt = stmt.where(Item.shelf_position == shelf_position.upper())
     if pn:
         stmt = stmt.where(Item.pn.ilike(pn.strip()))
+    if min_qty is not None:
+        stmt = stmt.where(Item.quantity >= min_qty)
+    if max_qty is not None:
+        stmt = stmt.where(Item.quantity <= max_qty)
     if low_stock:
         stmt = stmt.where(Item.quantity <= settings.low_stock_threshold)
 
@@ -80,6 +86,18 @@ def list_categories(db: Session = Depends(get_db)):
 def list_item_programs(db: Session = Depends(get_db)):
     """Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown."""
     rows = db.execute(select(Item.program).distinct()).scalars().all()
+    return sorted(r for r in rows if r)
+
+
+@router.get("/shelves", response_model=list[str])
+def list_item_shelves(db: Session = Depends(get_db)):
+    """
+    Distinct (non-empty) shelf positions currently holding at least one
+    item -- populates the dashboard's shelf filter dropdown. A fully
+    withdrawn item's shelf is cleared (see `_clear_shelf_if_empty`), so
+    this naturally only ever lists shelves that actually have stock on them.
+    """
+    rows = db.execute(select(Item.shelf_position).distinct()).scalars().all()
     return sorted(r for r in rows if r)
 
 

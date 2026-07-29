@@ -16,10 +16,13 @@
           <span class="badge badge--size" :class="`badge--size-${item.size}`">{{
             sizeLabel(item.size)
           }}</span>
-          <span class="badge badge--shelf"
+          <span v-if="item.shelf_position" class="badge badge--shelf"
             >📍
             <template v-if="zoneLabel">Zone {{ zoneLabel }} · </template>Shelf
             {{ item.shelf_position }}</span
+          >
+          <span v-else class="badge badge--shelf" title="Fully withdrawn -- no shelf assigned"
+            >📍 Not on a shelf</span
           >
         </div>
         <p v-if="otherShelves.length" class="m-0 mt-2 text-[0.78rem] text-muted">
@@ -213,7 +216,10 @@
       </div>
 
       <p class="m-0 text-[0.85rem] text-muted">
-        Currently on <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
+        <template v-if="item.shelf_position">
+          Currently on <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
+        </template>
+        <template v-else> Not currently on a shelf -- pick where to put it. </template>
       </p>
 
       <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
@@ -353,6 +359,27 @@
           <rect x="13" y="13" width="7" height="7" rx="1" />
         </svg>
         <span>View in Dashboard</span>
+      </NuxtLink>
+      <NuxtLink
+        v-if="item.shelf_position"
+        class="btn btn--ghost inline-flex cursor-pointer items-center gap-2"
+        :to="{ path: '/', query: { locate: item.barcode } }"
+        title="Locate on the map"
+        aria-label="Locate on the map"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="h-4.5 w-4.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z" />
+          <circle cx="12" cy="9.5" r="2.5" />
+        </svg>
+        <span>Locate</span>
       </NuxtLink>
     </div>
   </section>

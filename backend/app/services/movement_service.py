@@ -22,6 +22,17 @@ def _get_item_by_barcode(db: Session, barcode: str) -> Item:
     return item
 
 
+def _clear_shelf_if_empty(item: Item) -> None:
+    """
+    An item that's been fully withdrawn no longer occupies physical space,
+    so free its shelf slot (empty string, same "unassigned" sentinel used
+    elsewhere) rather than leaving a stale position on an empty item. It'll
+    need an explicit Move once it's put away somewhere again.
+    """
+    if item.quantity <= 0:
+        item.shelf_position = ""
+
+
 def withdraw_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> tuple[Item, Movement]:
     """Decrease stock; refuses to let quantity go negative."""
     item = _get_item_by_barcode(db, payload.barcode)
@@ -37,6 +48,7 @@ def withdraw_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> 
 
     item.quantity -= payload.quantity
     movement = _log_movement(db, item, MovementAction.WITHDRAW, payload, operator=operator)
+    _clear_shelf_if_empty(item)
     db.commit()
     db.refresh(item)
     db.refresh(movement)
@@ -218,6 +230,8 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
             operator=operator.strip() or "Operator",
             reversal_of_id=original.id,
         )
+        if reverse_action == MovementAction.WITHDRAW:
+            _clear_shelf_if_empty(item)
     db.add(reversal)
     original.voided = True
 

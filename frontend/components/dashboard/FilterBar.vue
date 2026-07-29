@@ -45,15 +45,52 @@
       <option value="xl">XL</option>
     </select>
 
-    <input
+    <select
       class="field-input w-35 max-[640px]:w-full"
-      type="text"
-      placeholder="Shelf (e.g. 12B)"
-      :value="modelValue.shelf_position"
-      @input="
-        update('shelf_position', ($event.target as HTMLInputElement).value)
+      :value="modelValue.shelf_position || ''"
+      @change="
+        update('shelf_position', ($event.target as HTMLSelectElement).value)
       "
-    />
+    >
+      <option value="">All shelves</option>
+      <option v-for="shelf in shelves" :key="shelf" :value="shelf">
+        {{ shelf }}
+      </option>
+    </select>
+
+    <div class="flex items-center gap-1.5">
+      <input
+        class="field-input w-20"
+        type="number"
+        min="0"
+        placeholder="Min qty"
+        :value="modelValue.min_qty ?? ''"
+        @input="
+          update(
+            'min_qty',
+            ($event.target as HTMLInputElement).value === ''
+              ? undefined
+              : Number(($event.target as HTMLInputElement).value),
+          )
+        "
+      />
+      <span class="text-sm text-muted">–</span>
+      <input
+        class="field-input w-20"
+        type="number"
+        min="0"
+        placeholder="Max qty"
+        :value="modelValue.max_qty ?? ''"
+        @input="
+          update(
+            'max_qty',
+            ($event.target as HTMLInputElement).value === ''
+              ? undefined
+              : Number(($event.target as HTMLInputElement).value),
+          )
+        "
+      />
+    </div>
 
     <button class="btn btn--ghost btn--small" @click="reset">Clear</button>
   </div>
@@ -66,6 +103,7 @@ const props = defineProps<{
   modelValue: ItemFilters;
   categories: string[];
   programs: string[];
+  shelves: string[];
 }>();
 
 const emit = defineEmits<{

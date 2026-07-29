@@ -153,6 +153,8 @@ export interface ItemFilters {
   shelf_position?: string
   /** Exact P/N match -- finds every shelf location for one part. */
   pn?: string
+  min_qty?: number
+  max_qty?: number
   low_stock?: boolean
 }
 
@@ -258,13 +260,15 @@ export function useWarehouseApi() {
   }
 
   function listItems(filters: ItemFilters = {}) {
-    const params: Record<string, string | boolean> = {}
+    const params: Record<string, string | number | boolean> = {}
     if (filters.search) params.search = filters.search
     if (filters.category) params.category = filters.category
     if (filters.program) params.program = filters.program
     if (filters.size) params.size = filters.size
     if (filters.shelf_position) params.shelf_position = filters.shelf_position
     if (filters.pn) params.pn = filters.pn
+    if (filters.min_qty !== undefined && filters.min_qty !== null) params.min_qty = filters.min_qty
+    if (filters.max_qty !== undefined && filters.max_qty !== null) params.max_qty = filters.max_qty
     if (filters.low_stock) params.low_stock = true
     return apiFetch<Item[]>('/items', { params })
   }
@@ -276,6 +280,11 @@ export function useWarehouseApi() {
   /** Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown. */
   function listItemPrograms() {
     return apiFetch<string[]>('/items/programs')
+  }
+
+  /** Distinct (non-empty) shelf positions currently in use -- populates the dashboard filter dropdown. */
+  function listItemShelves() {
+    return apiFetch<string[]>('/items/shelves')
   }
 
   function scanItem(barcode: string) {
@@ -435,6 +444,7 @@ export function useWarehouseApi() {
     listItems,
     listCategories,
     listItemPrograms,
+    listItemShelves,
     scanItem,
     createItem,
     checkDuplicateItems,

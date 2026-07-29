@@ -105,6 +105,49 @@
             <path d="M9 5l7 7-7 7" />
           </svg>
         </button>
+        <button
+          type="button"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-edge bg-surface-2/60 px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-ink/30 hover:bg-surface-2 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 active:translate-y-0 active:shadow-none"
+          @click="showCatalogModal = true"
+        >
+          <span
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink/10 transition-colors duration-200 group-hover:bg-ink/16"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="h-5 w-5 text-muted"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L3 3v6.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"
+              />
+              <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-[1.05rem] font-semibold text-ink"
+              >Categories &amp; Programs</span
+            >
+            <span class="text-[0.8rem] text-muted"
+              >Manage the catalog used when creating items</span
+            >
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4 shrink-0 -translate-x-1.5 text-muted opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
     </section>
 
@@ -125,54 +168,74 @@
       />
     </section>
 
-    <!-- Below the map: either the searched/scanned item, or the rack/level drill-down from a direct map click -->
-    <div ref="resultsRef" class="flex flex-col gap-4">
-    <transition name="panel-fade" mode="out-in">
-    <ItemDetailCard
-      v-if="selectedItem"
-      :key="`${selectedItem.id}-${autoStartAction ?? 'none'}-${selectionNonce}`"
-      :item="selectedItem"
-      :low-stock-threshold="layout?.low_stock_threshold"
-      :zone-label="selectedItemZoneLabel"
-      :default-source="lastSelectionSource"
-      :auto-start-action="autoStartAction"
-      @close="clearSelection"
-      @updated="handleItemUpdated"
-    />
-
-    <div v-else class="flex flex-col gap-4">
-      <MapRackLevelsPanel
-        v-if="layout?.has_custom_layout && selectedRack && rackLevels"
-        :rack="rackLevels"
-        :selected-level="selectedLevel"
-        :loading="loadingRack"
-        @select-level="selectLevel"
-        @close="closeDrilldown"
-      />
-
-      <MapShelfDetailPanel
-        v-if="selectedLevel"
-        :shelf-position="selectedLevel"
-        :items="levelItems"
-        :loading="loadingLevelItems"
-        :show-back="!!(layout?.has_custom_layout && selectedRack)"
-        @close="closeDrilldown"
-        @back="backToRack"
-        @select-item="handleSelectItemFromShelf"
-      />
-
-      <p
-        v-if="!selectedLevel && !(layout?.has_custom_layout && selectedRack)"
-        class="card border border-dashed border-edge/70 text-sm text-muted"
-      >
-        Start with a search or scan, or click a shelf on the map, to open the item
-        details.
-      </p>
-    </div>
-    </transition>
-    </div>
-
     <ActivityLog ref="activityLogRef" collapsible default-collapsed />
+
+    <!-- The searched/scanned item, or the rack/level drill-down from a direct map
+         click, now opens as a modal instead of pushing content below the map. -->
+    <BaseModal
+      :model-value="showDetailModal"
+      :title="detailModalTitle"
+      size="lg"
+      @update:model-value="closeDetailModal"
+    >
+      <transition name="panel-fade" mode="out-in">
+        <ItemDetailCard
+          v-if="selectedItem"
+          :key="`${selectedItem.id}-${autoStartAction ?? 'none'}-${selectionNonce}`"
+          :item="selectedItem"
+          :low-stock-threshold="layout?.low_stock_threshold"
+          :zone-label="selectedItemZoneLabel"
+          :default-source="lastSelectionSource"
+          :auto-start-action="autoStartAction"
+          @close="clearSelection"
+          @updated="handleItemUpdated"
+        />
+
+        <div v-else class="flex flex-col gap-4">
+          <MapRackLevelsPanel
+            v-if="layout?.has_custom_layout && selectedRack && rackLevels"
+            :rack="rackLevels"
+            :selected-level="selectedLevel"
+            :loading="loadingRack"
+            :show-header="false"
+            @select-level="selectLevel"
+            @close="closeDrilldown"
+          />
+
+          <MapShelfDetailPanel
+            v-if="selectedLevel"
+            :shelf-position="selectedLevel"
+            :items="levelItems"
+            :loading="loadingLevelItems"
+            :show-back="!!(layout?.has_custom_layout && selectedRack)"
+            :show-header="false"
+            @close="closeDrilldown"
+            @back="backToRack"
+            @select-item="handleSelectItemFromShelf"
+          />
+        </div>
+      </transition>
+    </BaseModal>
+
+    <BaseModal v-model="showCatalogModal" title="Categories & Programs" size="lg">
+      <div class="flex flex-col gap-5">
+        <section>
+          <h2 class="mb-1 text-[1.05rem]">Categories</h2>
+          <p class="m-0 mb-3 text-sm text-muted">
+            Manage the categories available when creating a new item.
+          </p>
+          <AdminCategoryManager />
+        </section>
+
+        <section>
+          <h2 class="mb-1 text-[1.05rem]">Programs</h2>
+          <p class="m-0 mb-3 text-sm text-muted">
+            Manage the (optional) programs available when creating a new item.
+          </p>
+          <AdminProgramManager />
+        </section>
+      </div>
+    </BaseModal>
 
     <BaseModal v-model="showAddItemModal" title="New Item" size="lg">
       <DashboardAddItemForm @created="handleItemCreated" />
@@ -205,26 +268,14 @@ const {
   getRackLevels,
   getShelfItems,
   getZones,
-  withdrawItem,
-  depositItem,
   scanItem,
 } = useWarehouseApi();
-const { mode } = useOperationMode();
 const { show } = useToast();
 const route = useRoute();
 const router = useRouter();
 
 const searchBarRef = ref<{ focus: () => void } | null>(null);
 const activityLogRef = ref<{ refresh: () => void } | null>(null);
-const resultsRef = ref<HTMLElement | null>(null);
-
-/** Smoothly bring the drill-down/results area into view -- keeps the flow
- *  fluid on smaller screens where the map pushes it below the fold. */
-function scrollToResults() {
-  nextTick(() => {
-    resultsRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-}
 
 const layout = ref<WarehouseLayout | null>(null);
 const loadingLayout = ref(false);
@@ -235,6 +286,9 @@ const showAddItemModal = ref(false);
 // --- Quick action: Deposit / Withdraw popup ---
 const quickAction = ref<"deposit" | "withdraw" | null>(null);
 
+// --- Quick action: Categories & Programs modal ---
+const showCatalogModal = ref(false);
+
 function handleQuickActionUpdated(item: Item) {
   closeDrilldown();
   lastSelectionSource.value = "manual";
@@ -242,7 +296,6 @@ function handleQuickActionUpdated(item: Item) {
   autoStartAction.value = undefined;
   selectionNonce.value += 1;
   activityLogRef.value?.refresh();
-  scrollToResults();
 }
 
 async function handleItemCreated(item: Item) {
@@ -284,15 +337,25 @@ const selectedLevel = ref<string | null>(null);
 const levelItems = ref<Item[]>([]);
 const loadingLevelItems = ref(false);
 
-// Whichever flow set it, this is what the maps highlight/pan to.
+// "Locate" from the dashboard: highlights the item's shelf/rack on the map
+// only -- no modal. Kept separate from `selectedItem` (which opens the
+// detail modal) so the two behaviors don't get tangled.
+const locatedItem = ref<Item | null>(null);
+
+// Whichever flow set it, this is what the maps highlight.
 const highlightShelfPosition = computed(
-  () => selectedItem.value?.shelf_position ?? selectedLevel.value,
+  () =>
+    selectedItem.value?.shelf_position ??
+    selectedLevel.value ??
+    locatedItem.value?.shelf_position ??
+    null,
 );
-const highlightRackCode = computed(() =>
-  selectedItem.value
-    ? parseRackCode(selectedItem.value.shelf_position)
-    : selectedRack.value,
-);
+const highlightRackCode = computed(() => {
+  if (selectedItem.value) return parseRackCode(selectedItem.value.shelf_position);
+  if (selectedRack.value) return selectedRack.value;
+  if (locatedItem.value) return parseRackCode(locatedItem.value.shelf_position);
+  return null;
+});
 
 function parseRackCode(shelfPosition: string): string | null {
   const match = shelfPosition.match(/^(\d+)/);
@@ -314,33 +377,12 @@ async function loadLayout(silent = false) {
 
 // --- UnifiedSearchBar handlers ---
 
-async function handleScanItem(item: Item) {
+function handleScanItem(item: Item) {
   lastSelectionSource.value = "barcode";
   closeDrilldown();
-
-  // Scan & Confirm: barcode reads execute the toggled action immediately with qty 1.
-  try {
-    const payload = {
-      barcode: item.barcode,
-      quantity: 1,
-      source: "barcode" as const,
-    };
-    const res =
-      mode.value === "deposit"
-        ? await depositItem(payload)
-        : await withdrawItem(payload);
-    selectedItem.value = res.item;
-    show("success", res.message);
-    activityLogRef.value?.refresh();
-  } catch (err: any) {
-    // Still show the item card even if the auto-action failed (e.g. insufficient stock),
-    // so the operator can see what's there and act manually.
-    selectedItem.value = item;
-    show("error", err?.data?.detail || "Automatic operation failed");
-  }
+  selectedItem.value = item;
   autoStartAction.value = undefined;
   selectionNonce.value += 1;
-  scrollToResults();
 }
 
 function handleScanNotFound(code: string) {
@@ -353,7 +395,6 @@ function handleLocateItem(item: Item) {
   selectedItem.value = item;
   autoStartAction.value = undefined;
   selectionNonce.value += 1;
-  scrollToResults();
 }
 
 function handleItemUpdated(item: Item) {
@@ -371,7 +412,6 @@ function handleSelectItemFromShelf(
   selectedItem.value = item;
   autoStartAction.value = action;
   selectionNonce.value += 1;
-  scrollToResults();
 }
 
 function clearSelection() {
@@ -392,7 +432,6 @@ async function selectRack(rackCode: string) {
   } finally {
     loadingRack.value = false;
   }
-  scrollToResults();
 }
 
 async function selectLevel(shelfPosition: string) {
@@ -405,7 +444,6 @@ async function selectLevel(shelfPosition: string) {
   } finally {
     loadingLevelItems.value = false;
   }
-  scrollToResults();
 }
 
 // Legacy fallback grid (no custom layout saved yet) has no rack/level
@@ -424,21 +462,41 @@ function closeDrilldown() {
   rackLevels.value = null;
   selectedLevel.value = null;
   levelItems.value = [];
+  locatedItem.value = null;
 }
 
-/** Coming from the dashboard's "Locate" button: `?locate=<barcode>` opens
- *  straight into that item's card with its shelf highlighted on the map. */
+// --- Results modal: shows the searched/scanned item or the map drill-down ---
+const showDetailModal = computed(
+  () => !!selectedItem.value || !!selectedRack.value || !!selectedLevel.value,
+);
+
+const detailModalTitle = computed(() => {
+  if (selectedItem.value) return selectedItem.value.name;
+  if (selectedLevel.value) return `Shelf ${selectedLevel.value}`;
+  if (selectedRack.value) {
+    return `Rack ${rackLevels.value?.label || selectedRack.value}`;
+  }
+  return "";
+});
+
+function closeDetailModal() {
+  clearSelection();
+  closeDrilldown();
+}
+
+/** Coming from the dashboard's "Locate" button: `?locate=<barcode>` highlights
+ *  that item's shelf/rack on the map -- it doesn't open the item modal, since
+ *  the point is just to see where it is. */
 async function handleLocateFromQuery() {
   const barcode = route.query.locate;
   if (typeof barcode !== "string" || !barcode) return;
   try {
     const item = await scanItem(barcode);
-    lastSelectionSource.value = "manual";
+    selectedItem.value = null;
+    quickAction.value = null;
     closeDrilldown();
-    selectedItem.value = item;
-    autoStartAction.value = undefined;
-    selectionNonce.value += 1;
-    scrollToResults();
+    locatedItem.value = item;
+    show("success", `Highlighted on shelf ${item.shelf_position}.`);
   } catch {
     show("error", "Couldn't find that item anymore -- it may have been removed.");
   } finally {
@@ -446,6 +504,16 @@ async function handleLocateFromQuery() {
     router.replace({ path: "/", query: {} });
   }
 }
+
+// Same-route navigations (e.g. clicking "Locate" in the item modal while
+// already on this page) don't remount the page, so onMounted alone would
+// miss them -- watch the query too.
+watch(
+  () => route.query.locate,
+  (val) => {
+    if (val) handleLocateFromQuery();
+  },
+);
 
 onMounted(() => {
   loadLayout();

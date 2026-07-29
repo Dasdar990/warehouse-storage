@@ -44,6 +44,13 @@
         >
           Map Config
         </NuxtLink>
+        <NuxtLink
+          v-if="isAdmin"
+          to="/admin/users"
+          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+        >
+          Users
+        </NuxtLink>
       </nav>
 
       <div
@@ -73,20 +80,35 @@
 
     <transition
       enter-active-class="transition duration-200 ease-out"
-      leave-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-1.5"
-      leave-to-class="opacity-0 -translate-y-1.5"
+      leave-active-class="transition duration-150 ease-in"
+      enter-from-class="opacity-0 translate-y-2"
+      leave-to-class="opacity-0 translate-y-1"
     >
       <div
         v-if="toast"
-        class="fixed left-1/2 top-4.5 z-50 max-w-[90vw] -translate-x-1/2 rounded-card px-5.5 py-3.5 text-center font-semibold shadow-card"
-        :class="
-          toast.type === 'success'
-            ? 'border border-good bg-good-dim text-green-200'
-            : 'border border-bad bg-bad-dim text-red-200'
-        "
+        class="pointer-events-none fixed top-4.5 right-4.5 z-100 max-w-80 max-[640px]:left-4.5 max-[640px]:right-4.5 max-[640px]:max-w-none"
       >
-        {{ toast.message }}
+        <div
+          class="pointer-events-auto flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-[0.85rem] font-medium shadow-card backdrop-blur-sm"
+          :class="
+            toast.type === 'success'
+              ? 'border-good/50 bg-good-dim/95 text-green-200'
+              : 'border-bad/50 bg-bad-dim/95 text-red-200'
+          "
+        >
+          <span class="mt-0.5 shrink-0 text-4xl">{{
+            toast.type === "success" ? "✓" : "!"
+          }}</span>
+          <span class="text-lg min-w-0 flex-1">{{ toast.message }}</span>
+          <button
+            type="button"
+            class="text-lg shrink-0 cursor-pointer bg-transparent text-current opacity-60 hover:opacity-100"
+            title="Dismiss"
+            @click="dismiss"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </transition>
 
@@ -97,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-const { toast } = useToast();
+const { toast, dismiss } = useToast();
 const { user, isAdmin, logout } = useAuth();
 
 async function handleLogout() {

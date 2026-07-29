@@ -1,17 +1,30 @@
 <template>
   <div class="flex flex-col gap-6">
-    <form class="grid grid-cols-1 gap-2.5 rounded-lg border border-edge bg-surface-2 p-4 sm:grid-cols-[1fr_1fr_1fr_auto_auto]" @submit.prevent="add">
-      <input v-model="newUsername" type="text" placeholder="Username" autocomplete="off" required minlength="3" class="field-input" />
-      <input v-model="newFullName" type="text" placeholder="Full name" required class="field-input" />
-      <input v-model="newPassword" type="password" placeholder="Password (min. 6 characters)" autocomplete="new-password" required minlength="6" class="field-input" />
-      <select v-model="newRole" class="field-input">
-        <option value="operator">Operator</option>
-        <option value="admin">Admin</option>
-      </select>
-      <button type="submit" class="btn btn--confirm whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting">
-        {{ submitting ? 'Creating…' : '+ Add User' }}
+    <div class="flex items-center justify-between gap-3">
+      <p class="m-0 text-sm text-muted">{{ users.length }} user(s)</p>
+      <button
+        type="button"
+        class="btn btn--confirm whitespace-nowrap"
+        @click="showCreateModal = true"
+      >
+        + New User
       </button>
-    </form>
+    </div>
+
+    <BaseModal v-model="showCreateModal" title="New user" size="md">
+      <form class="flex flex-col gap-2.5" @submit.prevent="add">
+        <input v-model="newUsername" type="text" placeholder="Username" autocomplete="off" required minlength="3" class="field-input" />
+        <input v-model="newFullName" type="text" placeholder="Full name" required class="field-input" />
+        <input v-model="newPassword" type="password" placeholder="Password (min. 6 characters)" autocomplete="new-password" required minlength="6" class="field-input" />
+        <select v-model="newRole" class="field-input">
+          <option value="operator">Operator</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit" class="btn btn--confirm whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting">
+          {{ submitting ? 'Creating…' : '+ Add User' }}
+        </button>
+      </form>
+    </BaseModal>
 
     <p v-if="loading" class="text-muted">Loading users…</p>
     <div v-else class="overflow-x-auto">
@@ -88,6 +101,7 @@ const { show } = useToast()
 const users = ref<AppUser[]>([])
 const loading = ref(false)
 const submitting = ref(false)
+const showCreateModal = ref(false)
 
 const newUsername = ref('')
 const newFullName = ref('')
@@ -124,6 +138,7 @@ async function add() {
     newFullName.value = ''
     newPassword.value = ''
     newRole.value = 'operator'
+    showCreateModal.value = false
     show('success', 'User created')
     await refresh()
   } catch (err: any) {
