@@ -431,10 +431,9 @@ async function submit() {
 
 function printLabel() {
   if (!lastCreated.value) return;
-  const printWindow = window.open(labelUrl(lastCreated.value.id), "_blank");
-  // Best-effort auto-print once the label image has finished loading;
-  // if the browser blocks it, the user still has the tab open to print manually.
-  printWindow?.addEventListener?.("load", () => printWindow.print());
+  // labelUrl() points at a small self-contained page that regenerates the
+  // label, auto-prints, and closes itself -- no extra JS needed here.
+  window.open(labelUrl(lastCreated.value.id), "_blank");
 }
 
 onMounted(async () => {

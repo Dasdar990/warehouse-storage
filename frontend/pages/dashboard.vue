@@ -23,7 +23,9 @@
           <span class="text-[1.05rem] font-semibold text-ink">{{
             showAddForm ? "Close" : "New Item"
           }}</span>
-          <span class="text-[0.8rem] text-muted">Create a new item in the system</span>
+          <span class="text-[0.8rem] text-muted"
+            >Create a new item in the system</span
+          >
         </span>
         <svg
           viewBox="0 0 24 24"
@@ -101,7 +103,8 @@
 import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
 
 const route = useRoute();
-const { listItems, listCategories, listItemPrograms, listItemShelves } = useWarehouseApi();
+const { listItems, listCategories, listItemPrograms, listItemShelves } =
+  useWarehouseApi();
 
 const filters = ref<ItemFilters>({
   shelf_position:
@@ -203,7 +206,12 @@ watch(
 
 async function onItemCreated() {
   showAddForm.value = false;
-  await Promise.all([fetchItems(), fetchCategories(), fetchPrograms(), fetchShelves()]);
+  await Promise.all([
+    fetchItems(),
+    fetchCategories(),
+    fetchPrograms(),
+    fetchShelves(),
+  ]);
 }
 
 onMounted(() => {

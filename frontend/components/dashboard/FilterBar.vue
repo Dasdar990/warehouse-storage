@@ -60,7 +60,7 @@
 
     <div class="flex items-center gap-1.5">
       <input
-        class="field-input w-20"
+        class="field-input w-30"
         type="number"
         min="0"
         placeholder="Min qty"
@@ -76,7 +76,7 @@
       />
       <span class="text-sm text-muted">–</span>
       <input
-        class="field-input w-20"
+        class="field-input w-30"
         type="number"
         min="0"
         placeholder="Max qty"
