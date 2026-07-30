@@ -13,6 +13,7 @@ from app.core.timezone import APP_TZ
 from app.models.item import Item
 from app.models.movement import Movement, MovementAction, MovementSource
 from app.schemas.movement import RelocateItemRequest, StockMoveRequest
+from app.services.barcode_generator import generate_unique_barcode
 
 
 def _get_item_by_barcode(db: Session, barcode: str) -> Item:
@@ -20,6 +21,47 @@ def _get_item_by_barcode(db: Session, barcode: str) -> Item:
     if item is None:
         raise HTTPException(status_code=404, detail=f"No item found for barcode '{barcode}'")
     return item
+
+
+def _find_or_create_destination(db: Session, source: Item, destination: str) -> Item:
+    """
+    Find the item that a cross-shelf deposit or partial move should land on
+    at `destination`: an existing row for the same part number if one is
+    already there, otherwise a freshly-created item (starting at quantity 0,
+    topped up by the caller) so the stock has somewhere to go.
+
+    Items with no P/N can't be reliably matched to "the same part" on
+    another shelf, so those always get a brand-new row rather than risking
+    a merge into an unrelated item that just happens to share a shelf.
+    """
+    target = None
+    if source.pn:
+        target = db.execute(
+            select(Item).where(
+                Item.shelf_position == destination,
+                Item.pn == source.pn,
+                Item.id != source.id,
+            )
+        ).scalar_one_or_none()
+
+    if target is None:
+        target = Item(
+            name=source.name,
+            pn=source.pn,
+            # Deliberately not copied: a serial identifies one specific
+            # physical unit, and that unit is staying with its original row.
+            serial=None,
+            barcode=generate_unique_barcode(db),
+            category=source.category,
+            program=source.program,
+            size=source.size,
+            shelf_position=destination,
+            quantity=0,
+        )
+        db.add(target)
+        db.flush()  # assign target.id so the audit-log row below can reference it
+
+    return target
 
 
 def _clear_shelf_if_empty(item: Item) -> None:
@@ -55,20 +97,45 @@ def withdraw_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> 
     return item, movement
 
 
-def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> tuple[Item, Movement]:
-    """Increase stock (restock / put-away confirmation)."""
+def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> tuple[Item, Movement, bool]:
+    """
+    Increase stock (restock / put-away confirmation).
+
+    By default deposits onto the scanned/selected item's own shelf. If
+    `payload.shelf_position` names a *different* shelf, the deposit is
+    redirected there instead -- topping up a matching item if one already
+    exists on that shelf, or creating a new one -- while the original item
+    is left completely untouched. Returns whether the deposit was redirected
+    like this, so the caller can word its response accordingly.
+    """
     item = _get_item_by_barcode(db, payload.barcode)
 
-    item.quantity += payload.quantity
-    movement = _log_movement(db, item, MovementAction.DEPOSIT, payload, operator=operator)
+    destination = (payload.shelf_position or "").strip().upper()
+    redirected = bool(destination) and destination != item.shelf_position
+    target = _find_or_create_destination(db, item, destination) if redirected else item
+
+    target.quantity += payload.quantity
+    movement = _log_movement(db, target, MovementAction.DEPOSIT, payload, operator=operator)
     db.commit()
-    db.refresh(item)
+    db.refresh(target)
     db.refresh(movement)
-    return item, movement
+    return target, movement, redirected
 
 
-def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tuple[Item, Movement]:
-    """Relocate an item to a different shelf; quantity is untouched."""
+def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tuple[Item, Movement, bool]:
+    """
+    Relocate stock to a different shelf.
+
+    Moving the item's *entire* current quantity (the default, if
+    `payload.quantity` is omitted) behaves exactly as before: the same item
+    row just gets a new `shelf_position`, quantity untouched.
+
+    Moving a smaller quantity splits the stock instead: the source keeps
+    the remainder on its current shelf, and the moved quantity either tops
+    up a matching item already on the destination shelf or creates a new
+    one there. Returns whether this was a full relocation (vs. a split),
+    so the caller can word its response accordingly.
+    """
     item = _get_item_by_barcode(db, payload.barcode)
     destination = payload.shelf_position.strip().upper()
 
@@ -77,26 +144,61 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
     if destination == item.shelf_position:
         raise HTTPException(status_code=400, detail=f"'{item.name}' is already on shelf {destination}")
 
-    origin = item.shelf_position
-    item.shelf_position = destination
+    move_qty = payload.quantity if payload.quantity is not None else item.quantity
+    if move_qty > item.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only {item.quantity} unit(s) of '{item.name}' available to move",
+        )
 
+    origin = item.shelf_position
+    source = payload.source if isinstance(payload.source, MovementSource) else MovementSource(payload.source)
+    clean_operator = operator.strip() or "Operator"
+
+    if move_qty == item.quantity:
+        # Full relocation: same row, just a new shelf.
+        item.shelf_position = destination
+        movement = Movement(
+            item_id=item.id,
+            item_name=item.name,
+            pn=item.pn,
+            shelf_position=destination,
+            from_shelf_position=origin,
+            action=MovementAction.MOVE,
+            quantity=item.quantity,
+            balance_after=item.quantity,
+            source=source,
+            operator=clean_operator,
+        )
+        db.add(movement)
+        db.commit()
+        db.refresh(item)
+        db.refresh(movement)
+        return item, movement, True
+
+    # Partial move: shrink the source, grow (or create) the destination.
+    item.quantity -= move_qty
+    target = _find_or_create_destination(db, item, destination)
+    target.quantity += move_qty
     movement = Movement(
-        item_id=item.id,
-        item_name=item.name,
-        pn=item.pn,
+        item_id=target.id,
+        item_name=target.name,
+        pn=target.pn,
         shelf_position=destination,
         from_shelf_position=origin,
         action=MovementAction.MOVE,
-        quantity=item.quantity,
-        balance_after=item.quantity,
-        source=payload.source if isinstance(payload.source, MovementSource) else MovementSource(payload.source),
-        operator=operator.strip() or "Operator",
+        quantity=move_qty,
+        balance_after=target.quantity,
+        source=source,
+        operator=clean_operator,
+        split_from_item_id=item.id,
     )
     db.add(movement)
     db.commit()
     db.refresh(item)
+    db.refresh(target)
     db.refresh(movement)
-    return item, movement
+    return item, movement, False
 
 
 def _log_movement(
@@ -183,9 +285,49 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
     # Reversing a WITHDRAW puts stock back (DEPOSIT); reversing a DEPOSIT
     # takes it back out (WITHDRAW), and must not push stock negative if
     # some of it has since been withdrawn again by something else.
-    # Reversing a MOVE sends the item back to its origin shelf instead;
-    # quantity is untouched either way.
-    if original.action == MovementAction.MOVE:
+    # Reversing a full MOVE sends the item back to its origin shelf instead;
+    # quantity is untouched either way. A *split* move (see move_item) is
+    # different again: it touched two items' quantities, not one item's
+    # shelf, so it needs its own reversal that moves the quantity back.
+    if original.action == MovementAction.MOVE and original.split_from_item_id is not None:
+        origin_item = db.get(Item, original.split_from_item_id)
+        if origin_item is None:
+            raise HTTPException(
+                status_code=400,
+                detail="The shelf this quantity was split from no longer exists, so it can't be rolled back",
+            )
+        if original.quantity > item.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Can't roll back: would require removing {original.quantity} from shelf "
+                    f"{item.shelf_position}, only {item.quantity} currently there"
+                ),
+            )
+        item.quantity -= original.quantity
+        origin_item.quantity += original.quantity
+        reversal = Movement(
+            item_id=origin_item.id,
+            item_name=origin_item.name,
+            pn=origin_item.pn,
+            shelf_position=origin_item.shelf_position,
+            from_shelf_position=item.shelf_position,
+            action=MovementAction.MOVE,
+            quantity=original.quantity,
+            balance_after=origin_item.quantity,
+            source=MovementSource.MANUAL,
+            operator=operator.strip() or "Operator",
+            reversal_of_id=original.id,
+        )
+        db.add(reversal)
+        original.voided = True
+        db.commit()
+        db.refresh(item)
+        db.refresh(origin_item)
+        db.refresh(original)
+        db.refresh(reversal)
+        return origin_item, reversal
+    elif original.action == MovementAction.MOVE:
         reverse_action = MovementAction.MOVE
         origin = item.shelf_position
         item.shelf_position = original.from_shelf_position or origin

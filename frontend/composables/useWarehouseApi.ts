@@ -171,12 +171,16 @@ export interface StockMoveResult {
 export interface StockMoveInput {
   barcode: string
   quantity: number
+  /** Deposit only: destination shelf if different from the item's own. */
+  shelf_position?: string
   source: MovementSource
 }
 
 export interface RelocateItemInput {
   barcode: string
   shelf_position: string
+  /** Omit to move the item's entire current quantity (full relocation). */
+  quantity?: number
   source?: MovementSource
 }
 

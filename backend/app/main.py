@@ -92,6 +92,15 @@ def _add_missing_columns() -> None:
             conn.execute(text("ALTER TABLE items ADD COLUMN serial VARCHAR"))
             conn.commit()
 
+        # Partial (split-quantity) moves were added after the first release --
+        # they need to remember which item a portion was split off from so a
+        # later rollback can correctly move the quantity back. Add the column
+        # in place so an existing movements table keeps its rows.
+        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        if movement_columns and "split_from_item_id" not in movement_columns:
+            conn.execute(text("ALTER TABLE movements ADD COLUMN split_from_item_id INTEGER"))
+            conn.commit()
+
 
 _add_missing_columns()
 

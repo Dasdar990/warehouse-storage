@@ -197,15 +197,25 @@ def deposit_item(
     """
     Atomically deposit (restock) the item matching `barcode` (DEPOSIT).
 
-    Mirrors `withdraw_item` but increases quantity; also writes a
-    matching audit-log row with `operator` derived from the logged-in user.
+    Mirrors `withdraw_item` but increases quantity. If `shelf_position` is
+    given and differs from the item's own shelf, the stock lands there
+    instead (on a matching item if one already exists, otherwise a new one
+    is created) -- the original item is untouched in that case. Also writes
+    a matching audit-log row with `operator` derived from the logged-in user.
     """
-    item, movement = deposit_stock(db, payload, operator=current_user.full_name)
+    item, movement, redirected = deposit_stock(db, payload, operator=current_user.full_name)
+    if redirected:
+        message = (
+            f"Deposited {payload.quantity} unit(s) of '{item.name}' onto shelf "
+            f"{item.shelf_position}. {item.quantity} there now."
+        )
+    else:
+        message = f"Deposited {payload.quantity} unit(s) of '{item.name}'. {item.quantity} total."
     return StockMoveResponse(
         item=item,
         moved=payload.quantity,
         action=movement.action,
-        message=f"Deposited {payload.quantity} unit(s) of '{item.name}'. {item.quantity} total.",
+        message=message,
     )
 
 
@@ -216,15 +226,27 @@ def move_item_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Relocate the item matching `barcode` to a different shelf. Quantity is
-    left untouched -- this only changes where the item lives. Writes a MOVE
-    audit-log row (see /movements) recording both the origin and destination
-    shelf, with `operator` derived from the logged-in user.
+    Relocate stock for the item matching `barcode` to a different shelf.
+
+    Omitting `quantity` (or passing the item's full current quantity) moves
+    it entirely -- quantity is left untouched, only the shelf changes. A
+    smaller `quantity` splits the stock instead: the source keeps the
+    remainder and the moved amount tops up (or creates) an item on the
+    destination shelf. Writes a MOVE audit-log row (see /movements)
+    recording both the origin and destination shelf, with `operator`
+    derived from the logged-in user.
     """
-    item, movement = move_item(db, payload, operator=current_user.full_name)
+    item, movement, full = move_item(db, payload, operator=current_user.full_name)
+    if full:
+        message = f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}."
+    else:
+        message = (
+            f"Moved {movement.quantity} unit(s) of '{item.name}' to shelf {movement.shelf_position}. "
+            f"{item.quantity} unit(s) remain on shelf {item.shelf_position}."
+        )
     return RelocateItemResponse(
         item=item,
         from_shelf_position=movement.from_shelf_position or "",
         to_shelf_position=movement.shelf_position,
-        message=f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}.",
+        message=message,
     )

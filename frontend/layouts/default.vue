@@ -21,34 +21,54 @@
       >
         <NuxtLink
           to="/"
-          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+          class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
+          <img
+            src="~/assets/icons/home.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
           Home
         </NuxtLink>
         <NuxtLink
           to="/dashboard"
-          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+          class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
+          <img
+            src="~/assets/icons/dashboard.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
           Dashboard
         </NuxtLink>
         <NuxtLink
           to="/activity-log"
-          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+          class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
+          <img
+            src="~/assets/icons/activity.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
           Activity Log
         </NuxtLink>
         <NuxtLink
           v-if="isAdmin"
           to="/map-config"
-          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+          class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
+          <img
+            src="~/assets/icons/map.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
           Map Config
         </NuxtLink>
         <NuxtLink
           v-if="isAdmin"
           to="/admin/users"
-          class="rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
+          class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
+          <img
+            src="~/assets/icons/users.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
           Users
         </NuxtLink>
       </nav>

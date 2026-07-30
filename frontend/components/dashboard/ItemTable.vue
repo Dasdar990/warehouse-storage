@@ -53,10 +53,7 @@
         <tr
           v-for="item in items"
           :key="item.id"
-          :class="{
-            'cursor-pointer transition-colors hover:bg-surface-2/60':
-              selectable,
-          }"
+          :class="{ 'cursor-pointer transition-colors hover:bg-surface-2/60': selectable }"
           @click="onRowClick(item, $event)"
         >
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
@@ -74,10 +71,7 @@
               </span>
             </span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
-            <div
-              v-if="item.serial"
-              class="mt-1 font-mono text-[0.7rem] text-muted"
-            >
+            <div v-if="item.serial" class="mt-1 font-mono text-[0.7rem] text-muted">
               S/N {{ item.serial }}
             </div>
           </td>
@@ -85,9 +79,7 @@
             <span class="badge badge--category">{{ item.category }}</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span v-if="item.program" class="badge badge--program">{{
-              item.program
-            }}</span>
+            <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
@@ -101,15 +93,8 @@
             v-if="showShelf"
             class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
           >
-            <span v-if="item.shelf_position" class="badge badge--shelf">{{
-              item.shelf_position
-            }}</span>
-            <span
-              v-else
-              class="text-[0.82rem] text-muted"
-              title="Fully withdrawn -- no shelf assigned"
-              >—</span
-            >
+            <span v-if="item.shelf_position" class="badge badge--shelf">{{ item.shelf_position }}</span>
+            <span v-else class="text-[0.82rem] text-muted" title="Fully withdrawn -- no shelf assigned">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             {{ item.quantity }}
@@ -201,7 +186,7 @@
                   />
                   <rect x="8" y="12" width="8" height="8" rx="1" />
                 </svg>
-                Print label
+                Label
               </a>
             </div>
           </td>

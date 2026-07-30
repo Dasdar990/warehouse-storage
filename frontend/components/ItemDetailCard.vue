@@ -10,9 +10,13 @@
         <h2 class="mt-2 text-[1rem] font-semibold">{{ item.name }}</h2>
         <div class="mt-2 flex flex-wrap gap-2">
           <span v-if="item.pn" class="badge badge--pn">P/N {{ item.pn }}</span>
-          <span v-if="item.serial" class="badge badge--serial">S/N {{ item.serial }}</span>
+          <span v-if="item.serial" class="badge badge--serial"
+            >S/N {{ item.serial }}</span
+          >
           <span class="badge badge--category">{{ item.category }}</span>
-          <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
+          <span v-if="item.program" class="badge badge--program">{{
+            item.program
+          }}</span>
           <span class="badge badge--size" :class="`badge--size-${item.size}`">{{
             sizeLabel(item.size)
           }}</span>
@@ -21,11 +25,17 @@
             <template v-if="zoneLabel">Zone {{ zoneLabel }} · </template>Shelf
             {{ item.shelf_position }}</span
           >
-          <span v-else class="badge badge--shelf" title="Fully withdrawn -- no shelf assigned"
+          <span
+            v-else
+            class="badge badge--shelf"
+            title="Fully withdrawn -- no shelf assigned"
             >📍 Not on a shelf</span
           >
         </div>
-        <p v-if="otherShelves.length" class="m-0 mt-2 text-[0.78rem] text-muted">
+        <p
+          v-if="otherShelves.length"
+          class="m-0 mt-2 text-[0.78rem] text-muted"
+        >
           Also on shelf{{ otherShelves.length > 1 ? "s" : "" }}:
           <span
             v-for="(o, i) in otherShelves"
@@ -33,8 +43,8 @@
             class="text-ink"
             >{{ o.shelf_position }} ({{ o.quantity }} pcs)<template
               v-if="i < otherShelves.length - 1"
-              >, </template
-            ></span
+              >,
+            </template></span
           >
         </p>
       </div>
@@ -52,7 +62,10 @@
     </div>
 
     <!-- Step 1: pick the movement -->
-    <div v-if="!pendingAction" class="mt-3 flex flex-wrap gap-2.5 max-[640px]:flex-col">
+    <div
+      v-if="!pendingAction"
+      class="mt-3 flex flex-wrap gap-2.5 max-[640px]:flex-col"
+    >
       <button
         type="button"
         class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-bad/35 bg-bad/[0.09] px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/60 hover:bg-bad/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
@@ -62,11 +75,23 @@
         <span
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-bad/22 transition-colors duration-200 group-hover:bg-bad/32"
         >
-          <svg viewBox="0 0 24 24" class="h-5.5 w-5.5 text-red-200" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H4" /></svg>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-5.5 w-5.5 text-red-200"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M20 12H4" />
+          </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Remove</span>
-          <span class="text-[0.8rem] text-muted">Withdraw stock from this shelf</span>
+          <span class="text-[0.8rem] text-muted"
+            >Withdraw stock from this shelf</span
+          >
         </span>
       </button>
       <button
@@ -78,11 +103,23 @@
         <span
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-good/22 transition-colors duration-200 group-hover:bg-good/32"
         >
-          <svg viewBox="0 0 24 24" class="h-5.5 w-5.5 text-green-200" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M4 12h16" /></svg>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-5.5 w-5.5 text-green-200"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 4v16M4 12h16" />
+          </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Add</span>
-          <span class="text-[0.8rem] text-muted">Deposit stock onto this shelf</span>
+          <span class="text-[0.8rem] text-muted"
+            >Deposit stock onto this shelf</span
+          >
         </span>
       </button>
       <button
@@ -94,11 +131,23 @@
         <span
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/22 transition-colors duration-200 group-hover:bg-accent/32"
         >
-          <svg viewBox="0 0 24 24" class="h-5.5 w-5.5 text-emerald-200" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l4-4 4 4M8 3v14M20 17l-4 4-4-4M16 21V7" /></svg>
+          <svg
+            viewBox="0 0 24 24"
+            class="h-5.5 w-5.5 text-emerald-200"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 7l4-4 4 4M8 3v14M20 17l-4 4-4-4M16 21V7" />
+          </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Move shelf</span>
-          <span class="text-[0.8rem] text-muted">Relocate this item elsewhere</span>
+          <span class="text-[0.8rem] text-muted"
+            >Relocate this item elsewhere</span
+          >
         </span>
       </button>
     </div>
@@ -111,7 +160,9 @@
       <div class="flex items-center justify-between gap-2">
         <span
           class="text-[0.8rem] font-semibold uppercase tracking-wide"
-          :class="pendingAction === 'withdraw' ? 'text-red-300' : 'text-green-300'"
+          :class="
+            pendingAction === 'withdraw' ? 'text-red-300' : 'text-green-300'
+          "
         >
           {{ pendingAction === "withdraw" ? "Removing stock" : "Adding stock" }}
         </span>
@@ -141,7 +192,7 @@
           type="number"
           min="1"
           :max="pendingAction === 'withdraw' ? item.quantity : undefined"
-          class="field-input w-17.5 px-1 text-center text-[1.1rem]"
+          class="field-input w-17.5 px-1 text-center text-[1.1rem] no-spinner"
         />
         <button
           type="button"
@@ -171,6 +222,106 @@
         {{ qtyError }}
       </p>
 
+      <!-- Deposit only: let the operator send this stock to a different shelf -->
+      <div
+        v-if="pendingAction === 'deposit'"
+        class="flex flex-col gap-2 rounded-lg bg-surface-2 px-3 py-2.5"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[0.78rem] font-semibold text-muted"
+            >Deposit onto</span
+          >
+          <button
+            v-if="item.shelf_position && !depositElsewhere"
+            type="button"
+            class="text-sm font-extrabold text-accent underline-offset-2 hover:underline"
+            @click="openDepositElsewhere"
+          >
+            Choose a different shelf
+          </button>
+          <button
+            v-else-if="item.shelf_position && depositElsewhere"
+            type="button"
+            class="text-sm text-accent underline-offset-2 hover:underline"
+            @click="resetDepositShelf"
+          >
+            Use this shelf instead
+          </button>
+        </div>
+
+        <p v-if="!depositElsewhere" class="m-0 text-[0.85rem] text-ink">
+          Shelf {{ item.shelf_position }}
+          <span class="text-muted">(current)</span>
+        </p>
+        <template v-else>
+          <p v-if="!item.shelf_position" class="m-0 text-[0.78rem] text-muted">
+            This item isn't on a shelf yet -- pick where to deposit it.
+          </p>
+          <div
+            v-if="otherShelves.length"
+            class="flex flex-wrap items-center gap-1.5"
+          >
+            <span class="text-[0.75rem] text-muted"
+              >You also have this on:</span
+            >
+            <button
+              v-for="o in otherShelves"
+              :key="o.id"
+              type="button"
+              class="rounded-full border px-2.5 py-1 text-[0.75rem] font-semibold"
+              :class="
+                depositShelfPosition === o.shelf_position
+                  ? 'border-accent/60 bg-accent/15 text-ink'
+                  : 'border-edge/70 text-muted hover:border-accent/40 hover:text-ink'
+              "
+              @click="pickDepositSuggestion(o)"
+            >
+              📍 {{ o.shelf_position }} ({{ o.quantity }} pcs)
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[0.78rem] text-muted">Rack</label>
+              <select
+                v-model="depositRackCode"
+                :disabled="loadingShelves"
+                class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="" disabled>Select a rack…</option>
+                <option
+                  v-for="rack in moveRacks"
+                  :key="rack.code"
+                  :value="rack.code"
+                >
+                  {{ rack.label }}
+                </option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[0.78rem] text-muted">Shelf</label>
+              <select
+                v-model="depositShelfPosition"
+                :disabled="loadingShelves || !depositRackCode"
+                class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="" disabled>
+                  {{
+                    depositRackCode ? "Select a shelf…" : "Select a rack first"
+                  }}
+                </option>
+                <option
+                  v-for="opt in depositShelvesForRack"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  Level {{ opt.level }} ({{ opt.value }})
+                </option>
+              </select>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <div
         class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2 text-[0.85rem]"
       >
@@ -178,8 +329,27 @@
           {{ pendingAction === "withdraw" ? "Remove" : "Add" }}
           <strong class="text-ink">{{ qty }}</strong> unit(s) of
           <strong class="text-ink">{{ item.name }}</strong>
+          <template
+            v-if="
+              pendingAction === 'deposit' &&
+              depositElsewhere &&
+              depositShelfPosition
+            "
+          >
+            onto
+            <strong class="text-ink">shelf {{ depositShelfPosition }}</strong>
+          </template>
         </span>
-        <span class="whitespace-nowrap text-muted">
+        <span
+          v-if="
+            !(
+              pendingAction === 'deposit' &&
+              depositElsewhere &&
+              depositShelfPosition
+            )
+          "
+          class="whitespace-nowrap text-muted"
+        >
           {{ item.quantity }} →
           <strong class="text-ink">{{ resultingQuantity }}</strong>
         </span>
@@ -188,11 +358,27 @@
       <button
         type="button"
         class="cursor-pointer py-2.5 text-[0.95rem] font-semibold"
-        :class="pendingAction === 'withdraw' ? 'btn btn--danger' : 'btn btn--confirm'"
-        :disabled="busy || !!qtyError"
+        :class="
+          pendingAction === 'withdraw' ? 'btn btn--danger' : 'btn btn--confirm'
+        "
+        :disabled="
+          busy ||
+          !!qtyError ||
+          (pendingAction === 'deposit' &&
+            depositElsewhere &&
+            !depositShelfPosition)
+        "
         @click="confirmAction"
       >
-        {{ busy ? "Saving…" : `Confirm ${pendingAction === "withdraw" ? "removal" : "addition"}` }}
+        {{
+          busy
+            ? "Saving…"
+            : pendingAction === "deposit" &&
+                depositElsewhere &&
+                depositShelfPosition
+              ? `Confirm deposit onto shelf ${depositShelfPosition}`
+              : `Confirm ${pendingAction === "withdraw" ? "removal" : "addition"}`
+        }}
       </button>
     </div>
 
@@ -202,7 +388,9 @@
       class="mt-3 flex flex-col gap-3 rounded-[10px] border border-edge/80 bg-surface p-3"
     >
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[0.8rem] font-semibold uppercase tracking-wide text-accent">
+        <span
+          class="text-[0.8rem] font-semibold uppercase tracking-wide text-accent"
+        >
           Moving to another shelf
         </span>
         <button
@@ -217,10 +405,82 @@
 
       <p class="m-0 text-[0.85rem] text-muted">
         <template v-if="item.shelf_position">
-          Currently on <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
+          Currently on
+          <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
         </template>
-        <template v-else> Not currently on a shelf -- pick where to put it. </template>
+        <template v-else>
+          Not currently on a shelf -- pick where to put it.
+        </template>
       </p>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          class="btn--icon h-9 w-9 cursor-pointer text-lg disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="moveQty <= 1"
+          title="Decrease"
+          @click="moveQty = Math.max(1, moveQty - 1)"
+        >
+          −
+        </button>
+        <input
+          v-model.number="moveQty"
+          type="number"
+          min="1"
+          :max="item.quantity"
+          class="field-input w-17.5 px-1 text-center text-[1.1rem]"
+        />
+        <button
+          type="button"
+          class="btn--icon h-9 w-9 cursor-pointer text-lg disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="moveQty >= item.quantity"
+          title="Increase"
+          @click="moveQty += 1"
+        >
+          +
+        </button>
+
+        <div class="ml-1 flex flex-wrap gap-1.5">
+          <button
+            v-for="preset in moveQuickQuantities"
+            :key="preset.label"
+            type="button"
+            class="rounded-full border border-edge/70 px-2.5 py-1 text-[0.75rem] font-semibold text-muted hover:border-accent/50 hover:text-ink"
+            :class="{ 'border-accent/60 text-ink': moveQty === preset.value }"
+            @click="moveQty = preset.value"
+          >
+            {{ preset.label }}
+          </button>
+        </div>
+      </div>
+      <p class="m-0 text-[0.78rem] text-muted">
+        {{
+          moveQty >= item.quantity
+            ? "Moving all of it -- the shelf will be freed up."
+            : `${item.quantity - moveQty} unit(s) will stay on shelf ${item.shelf_position}.`
+        }}
+      </p>
+
+      <div
+        v-if="otherShelves.length"
+        class="flex flex-wrap items-center gap-1.5"
+      >
+        <span class="text-[0.75rem] text-muted">You also have this on:</span>
+        <button
+          v-for="o in otherShelves"
+          :key="o.id"
+          type="button"
+          class="rounded-full border px-2.5 py-1 text-[0.75rem] font-semibold"
+          :class="
+            moveShelfPosition === o.shelf_position
+              ? 'border-accent/60 bg-accent/15 text-ink'
+              : 'border-edge/70 text-muted hover:border-accent/40 hover:text-ink'
+          "
+          @click="pickMoveSuggestion(o)"
+        >
+          📍 {{ o.shelf_position }} ({{ o.quantity }} pcs)
+        </button>
+      </div>
 
       <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
         <div class="flex flex-col gap-1.5">
@@ -231,7 +491,11 @@
             class="field-input disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="" disabled>Select a rack…</option>
-            <option v-for="rack in moveRacks" :key="rack.code" :value="rack.code">
+            <option
+              v-for="rack in moveRacks"
+              :key="rack.code"
+              :value="rack.code"
+            >
               {{ rack.label }}
             </option>
           </select>
@@ -257,26 +521,46 @@
         </div>
       </div>
 
-      <p v-if="moveError" class="m-0 text-[0.8rem] text-red-300">{{ moveError }}</p>
+      <p v-if="moveError" class="m-0 text-[0.8rem] text-red-300">
+        {{ moveError }}
+      </p>
+      <p v-else-if="moveQtyError" class="m-0 text-[0.8rem] text-red-300">
+        {{ moveQtyError }}
+      </p>
 
       <button
         type="button"
         class="btn btn--confirm cursor-pointer py-2.5 text-[0.95rem] font-semibold"
-        :disabled="busy || !moveShelfPosition || moveShelfPosition === item.shelf_position"
+        :disabled="
+          busy ||
+          !moveShelfPosition ||
+          moveShelfPosition === item.shelf_position ||
+          !!moveQtyError
+        "
         @click="confirmMove"
       >
-        {{ busy ? "Moving…" : `Confirm move to ${moveShelfPosition || "…"}` }}
+        {{
+          busy
+            ? "Moving…"
+            : `Confirm move of ${moveQty} to ${moveShelfPosition || "…"}`
+        }}
       </button>
     </div>
 
     <div class="mt-3.5 border-t border-edge/60 pt-3">
       <div class="mb-1.5 flex items-center justify-between">
-        <span class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
+        <span
+          class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
           >Recent activity</span
         >
-        <span v-if="loadingHistory" class="text-[0.75rem] text-muted">Loading…</span>
+        <span v-if="loadingHistory" class="text-[0.75rem] text-muted"
+          >Loading…</span
+        >
       </div>
-      <p v-if="!loadingHistory && !history.length" class="m-0 text-[0.8rem] text-muted">
+      <p
+        v-if="!loadingHistory && !history.length"
+        class="m-0 text-[0.8rem] text-muted"
+      >
         No movements recorded yet for this item.
       </p>
       <ul v-else class="m-0 flex flex-col gap-1.5 p-0">
@@ -294,7 +578,11 @@
               >
             </template>
             <template v-else>
-              <strong :class="h.action === 'deposit' ? 'text-green-300' : 'text-red-300'">
+              <strong
+                :class="
+                  h.action === 'deposit' ? 'text-green-300' : 'text-red-300'
+                "
+              >
                 {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
               </strong>
             </template>
@@ -376,7 +664,9 @@
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z" />
+          <path
+            d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"
+          />
           <circle cx="12" cy="9.5" r="2.5" />
         </svg>
         <span>Locate</span>
@@ -407,8 +697,15 @@ const emit = defineEmits<{
   updated: [item: Item];
 }>();
 
-const { withdrawItem, depositItem, moveItem, getShelfPositions, labelUrl, listMovements, listItems } =
-  useWarehouseApi();
+const {
+  withdrawItem,
+  depositItem,
+  moveItem,
+  getShelfPositions,
+  labelUrl,
+  listMovements,
+  listItems,
+} = useWarehouseApi();
 const { show } = useToast();
 
 const qty = ref(1);
@@ -434,7 +731,10 @@ function formatHistoryTime(iso: string) {
   const d = new Date(iso);
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return `${day}/${month} ${time}`;
 }
 
@@ -491,9 +791,11 @@ const shelfOptions = ref<ShelfPositionOption[]>([]);
 const loadingShelves = ref(false);
 const moveRackCode = ref("");
 const moveShelfPosition = ref("");
+const moveQty = ref(1);
 
 // Same part (same P/N) can legitimately live on more than one shelf --
-// surface the other locations so an operator doesn't miss stock elsewhere.
+// surface the other locations so an operator doesn't miss stock elsewhere,
+// and let them jump straight to one as a deposit/move destination.
 const otherShelves = ref<Item[]>([]);
 
 async function loadOtherShelves() {
@@ -509,6 +811,11 @@ async function loadOtherShelves() {
   }
 }
 
+// -- Deposit onto a different shelf ------------------------------------
+const depositElsewhere = ref(false);
+const depositRackCode = ref("");
+const depositShelfPosition = ref("");
+
 watch(
   () => props.item.id,
   () => {
@@ -516,6 +823,10 @@ watch(
     qty.value = 1;
     moveRackCode.value = "";
     moveShelfPosition.value = "";
+    moveQty.value = props.item.quantity || 1;
+    depositElsewhere.value = false;
+    depositRackCode.value = "";
+    depositShelfPosition.value = "";
     loadHistory();
     loadOtherShelves();
     if (props.autoStartAction) startAction(props.autoStartAction);
@@ -528,7 +839,7 @@ async function loadShelfOptions() {
   try {
     shelfOptions.value = await getShelfPositions();
   } catch {
-    // Non-critical: the move panel just won't have any options to pick from.
+    // Non-critical: the move/deposit panels just won't have options to pick from.
   } finally {
     loadingShelves.value = false;
   }
@@ -546,26 +857,103 @@ const moveShelvesForRack = computed(() =>
   shelfOptions.value.filter((opt) => opt.rack_code === moveRackCode.value),
 );
 
+const depositShelvesForRack = computed(() =>
+  shelfOptions.value.filter((opt) => opt.rack_code === depositRackCode.value),
+);
+
 const moveError = computed(() => {
   if (pendingAction.value !== "move") return "";
-  if (moveShelfPosition.value && moveShelfPosition.value === props.item.shelf_position) {
+  if (
+    moveShelfPosition.value &&
+    moveShelfPosition.value === props.item.shelf_position
+  ) {
     return "This item is already on that shelf.";
   }
   return "";
 });
 
-// Reset the shelf pick whenever the rack changes.
-watch(moveRackCode, () => {
-  moveShelfPosition.value = "";
+// Common quick-pick amounts for a move, same idea as quickQuantities but
+// capped to what's actually on the shelf right now.
+const moveQuickQuantities = computed(() => {
+  const cap = Math.max(props.item.quantity, 1);
+  const presets = [1, 5, 10]
+    .filter((n) => n < cap)
+    .map((n) => ({ label: String(n), value: n }));
+  presets.push({ label: "All", value: props.item.quantity });
+  return presets;
 });
+
+const moveQtyError = computed(() => {
+  if (pendingAction.value !== "move") return "";
+  if (!moveQty.value || moveQty.value < 1)
+    return "Enter a quantity of at least 1.";
+  if (moveQty.value > props.item.quantity) {
+    return `Only ${props.item.quantity} unit(s) available.`;
+  }
+  return "";
+});
+
+// Reset the shelf pick when the rack changes -- but not if it was just set
+// programmatically (see pickMoveSuggestion) to a shelf that's already valid
+// for the new rack, which would otherwise immediately wipe it out again.
+watch(moveRackCode, (rack) => {
+  const stillValid = shelfOptions.value.some(
+    (o) => o.rack_code === rack && o.value === moveShelfPosition.value,
+  );
+  if (!stillValid) moveShelfPosition.value = "";
+});
+
+watch(depositRackCode, (rack) => {
+  const stillValid = shelfOptions.value.some(
+    (o) => o.rack_code === rack && o.value === depositShelfPosition.value,
+  );
+  if (!stillValid) depositShelfPosition.value = "";
+});
+
+/** Quick-pick one of `otherShelves` as the move destination. */
+async function pickMoveSuggestion(o: Item) {
+  if (!shelfOptions.value.length) await loadShelfOptions();
+  const opt = shelfOptions.value.find((s) => s.value === o.shelf_position);
+  if (opt) moveRackCode.value = opt.rack_code;
+  moveShelfPosition.value = o.shelf_position;
+}
+
+function openDepositElsewhere() {
+  depositElsewhere.value = true;
+  if (!shelfOptions.value.length) loadShelfOptions();
+}
+
+function resetDepositShelf() {
+  depositElsewhere.value = false;
+  depositRackCode.value = "";
+  depositShelfPosition.value = "";
+}
+
+/** Quick-pick one of `otherShelves` as the deposit destination. */
+async function pickDepositSuggestion(o: Item) {
+  depositElsewhere.value = true;
+  if (!shelfOptions.value.length) await loadShelfOptions();
+  const opt = shelfOptions.value.find((s) => s.value === o.shelf_position);
+  if (opt) depositRackCode.value = opt.rack_code;
+  depositShelfPosition.value = o.shelf_position;
+}
 
 function startAction(action: "withdraw" | "deposit" | "move") {
   pendingAction.value = action;
   qty.value = 1;
   if (action === "move") {
+    moveQty.value = props.item.quantity || 1;
     moveRackCode.value = "";
     moveShelfPosition.value = "";
     if (!shelfOptions.value.length) loadShelfOptions();
+  }
+  if (action === "deposit") {
+    // No current shelf to fall back to -- go straight into "pick a shelf".
+    depositElsewhere.value = !props.item.shelf_position;
+    depositRackCode.value = "";
+    depositShelfPosition.value = "";
+    if (depositElsewhere.value && !shelfOptions.value.length)
+      loadShelfOptions();
   }
 }
 
@@ -574,21 +962,26 @@ function cancelAction() {
   qty.value = 1;
   moveRackCode.value = "";
   moveShelfPosition.value = "";
+  depositElsewhere.value = false;
+  depositRackCode.value = "";
+  depositShelfPosition.value = "";
 }
 
 async function confirmMove() {
-  if (!moveShelfPosition.value || moveError.value) return;
+  if (!moveShelfPosition.value || moveError.value || moveQtyError.value) return;
   busy.value = true;
   try {
     const res = await moveItem({
       barcode: props.item.barcode,
       shelf_position: moveShelfPosition.value,
+      quantity: moveQty.value,
       source: (props.defaultSource ?? "manual") as MovementSource,
     });
     show("success", res.message);
     emit("updated", res.item);
     cancelAction();
     await loadHistory();
+    await loadOtherShelves();
   } catch (err: any) {
     show("error", err?.data?.detail || "Failed to move item");
   } finally {
@@ -599,22 +992,40 @@ async function confirmMove() {
 async function confirmAction() {
   const action = pendingAction.value;
   if (!action || action === "move" || qtyError.value) return;
+  if (
+    action === "deposit" &&
+    depositElsewhere.value &&
+    !depositShelfPosition.value
+  )
+    return;
   busy.value = true;
   try {
-    const payload = {
+    const payload: {
+      barcode: string;
+      quantity: number;
+      shelf_position?: string;
+      source: MovementSource;
+    } = {
       barcode: props.item.barcode,
       quantity: qty.value,
       source: (props.defaultSource ?? "manual") as MovementSource,
     };
+    if (
+      action === "deposit" &&
+      depositElsewhere.value &&
+      depositShelfPosition.value
+    ) {
+      payload.shelf_position = depositShelfPosition.value;
+    }
     const res =
       action === "withdraw"
         ? await withdrawItem(payload)
         : await depositItem(payload);
     show("success", res.message);
     emit("updated", res.item);
-    pendingAction.value = null;
-    qty.value = 1;
+    cancelAction();
     await loadHistory();
+    await loadOtherShelves();
   } catch (err: any) {
     show("error", err?.data?.detail || "Operation failed");
   } finally {
