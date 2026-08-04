@@ -89,20 +89,6 @@ def list_items(
     return db.execute(stmt).scalars().all()
 
 
-@router.get("/categories", response_model=list[str])
-def list_categories(db: Session = Depends(get_db)):
-    """Distinct categories currently in use -- populates the dashboard filter dropdown."""
-    rows = db.execute(select(Item.category).distinct()).scalars().all()
-    return sorted(rows)
-
-
-@router.get("/programs", response_model=list[str])
-def list_item_programs(db: Session = Depends(get_db)):
-    """Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown."""
-    rows = db.execute(select(Item.program).distinct()).scalars().all()
-    return sorted(r for r in rows if r)
-
-
 @router.get("/shelves", response_model=list[str])
 def list_item_shelves(db: Session = Depends(get_db)):
     """

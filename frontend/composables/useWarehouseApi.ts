@@ -310,7 +310,7 @@ export function useWarehouseApi() {
 
   /** Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown. */
   function listItemPrograms() {
-    return apiFetch<string[]>("/items/programs");
+    return apiFetch<string[]>("/programs");
   }
 
   /** Distinct (non-empty) shelf positions currently in use -- populates the dashboard filter dropdown. */
