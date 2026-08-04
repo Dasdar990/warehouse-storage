@@ -1,14 +1,11 @@
 <template>
-  <section class="card border border-edge/70 bg-surface/95">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <div
-          class="rounded-full border border-edge/70 bg-surface px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-muted"
-        >
-          Item
-        </div>
-        <h2 class="mt-2 text-[1rem] font-semibold">{{ item.name }}</h2>
-        <div class="mt-2 flex flex-wrap gap-2">
+  <section class="card">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0 flex-1">
+        <h2 class="text-[1.5rem] font-bold leading-tight text-ink">
+          {{ item.name }}
+        </h2>
+        <div class="mt-2 flex flex-wrap gap-1.5">
           <span v-if="item.pn" class="badge badge--pn">P/N {{ item.pn }}</span>
           <span v-if="item.serial" class="badge badge--serial"
             >S/N {{ item.serial }}</span
@@ -20,45 +17,68 @@
           <span class="badge badge--size" :class="`badge--size-${item.size}`">{{
             sizeLabel(item.size)
           }}</span>
-          <span v-if="item.shelf_position" class="badge badge--shelf"
-            >📍
-            <template v-if="zoneLabel">Zone {{ zoneLabel }} · </template>Shelf
-            {{ item.shelf_position }}</span
-          >
-          <span
-            v-else
-            class="badge badge--shelf"
-            title="Fully withdrawn -- no shelf assigned"
-            >📍 Not on a shelf</span
-          >
         </div>
-        <p
-          v-if="otherShelves.length"
-          class="m-0 mt-2 text-[0.78rem] text-muted"
-        >
-          Also on shelf{{ otherShelves.length > 1 ? "s" : "" }}:
-          <span
-            v-for="(o, i) in otherShelves"
-            :key="o.shelf_position"
-            class="text-ink"
-            >{{ o.shelf_position }} ({{ o.quantity }} pcs)<template
-              v-if="i < otherShelves.length - 1"
-              >,
-            </template></span
-          >
-        </p>
       </div>
+      <NuxtLink
+        v-if="item.shelf_position"
+        class="flex flex-column btn btn--ghost cursor-pointer items-center gap-2"
+        :to="{ path: '/', query: { locate: item.barcode } }"
+        title="Locate on the map"
+        aria-label="Locate on the map"
+      >
+        <div
+          class="shrink-0 rounded-xl px-4 py-2.5 text-center"
+          :class="item.shelf_position ? 'bg-accent/16' : 'bg-surface-2'"
+        >
+          <div
+            class="text-[0.65rem] font-bold uppercase tracking-[0.12em]"
+            :class="item.shelf_position ? 'text-accent' : 'text-muted'"
+          >
+            📍 Location
+          </div>
+          <div
+            v-if="item.shelf_position"
+            class="mt-1 text-[1.9rem] font-extrabold leading-none text-ink"
+          >
+            {{ item.shelf_position }}
+          </div>
+          <div
+            v-else
+            class="mt-1 text-[1.15rem] font-bold leading-none text-muted"
+          >
+            Not shelved
+          </div>
+          <div
+            v-if="zoneLabel"
+            class="mt-1 text-[0.75rem] font-medium text-muted"
+          >
+            Zone {{ zoneLabel }}
+          </div>
+        </div>
+      </NuxtLink>
     </div>
 
-    <div class="mt-3 flex flex-wrap items-center gap-3">
-      <div class="rounded-lg border border-edge/80 bg-surface px-3 py-2">
-        <div class="text-[0.7rem] uppercase tracking-wide text-muted">
-          Current Stock
-        </div>
-        <div class="text-[1.2rem] font-semibold text-ink">
-          {{ item.quantity }}
-        </div>
-      </div>
+    <p v-if="otherShelves.length" class="m-0 mt-2.5 text-[0.8rem] text-muted">
+      Also on
+      <span
+        v-for="(o, i) in otherShelves"
+        :key="o.shelf_position"
+        class="font-semibold text-ink"
+        >{{ o.shelf_position }} ({{ o.quantity }})<template
+          v-if="i < otherShelves.length - 1"
+          >,
+        </template></span
+      >
+    </p>
+
+    <div
+      class="mt-3.5 inline-flex items-center gap-2.5 rounded-lg bg-surface-2 px-3.5 py-2"
+    >
+      <span
+        class="text-[0.68rem] font-semibold uppercase tracking-wide text-muted"
+        >Stock</span
+      >
+      <span class="text-[1.35rem] font-bold text-ink">{{ item.quantity }}</span>
     </div>
 
     <!-- Step 1: pick the movement -->
@@ -89,9 +109,6 @@
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Remove</span>
-          <span class="text-[0.8rem] text-muted"
-            >Withdraw stock from this shelf</span
-          >
         </span>
       </button>
       <button
@@ -117,9 +134,6 @@
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Add</span>
-          <span class="text-[0.8rem] text-muted"
-            >Deposit stock onto this shelf</span
-          >
         </span>
       </button>
       <button
@@ -145,9 +159,6 @@
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
           <span class="text-[1.05rem] font-semibold text-ink">Move shelf</span>
-          <span class="text-[0.8rem] text-muted"
-            >Relocate this item elsewhere</span
-          >
         </span>
       </button>
     </div>
@@ -155,7 +166,7 @@
     <!-- Step 2: pick the quantity, then confirm -->
     <div
       v-else-if="pendingAction === 'withdraw' || pendingAction === 'deposit'"
-      class="mt-3 flex flex-col gap-3 rounded-[10px] border border-edge/80 bg-surface p-3"
+      class="mt-3 flex flex-col gap-3 rounded-[10px] bg-surface-2 p-3"
     >
       <div class="flex items-center justify-between gap-2">
         <span
@@ -225,7 +236,7 @@
       <!-- Deposit only: let the operator send this stock to a different shelf -->
       <div
         v-if="pendingAction === 'deposit'"
-        class="flex flex-col gap-2 rounded-lg bg-surface-2 px-3 py-2.5"
+        class="flex flex-col gap-2 rounded-lg bg-surface px-3 py-2.5"
       >
         <div class="flex items-center justify-between gap-2">
           <span class="text-[0.78rem] font-semibold text-muted"
@@ -323,7 +334,7 @@
       </div>
 
       <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2 text-[0.85rem]"
+        class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-[0.85rem]"
       >
         <span class="text-muted">
           {{ pendingAction === "withdraw" ? "Remove" : "Add" }}
@@ -385,7 +396,7 @@
     <!-- Step 2 (move variant): pick the destination rack/shelf, then confirm -->
     <div
       v-else-if="pendingAction === 'move'"
-      class="mt-3 flex flex-col gap-3 rounded-[10px] border border-edge/80 bg-surface p-3"
+      class="mt-3 flex flex-col gap-3 rounded-[10px] bg-surface-2 p-3"
     >
       <div class="flex items-center justify-between gap-2">
         <span
@@ -428,7 +439,7 @@
           type="number"
           min="1"
           :max="item.quantity"
-          class="field-input w-17.5 px-1 text-center text-[1.1rem]"
+          class="field-input w-17.5 px-1 text-center text-[1.1rem] no-spinner"
         />
         <button
           type="button"
@@ -547,7 +558,7 @@
       </button>
     </div>
 
-    <div class="mt-3.5 border-t border-edge/60 pt-3">
+    <div class="mt-5">
       <div class="mb-1.5 flex items-center justify-between">
         <span
           class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
@@ -567,7 +578,7 @@
         <li
           v-for="h in history"
           :key="h.id"
-          class="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-surface px-2.5 py-1.5 text-[0.8rem]"
+          class="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[0.8rem]"
           :class="{ 'opacity-45': h.voided }"
         >
           <span>

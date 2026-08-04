@@ -126,21 +126,15 @@
       </select>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label class="text-[0.8rem] text-muted">Rack</label>
-      <select
-        v-model="selectedRackCode"
-        required
-        :disabled="loadingOptions"
-        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <option value="" disabled>Select a rack…</option>
-        <option v-for="rack in racks" :key="rack.code" :value="rack.code">
-          {{ rack.label }}
-        </option>
-      </select>
+    <div class="flex flex-col gap-1.5 col-span-full">
+      <label class="text-[0.8rem] text-muted">Shelf</label>
+      <ShelfPicker
+        v-model="form.shelf_position"
+        :options="shelfOptions"
+        :loading="loadingOptions"
+      />
       <p
-        v-if="!loadingOptions && !racks.length"
+        v-if="!loadingOptions && !shelfOptions.length"
         class="m-0 text-[0.75rem] text-muted"
       >
         No shelves configured yet —
@@ -151,33 +145,12 @@
     </div>
 
     <div class="flex flex-col gap-1.5">
-      <label class="text-[0.8rem] text-muted">Shelf</label>
-      <select
-        v-model="form.shelf_position"
-        required
-        :disabled="loadingOptions || !selectedRackCode"
-        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <option value="" disabled>
-          {{ selectedRackCode ? "Select a shelf…" : "Select a rack first" }}
-        </option>
-        <option
-          v-for="opt in shelvesForSelectedRack"
-          :key="opt.value"
-          :value="opt.value"
-        >
-          Level {{ opt.level }} ({{ opt.value }})
-        </option>
-      </select>
-    </div>
-
-    <div class="flex flex-col gap-1.5">
       <label class="text-[0.8rem] text-muted">Initial Quantity</label>
       <input
         v-model.number="form.quantity"
         type="number"
         min="0"
-        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+        class="field-input no-spinner disabled:cursor-not-allowed disabled:opacity-60"
       />
     </div>
 
@@ -199,7 +172,9 @@
         <span class="text-ink">
           <strong>{{ dup.name }}</strong>
           <span v-if="dup.pn" class="text-muted"> · P/N {{ dup.pn }}</span>
-          <span class="text-muted"> · {{ dup.quantity }} in stock · Shelf {{ dup.shelf_position }}</span>
+          <span class="text-muted">
+            · {{ dup.quantity }} in stock · Shelf {{ dup.shelf_position }}</span
+          >
         </span>
         <button
           type="button"
@@ -207,11 +182,16 @@
           :disabled="addingToExisting === dup.id"
           @click="addToExisting(dup)"
         >
-          {{ addingToExisting === dup.id ? "Adding…" : `Add ${form.quantity || 1} here instead` }}
+          {{
+            addingToExisting === dup.id
+              ? "Adding…"
+              : `Add ${form.quantity || 1} here instead`
+          }}
         </button>
       </div>
       <p class="m-0 text-[0.75rem] text-muted">
-        Not the same item? You can ignore this and save below to create a new one anyway.
+        Not the same item? You can ignore this and save below to create a new
+        one anyway.
       </p>
     </div>
 
@@ -300,28 +280,6 @@ const loadingOptions = ref(false);
 const categories = ref<Category[]>([]);
 const programs = ref<Program[]>([]);
 const shelfOptions = ref<ShelfPositionOption[]>([]);
-const selectedRackCode = ref("");
-
-// Unique racks derived from the flat shelf-position list, in the order
-// they first appear (already sorted by value/rack code from the API).
-const racks = computed(() => {
-  const seen = new Map<string, string>();
-  for (const opt of shelfOptions.value) {
-    if (!seen.has(opt.rack_code)) seen.set(opt.rack_code, opt.rack_label);
-  }
-  return Array.from(seen, ([code, label]) => ({ code, label }));
-});
-
-// Shelves (levels) belonging to whichever rack is currently selected.
-const shelvesForSelectedRack = computed(() =>
-  shelfOptions.value.filter((opt) => opt.rack_code === selectedRackCode.value),
-);
-
-// Reset the shelf pick whenever the rack changes, since a previously
-// selected shelf_position won't belong to the newly chosen rack.
-watch(selectedRackCode, () => {
-  form.value.shelf_position = "";
-});
 
 // Shown after a successful save so the barcode can be printed onto the
 // physical item right away, without leaving the form.
@@ -365,7 +323,6 @@ async function addToExisting(dup: Item) {
     });
     show("success", res.message);
     form.value = { ...EMPTY_FORM };
-    selectedRackCode.value = "";
     duplicates.value = [];
     await suggestBarcode();
     emit("created", res.item);
@@ -408,6 +365,10 @@ async function suggestBarcode() {
 
 async function submit() {
   error.value = "";
+  if (!form.value.shelf_position) {
+    error.value = "Pick a shelf from the list before saving.";
+    return;
+  }
   submitting.value = true;
   lastCreated.value = null;
   try {
@@ -418,7 +379,6 @@ async function submit() {
     lastCreated.value = item;
     show("success", `Item "${item.name}" created`);
     form.value = { ...EMPTY_FORM };
-    selectedRackCode.value = "";
     duplicates.value = [];
     await suggestBarcode();
     emit("created", item);

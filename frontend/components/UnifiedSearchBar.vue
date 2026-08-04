@@ -42,9 +42,8 @@
               <div>
                 <div class="font-semibold text-ink">{{ item.name }}</div>
                 <div class="mt-0.5 text-[0.8rem] text-muted">
-                  P/N {{ item.pn }} · {{ item.category }}<template
-                    v-if="item.program"
-                  >
+                  P/N {{ item.pn }} · {{ item.category
+                  }}<template v-if="item.program">
                     · {{ item.program }}</template
                   >
                   · Shelf {{ item.shelf_position }}
@@ -64,10 +63,6 @@
         </ul>
       </div>
     </div>
-
-    <p class="mt-2 mb-0 text-[0.76rem] text-muted">
-      Scan applies the selected action directly; typing opens the item card.
-    </p>
   </section>
 </template>
 

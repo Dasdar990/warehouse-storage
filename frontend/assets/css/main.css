@@ -20,6 +20,19 @@
   --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
+.toast__bar {
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.toast:hover .toast__bar {
+  animation-play-state: paused;
+}
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 @utility no-spinner {
   appearance: textfield;
   -moz-appearance: textfield;

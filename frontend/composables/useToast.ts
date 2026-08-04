@@ -1,28 +1,83 @@
-export interface ToastState {
-  type: 'success' | 'error'
-  message: string
+// composables/useToast.ts
+export type ToastType = "success" | "error" | "info";
+
+export interface ToastItem {
+  id: number;
+  type: ToastType;
+  message: string;
+  duration: number;
+  startedAt: number;
+  remaining: number;
 }
 
-/**
- * Tiny global toast system built on Nuxt's useState, so any page or
- * component can trigger a success/error banner without prop drilling.
- * The banner itself is rendered once in layouts/default.vue.
- */
+// Gli errori restano un po' più a lungo -- di solito c'è più da leggere.
+const DEFAULT_DURATION: Record<ToastType, number> = {
+  success: 3500,
+  info: 4000,
+  error: 6000,
+};
+
+let nextId = 0;
+
 export function useToast() {
-  const toast = useState<ToastState | null>('warehouse-toast', () => null)
-  const timer = useState<ReturnType<typeof setTimeout> | null>('warehouse-toast-timer', () => null)
+  const toasts = useState<ToastItem[]>("warehouse-toasts", () => []);
+  const timers = useState<Map<number, ReturnType<typeof setTimeout>>>(
+    "warehouse-toast-timers",
+    () => new Map(),
+  );
 
-  function show(type: ToastState['type'], message: string) {
-    toast.value = { type, message }
-    if (timer.value) clearTimeout(timer.value)
-    timer.value = setTimeout(() => {
-      toast.value = null
-    }, 4000)
+  function scheduleDismiss(id: number, delay: number) {
+    timers.value.set(
+      id,
+      setTimeout(() => dismiss(id), delay),
+    );
   }
 
-  function dismiss() {
-    toast.value = null
+  function show(type: ToastType, message: string, duration?: number) {
+    const id = ++nextId;
+    const finalDuration = duration ?? DEFAULT_DURATION[type];
+    toasts.value = [
+      ...toasts.value,
+      {
+        id,
+        type,
+        message,
+        duration: finalDuration,
+        startedAt: Date.now(),
+        remaining: finalDuration,
+      },
+    ];
+    scheduleDismiss(id, finalDuration);
+    return id;
   }
 
-  return { toast, show, dismiss }
+  function dismiss(id: number) {
+    toasts.value = toasts.value.filter((t) => t.id !== id);
+    const timer = timers.value.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timers.value.delete(id);
+    }
+  }
+
+  function pause(id: number) {
+    const toast = toasts.value.find((t) => t.id === id);
+    const timer = timers.value.get(id);
+    if (!toast || !timer) return;
+    clearTimeout(timer);
+    timers.value.delete(id);
+    toast.remaining = Math.max(
+      toast.remaining - (Date.now() - toast.startedAt),
+      0,
+    );
+  }
+
+  function resume(id: number) {
+    const toast = toasts.value.find((t) => t.id === id);
+    if (!toast || timers.value.has(id)) return;
+    toast.startedAt = Date.now();
+    scheduleDismiss(id, Math.max(toast.remaining, 300));
+  }
+
+  return { toasts, show, dismiss, pause, resume };
 }

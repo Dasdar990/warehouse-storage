@@ -98,39 +98,77 @@
       </div>
     </header>
 
-    <transition
-      enter-active-class="transition duration-200 ease-out"
-      leave-active-class="transition duration-150 ease-in"
-      enter-from-class="opacity-0 translate-y-2"
-      leave-to-class="opacity-0 translate-y-1"
+    <div
+      class="pointer-events-none fixed top-4.5 right-4.5 z-100 flex max-w-80 flex-col gap-2 max-[640px]:left-4.5 max-[640px]:right-4.5 max-[640px]:max-w-none"
     >
-      <div
-        v-if="toast"
-        class="pointer-events-none fixed top-4.5 right-4.5 z-100 max-w-80 max-[640px]:left-4.5 max-[640px]:right-4.5 max-[640px]:max-w-none"
+      <TransitionGroup
+        enter-active-class="transition duration-200 ease-out"
+        leave-active-class="transition duration-150 ease-in absolute w-full"
+        enter-from-class="opacity-0 translate-y-2 scale-95"
+        leave-to-class="opacity-0 translate-x-3"
+        move-class="transition-transform duration-200 ease-out"
       >
         <div
-          class="pointer-events-auto flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-[0.85rem] font-medium shadow-card backdrop-blur-sm"
+          v-for="t in toasts"
+          :key="t.id"
+          class="toast pointer-events-auto relative overflow-hidden rounded-lg border py-2.5 pl-3 pr-8 shadow-card backdrop-blur-sm"
           :class="
-            toast.type === 'success'
-              ? 'border-good/50 bg-good-dim/95 text-green-200'
-              : 'border-bad/50 bg-bad-dim/95 text-red-200'
+            t.type === 'success'
+              ? 'border-good/50 bg-good-dim/95'
+              : t.type === 'error'
+                ? 'border-bad/50 bg-bad-dim/95'
+                : 'border-accent/50 bg-accent-dim/95'
           "
+          @mouseenter="pause(t.id)"
+          @mouseleave="resume(t.id)"
         >
-          <span class="mt-0.5 shrink-0 text-4xl">{{
-            toast.type === "success" ? "✓" : "!"
-          }}</span>
-          <span class="text-lg min-w-0 flex-1">{{ toast.message }}</span>
+          <div class="flex items-start gap-2.5">
+            <span
+              class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-bold"
+              :class="
+                t.type === 'success'
+                  ? 'bg-good/25 text-green-200'
+                  : t.type === 'error'
+                    ? 'bg-bad/25 text-red-200'
+                    : 'bg-accent/25 text-accent'
+              "
+            >
+              {{ t.type === "success" ? "✓" : t.type === "error" ? "!" : "i" }}
+            </span>
+            <span
+              class="min-w-0 flex-1 text-[0.85rem] font-medium leading-snug"
+              :class="
+                t.type === 'success'
+                  ? 'text-green-200'
+                  : t.type === 'error'
+                    ? 'text-red-200'
+                    : 'text-ink'
+              "
+              >{{ t.message }}</span
+            >
+          </div>
           <button
             type="button"
-            class="text-lg shrink-0 cursor-pointer bg-transparent text-current opacity-60 hover:opacity-100"
+            class="absolute right-2 top-2 cursor-pointer bg-transparent text-current opacity-50 hover:opacity-100"
             title="Dismiss"
-            @click="dismiss"
+            @click="dismiss(t.id)"
           >
             ✕
           </button>
+          <div
+            class="toast__bar absolute inset-x-0 bottom-0 h-0.5 origin-left"
+            :class="
+              t.type === 'success'
+                ? 'bg-good'
+                : t.type === 'error'
+                  ? 'bg-bad'
+                  : 'bg-accent'
+            "
+            :style="{ animationDuration: `${t.duration}ms` }"
+          />
         </div>
-      </div>
-    </transition>
+      </TransitionGroup>
+    </div>
 
     <main class="flex flex-col gap-4">
       <slot />
@@ -139,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-const { toast, dismiss } = useToast();
+const { toasts, dismiss, pause, resume } = useToast();
 const { user, isAdmin, logout } = useAuth();
 
 async function handleLogout() {
