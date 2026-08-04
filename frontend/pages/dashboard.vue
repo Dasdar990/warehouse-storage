@@ -109,6 +109,7 @@
         default-source="manual"
         @close="showMoveModal = false"
         @updated="onQuickActionUpdated"
+        @deleted="handleItemDeleted"
       />
     </BaseModal>
 
@@ -120,6 +121,7 @@
         default-source="manual"
         @close="showViewModal = false"
         @updated="onViewModalUpdated"
+        @deleted="handleItemDeleted"
       />
     </BaseModal>
 
@@ -151,31 +153,6 @@
 <script setup lang="ts">
 import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
 
-type MoveActionType = "deposit" | "withdraw" | "move";
-
-interface MoveModalState {
-  showModal: boolean;
-  item: Item | null;
-  action: MoveActionType;
-  nonce: number;
-}
-
-interface ViewModalState {
-  showModal: boolean;
-  item: Item | null;
-}
-
-interface InfoModalState {
-  showModal: boolean;
-  item: Item | null;
-}
-
-interface LocateModalState {
-  showModal: boolean;
-  item: Item | null;
-  candidates: Item[];
-}
-
 const { isAdmin } = useAuth();
 const route = useRoute();
 const { listItems, listCategories, listItemPrograms, listItemShelves } =
@@ -191,51 +168,51 @@ const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);
 const programs = ref<string[]>([]);
 const shelves = ref<string[]>([]);
-const loading = ref<boolean>(false);
-const showAddForm = ref<boolean>(false);
+const loading = ref(false);
+const showAddForm = ref(false);
 
 // --- Quick withdraw/deposit/move straight from the table row, no page change ---
-const showMoveModal = ref<boolean>(false);
+const showMoveModal = ref(false);
 const moveItem = ref<Item | null>(null);
-const moveAction = ref<MoveActionType>("deposit");
-const moveNonce = ref<number>(0);
+const moveAction = ref<"deposit" | "withdraw" | "move">("deposit");
+const moveNonce = ref(0);
 
-function openMoveModal(item: Item, action: MoveActionType): void {
+function openMoveModal(item: Item, action: "deposit" | "withdraw" | "move") {
   moveItem.value = item;
   moveAction.value = action;
   moveNonce.value += 1;
   showMoveModal.value = true;
 }
 
-function openRelocateModal(item: Item): void {
+function openRelocateModal(item: Item) {
   openMoveModal(item, "move");
 }
 
 // --- Click a row: open the full item card (view details, no forced action) ---
-const showViewModal = ref<boolean>(false);
+const showViewModal = ref(false);
 const viewItem = ref<Item | null>(null);
 
-function openViewModal(item: Item): void {
+function openViewModal(item: Item) {
   viewItem.value = item;
   showViewModal.value = true;
 }
 
 // --- Info icon: quick glance at this item's activity log only ---
-const showInfoModal = ref<boolean>(false);
+const showInfoModal = ref(false);
 const infoItem = ref<Item | null>(null);
 
-function openInfoModal(item: Item): void {
+function openInfoModal(item: Item) {
   infoItem.value = item;
   showInfoModal.value = true;
 }
 
 // --- Locate on the map: same P/N can live on several shelves, so if there's
 // more than one location, let the operator pick which one to jump to. ---
-const showLocateModal = ref<boolean>(false);
+const showLocateModal = ref(false);
 const locateItem = ref<Item | null>(null);
 const locateCandidates = ref<Item[]>([]);
 
-async function handleLocate(item: Item): Promise<void> {
+async function handleLocate(item: Item) {
   if (!item.pn) {
     await goToMap(item);
     return;
@@ -255,39 +232,46 @@ async function handleLocate(item: Item): Promise<void> {
   }
 }
 
-async function goToMap(item: Item): Promise<void> {
+async function goToMap(item: Item) {
   showLocateModal.value = false;
   await navigateTo({ path: "/", query: { locate: item.barcode } });
 }
 
 // --- Special move: admin-only bulk relocation of a whole shelf/rack ---
-const showSpecialMoveModal = ref<boolean>(false);
+const showSpecialMoveModal = ref(false);
 
-async function handleSpecialMoveDone(): Promise<void> {
+async function handleSpecialMoveDone() {
   showSpecialMoveModal.value = false;
   await fetchItems();
   await fetchShelves();
 }
 
-function syncItemInList(item: Item): void {
+function syncItemInList(item: Item) {
   const idx = items.value.findIndex((i) => i.id === item.id);
   if (idx !== -1) items.value[idx] = item;
   fetchShelves();
 }
 
-function onQuickActionUpdated(item: Item): void {
+function onQuickActionUpdated(item: Item) {
   moveItem.value = item;
   syncItemInList(item);
 }
 
-function onViewModalUpdated(item: Item): void {
+function onViewModalUpdated(item: Item) {
   viewItem.value = item;
   syncItemInList(item);
 }
 
+function handleItemDeleted(itemId: number) {
+  showMoveModal.value = false;
+  showViewModal.value = false;
+  items.value = items.value.filter((i) => i.id !== itemId);
+  fetchShelves();
+}
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-async function fetchItems(): Promise<void> {
+async function fetchItems() {
   loading.value = true;
   try {
     items.value = await listItems(filters.value);
@@ -296,17 +280,17 @@ async function fetchItems(): Promise<void> {
   }
 }
 
-async function fetchCategories(): Promise<void> {
+async function fetchCategories() {
   categories.value = await listCategories();
 }
 
-async function fetchPrograms(): Promise<void> {
+async function fetchPrograms() {
   programs.value = await listItemPrograms();
 }
 
 /** Occupied shelves only -- a fully withdrawn item's shelf is cleared, so
  *  this naturally drops out of the list once nothing's on it anymore. */
-async function fetchShelves(): Promise<void> {
+async function fetchShelves() {
   shelves.value = await listItemShelves();
 }
 
@@ -319,7 +303,7 @@ watch(
   { deep: true },
 );
 
-async function onItemCreated(): Promise<void> {
+async function onItemCreated() {
   showAddForm.value = false;
   await Promise.all([
     fetchItems(),

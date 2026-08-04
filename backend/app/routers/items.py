@@ -10,7 +10,7 @@ from app.core.deps import get_current_user, require_admin
 from app.db import get_db
 from app.models.item import Item, ItemSize
 from app.models.user import User
-from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut
+from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut, ItemUpdate
 from app.schemas.movement import (
     BulkMoveRequest,
     BulkMoveResponse,
@@ -20,9 +20,10 @@ from app.schemas.movement import (
     StockMoveResponse,
 )
 from app.services.barcode_generator import generate_unique_barcode
-from app.services.movement_service import bulk_move, deposit_stock, move_item, withdraw_stock
+from app.services.movement_service import bulk_move, deposit_stock, log_edit_item, move_item, withdraw_stock
 
-router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
 
 
@@ -32,15 +33,21 @@ def list_items(
     search: Optional[str] = Query(
         default=None, description="Case-insensitive match against name, P/N, or barcode"
     ),
-    category: Optional[str] = Query(default=None, description="Exact category match"),
-    program: Optional[str] = Query(default=None, description="Exact program match"),
-    size: Optional[ItemSize] = Query(default=None, description="Exact size match"),
-    shelf_position: Optional[str] = Query(default=None, description="Exact shelf match"),
+    category: Optional[str] = Query(
+        default=None, description="Exact category match"),
+    program: Optional[str] = Query(
+        default=None, description="Exact program match"),
+    size: Optional[ItemSize] = Query(
+        default=None, description="Exact size match"),
+    shelf_position: Optional[str] = Query(
+        default=None, description="Exact shelf match"),
     pn: Optional[str] = Query(
         default=None, description="Exact P/N match -- finds every shelf location for one part"
     ),
-    min_qty: Optional[int] = Query(default=None, ge=0, description="Only items with quantity >= this value"),
-    max_qty: Optional[int] = Query(default=None, ge=0, description="Only items with quantity <= this value"),
+    min_qty: Optional[int] = Query(
+        default=None, ge=0, description="Only items with quantity >= this value"),
+    max_qty: Optional[int] = Query(
+        default=None, ge=0, description="Only items with quantity <= this value"),
     low_stock: bool = Query(
         default=False, description=f"Only items with quantity <= {settings.low_stock_threshold}"
     ),
@@ -111,9 +118,11 @@ def list_item_shelves(db: Session = Depends(get_db)):
 @router.get("/scan", response_model=ItemOut)
 def scan_item(barcode: str, db: Session = Depends(get_db)):
     """Look up a single item by its exact barcode value (used by the scanner gun)."""
-    item = db.execute(select(Item).where(Item.barcode == barcode)).scalar_one_or_none()
+    item = db.execute(select(Item).where(
+        Item.barcode == barcode)).scalar_one_or_none()
     if item is None:
-        raise HTTPException(status_code=404, detail=f"No item found for barcode '{barcode}'")
+        raise HTTPException(
+            status_code=404, detail=f"No item found for barcode '{barcode}'")
     return item
 
 
@@ -129,8 +138,10 @@ def get_next_barcode(db: Session = Depends(get_db)):
 
 @router.get("/check-duplicate", response_model=list[ItemOut])
 def check_duplicate_item(
-    name: Optional[str] = Query(default=None, description="Candidate item name"),
-    pn: Optional[str] = Query(default=None, description="Candidate part number"),
+    name: Optional[str] = Query(
+        default=None, description="Candidate item name"),
+    pn: Optional[str] = Query(
+        default=None, description="Candidate part number"),
     db: Session = Depends(get_db),
 ):
     """
@@ -151,14 +162,16 @@ def check_duplicate_item(
     if pn:
         conditions.append(Item.pn.ilike(pn))
 
-    stmt = select(Item).where(or_(*conditions)).order_by(Item.id.desc()).limit(5)
+    stmt = select(Item).where(or_(*conditions)
+                              ).order_by(Item.id.desc()).limit(5)
     return db.execute(stmt).scalars().all()
 
 
 @router.post("", response_model=ItemOut, status_code=201)
 def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
     """Create a new inventory item. Fails with 409 if the barcode already exists."""
-    existing = db.execute(select(Item).where(Item.barcode == payload.barcode)).scalar_one_or_none()
+    existing = db.execute(select(Item).where(
+        Item.barcode == payload.barcode)).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(
             status_code=409, detail=f"Barcode '{payload.barcode}' is already assigned to another item"
@@ -169,6 +182,81 @@ def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch("/{item_id}", response_model=ItemOut)
+def update_item(
+    item_id: int,
+    payload: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Edit an item's descriptive fields (name, P/N, serial, category,
+    program, size). Quantity, shelf, and barcode aren't editable here --
+    see /items/deposit, /withdraw, /move for stock changes, all of which
+    keep a matching Activity Log entry.
+    """
+    item = db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+
+    if "name" in updates:
+        name = (updates["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name can't be blank")
+        item.name = name
+
+    if "category" in updates:
+        category = (updates["category"] or "").strip()
+        if not category:
+            raise HTTPException(
+                status_code=400, detail="Category can't be blank")
+        item.category = category
+
+    if "pn" in updates:
+        item.pn = (updates["pn"] or "").strip()
+
+    if "serial" in updates:
+        serial = (updates["serial"] or "").strip()
+        item.serial = serial or None
+
+    if "program" in updates:
+        program = (updates["program"] or "").strip()
+        item.program = program or None
+
+    if "size" in updates:
+        item.size = updates["size"]
+
+    log_edit_item(db, item, operator=current_user.full_name)
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/{item_id}", status_code=204)
+def delete_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Admin-only: permanently delete an item, including any stock it still
+    shows. This is not a movement -- there's nothing to roll back, unlike
+    withdraw/deposit/move. Past Activity Log entries for this item are kept
+    (their `item_id` is set to null by the DB, but item name/P/N are
+    already stored as plain text on each entry, so the history stays
+    readable).
+    """
+    item = db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    db.delete(item)
+    db.commit()
 
 
 @router.post("/withdraw", response_model=StockMoveResponse)
@@ -186,7 +274,8 @@ def withdraw_item(
     UI can show a "Barcode Verified" / "Manual Entry" badge, and `operator`
     set to the logged-in user -- never client-supplied, so it can't be spoofed.
     """
-    item, movement = withdraw_stock(db, payload, operator=current_user.full_name)
+    item, movement = withdraw_stock(
+        db, payload, operator=current_user.full_name)
     return StockMoveResponse(
         item=item,
         moved=payload.quantity,
@@ -210,7 +299,8 @@ def deposit_item(
     is created) -- the original item is untouched in that case. Also writes
     a matching audit-log row with `operator` derived from the logged-in user.
     """
-    item, movement, redirected = deposit_stock(db, payload, operator=current_user.full_name)
+    item, movement, redirected = deposit_stock(
+        db, payload, operator=current_user.full_name)
     if redirected:
         message = (
             f"Deposited {payload.quantity} unit(s) of '{item.name}' onto shelf "
@@ -243,7 +333,8 @@ def move_item_endpoint(
     recording both the origin and destination shelf, with `operator`
     derived from the logged-in user.
     """
-    item, movement, full = move_item(db, payload, operator=current_user.full_name)
+    item, movement, full = move_item(
+        db, payload, operator=current_user.full_name)
     if full:
         message = f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}."
     else:
@@ -271,5 +362,6 @@ def special_move(
     contents get consolidated elsewhere. Every item found there is
     relocated with its own MOVE audit-log entry; quantities are untouched.
     """
-    moved_items, moved_quantity, message = bulk_move(db, payload, operator=current_user.full_name)
+    moved_items, moved_quantity, message = bulk_move(
+        db, payload, operator=current_user.full_name)
     return BulkMoveResponse(moved_items=moved_items, moved_quantity=moved_quantity, message=message)

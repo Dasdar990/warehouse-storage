@@ -82,6 +82,28 @@ class ItemOut(ItemBase):
         from_attributes = True
 
 
+class ItemUpdate(BaseModel):
+    """
+    Shape for PATCH /items/{id}: edit descriptive fields only. Quantity and
+    shelf_position are deliberately excluded -- those only ever change
+    through a tracked movement (deposit/withdraw/move), so a quantity
+    change always has a matching Activity Log row. Barcode is excluded
+    too: it's the physical label already printed/scanned, not something
+    that should silently change under it.
+
+    Every field is optional so the client only has to send what actually
+    changed; the router tells "omitted" from "explicitly cleared" via
+    `exclude_unset`.
+    """
+
+    name: str | None = None
+    pn: str | None = None
+    serial: str | None = None
+    category: str | None = None
+    program: str | None = None
+    size: ItemSize | None = None
+
+
 class BarcodeSuggestion(BaseModel):
     """A freshly generated, currently-unused barcode value the form can prefill."""
 

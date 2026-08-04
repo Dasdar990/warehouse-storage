@@ -17,6 +17,7 @@
       </NuxtLink>
 
       <nav
+        v-if="isHydrated && ready"
         class="flex gap-1.5 rounded-full border border-edge/80 bg-surface p-1 max-[640px]:w-full max-[640px]:justify-between"
       >
         <NuxtLink
@@ -50,7 +51,7 @@
           Activity Log
         </NuxtLink>
         <NuxtLink
-          v-if="isAdmin"
+          v-if="isHydrated && ready && isAdmin"
           to="/map-config"
           class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
@@ -61,7 +62,7 @@
           Map Config
         </NuxtLink>
         <NuxtLink
-          v-if="isAdmin"
+          v-if="isHydrated && ready && isAdmin"
           to="/admin/users"
           class="flex items-center rounded-full px-4.5 py-2 text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-ink [&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-white max-[640px]:flex-1 max-[640px]:px-2.5 max-[640px]:text-center"
         >
@@ -74,7 +75,7 @@
       </nav>
 
       <div
-        v-if="user"
+        v-if="isHydrated && ready && user"
         class="flex items-center gap-2.5 max-[640px]:w-full max-[640px]:justify-between"
       >
         <span
@@ -178,7 +179,12 @@
 
 <script setup lang="ts">
 const { toasts, dismiss, pause, resume } = useToast();
-const { user, isAdmin, logout } = useAuth();
+const { user, isAdmin, ready, logout } = useAuth();
+const isHydrated = ref(false);
+
+onMounted(() => {
+  isHydrated.value = true;
+});
 
 async function handleLogout() {
   logout();

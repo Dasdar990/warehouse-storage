@@ -18,9 +18,11 @@ from app.services.barcode_generator import generate_unique_barcode
 
 
 def _get_item_by_barcode(db: Session, barcode: str) -> Item:
-    item = db.execute(select(Item).where(Item.barcode == barcode)).scalar_one_or_none()
+    item = db.execute(select(Item).where(
+        Item.barcode == barcode)).scalar_one_or_none()
     if item is None:
-        raise HTTPException(status_code=404, detail=f"No item found for barcode '{barcode}'")
+        raise HTTPException(
+            status_code=404, detail=f"No item found for barcode '{barcode}'")
     return item
 
 
@@ -90,7 +92,8 @@ def withdraw_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> 
         )
 
     item.quantity -= payload.quantity
-    movement = _log_movement(db, item, MovementAction.WITHDRAW, payload, operator=operator)
+    movement = _log_movement(
+        db, item, MovementAction.WITHDRAW, payload, operator=operator)
     _clear_shelf_if_empty(item)
     db.commit()
     db.refresh(item)
@@ -113,14 +116,41 @@ def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> t
 
     destination = (payload.shelf_position or "").strip().upper()
     redirected = bool(destination) and destination != item.shelf_position
-    target = _find_or_create_destination(db, item, destination) if redirected else item
+    target = _find_or_create_destination(
+        db, item, destination) if redirected else item
 
     target.quantity += payload.quantity
-    movement = _log_movement(db, target, MovementAction.DEPOSIT, payload, operator=operator)
+    movement = _log_movement(
+        db, target, MovementAction.DEPOSIT, payload, operator=operator)
     db.commit()
     db.refresh(target)
     db.refresh(movement)
     return target, movement, redirected
+
+
+def log_edit_item(db: Session, item: Item, *, operator: str) -> Movement:
+    """Log an EDIT movement for an already-modified Item row.
+
+    This writes an audit-log row recording that the item was edited
+    (metadata changed). The item's current values are denormalized into
+    the movement so the log remains meaningful even if the item changes
+    again later.
+    """
+    movement = Movement(
+        item_id=item.id,
+        item_name=item.name,
+        pn=item.pn,
+        shelf_position=item.shelf_position,
+        action=MovementAction.EDIT,
+        quantity=item.quantity,
+        balance_after=item.quantity,
+        source=MovementSource.MANUAL,
+        operator=operator.strip() or "Operator",
+    )
+    db.add(movement)
+    db.commit()
+    db.refresh(movement)
+    return movement
 
 
 def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tuple[Item, Movement, bool]:
@@ -141,9 +171,11 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
     destination = payload.shelf_position.strip().upper()
 
     if not destination:
-        raise HTTPException(status_code=400, detail="Destination shelf can't be empty")
+        raise HTTPException(
+            status_code=400, detail="Destination shelf can't be empty")
     if destination == item.shelf_position:
-        raise HTTPException(status_code=400, detail=f"'{item.name}' is already on shelf {destination}")
+        raise HTTPException(
+            status_code=400, detail=f"'{item.name}' is already on shelf {destination}")
 
     move_qty = payload.quantity if payload.quantity is not None else item.quantity
     if move_qty > item.quantity:
@@ -153,7 +185,8 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
         )
 
     origin = item.shelf_position
-    source = payload.source if isinstance(payload.source, MovementSource) else MovementSource(payload.source)
+    source = payload.source if isinstance(
+        payload.source, MovementSource) else MovementSource(payload.source)
     clean_operator = operator.strip() or "Operator"
 
     if move_qty == item.quantity:
@@ -213,7 +246,8 @@ def _log_movement(
         action=action,
         quantity=payload.quantity,
         balance_after=item.quantity,
-        source=payload.source if isinstance(payload.source, MovementSource) else MovementSource(payload.source),
+        source=payload.source if isinstance(
+            payload.source, MovementSource) else MovementSource(payload.source),
         operator=operator.strip() or "Operator",
     )
     db.add(movement)
@@ -239,7 +273,8 @@ def list_recent_movements(
         stmt = stmt.where(Movement.item_id == item_id)
     if item:
         needle = f"%{item.strip()}%"
-        stmt = stmt.where(or_(Movement.item_name.ilike(needle), Movement.pn.ilike(needle)))
+        stmt = stmt.where(or_(Movement.item_name.ilike(
+            needle), Movement.pn.ilike(needle)))
     if action is not None:
         stmt = stmt.where(Movement.action == action)
     if source is not None:
@@ -250,9 +285,11 @@ def list_recent_movements(
     # CEST (UTC+2), the first/last 2 hours of a Rome day would be filtered
     # using the wrong calendar day.
     if date_from is not None:
-        stmt = stmt.where(Movement.timestamp >= datetime.combine(date_from, time.min, tzinfo=APP_TZ))
+        stmt = stmt.where(Movement.timestamp >= datetime.combine(
+            date_from, time.min, tzinfo=APP_TZ))
     if date_to is not None:
-        stmt = stmt.where(Movement.timestamp <= datetime.combine(date_to, time.max, tzinfo=APP_TZ))
+        stmt = stmt.where(Movement.timestamp <= datetime.combine(
+            date_to, time.max, tzinfo=APP_TZ))
     stmt = stmt.limit(limit)
     return list(db.execute(stmt).scalars().all())
 
@@ -268,11 +305,14 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
     """
     original = db.get(Movement, movement_id)
     if original is None:
-        raise HTTPException(status_code=404, detail=f"No movement found with id {movement_id}")
+        raise HTTPException(
+            status_code=404, detail=f"No movement found with id {movement_id}")
     if original.voided:
-        raise HTTPException(status_code=400, detail="This movement has already been rolled back")
+        raise HTTPException(
+            status_code=400, detail="This movement has already been rolled back")
     if original.reversal_of_id is not None:
-        raise HTTPException(status_code=400, detail="A rollback itself can't be rolled back")
+        raise HTTPException(
+            status_code=400, detail="A rollback itself can't be rolled back")
     if original.item_id is None:
         raise HTTPException(
             status_code=400,
@@ -281,7 +321,8 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
 
     item = db.get(Item, original.item_id)
     if item is None:
-        raise HTTPException(status_code=404, detail="The item this movement belongs to no longer exists")
+        raise HTTPException(
+            status_code=404, detail="The item this movement belongs to no longer exists")
 
     # Reversing a WITHDRAW puts stock back (DEPOSIT); reversing a DEPOSIT
     # takes it back out (WITHDRAW), and must not push stock negative if
@@ -406,7 +447,8 @@ def bulk_move(db: Session, payload: BulkMoveRequest, *, operator: str) -> tuple[
     dest_code = payload.to_code.strip().upper()
 
     if source_code == dest_code:
-        raise HTTPException(status_code=400, detail="Source and destination are the same")
+        raise HTTPException(
+            status_code=400, detail="Source and destination are the same")
 
     if payload.mode == "shelf":
         pairs = [(source_code, dest_code)]
@@ -414,12 +456,16 @@ def bulk_move(db: Session, payload: BulkMoveRequest, *, operator: str) -> tuple[
         source_rack = get_shelf_node(db, source_code)
         dest_rack = get_shelf_node(db, dest_code)
         if source_rack is None:
-            raise HTTPException(status_code=404, detail=f"Rack '{source_code}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Rack '{source_code}' not found")
         if dest_rack is None:
-            raise HTTPException(status_code=404, detail=f"Rack '{dest_code}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Rack '{dest_code}' not found")
 
-        src_levels = [lvl for lvl in (source_rack.levels or "").split(",") if lvl]
-        dst_levels = [lvl for lvl in (dest_rack.levels or "").split(",") if lvl]
+        src_levels = [lvl for lvl in (
+            source_rack.levels or "").split(",") if lvl]
+        dst_levels = [lvl for lvl in (
+            dest_rack.levels or "").split(",") if lvl]
         if len(dst_levels) < len(src_levels):
             raise HTTPException(
                 status_code=400,
@@ -438,7 +484,8 @@ def bulk_move(db: Session, payload: BulkMoveRequest, *, operator: str) -> tuple[
     for src_pos, dst_pos in pairs:
         if src_pos == dst_pos:
             continue
-        shelf_items = list(db.execute(select(Item).where(Item.shelf_position == src_pos)).scalars().all())
+        shelf_items = list(db.execute(select(Item).where(
+            Item.shelf_position == src_pos)).scalars().all())
         for item in shelf_items:
             item.shelf_position = dst_pos
             movement = Movement(
@@ -459,7 +506,8 @@ def bulk_move(db: Session, payload: BulkMoveRequest, *, operator: str) -> tuple[
 
     if moved_items == 0:
         noun = "Shelf" if payload.mode == "shelf" else "Rack"
-        raise HTTPException(status_code=400, detail=f"{noun} '{source_code}' has no items to move")
+        raise HTTPException(
+            status_code=400, detail=f"{noun} '{source_code}' has no items to move")
 
     db.commit()
 

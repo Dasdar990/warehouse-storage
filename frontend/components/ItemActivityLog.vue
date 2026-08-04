@@ -11,7 +11,7 @@
         class="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[0.8rem]"
         :class="{ 'opacity-45': h.voided }"
       >
-        <span>
+        <span class="flex flex-wrap items-center gap-1.5 cursor-default">
           <template v-if="h.action === 'move'">
             <strong class="text-accent">Moved</strong>
             <span class="text-muted">
@@ -20,9 +20,19 @@
           </template>
           <template v-else>
             <strong
-              :class="h.action === 'deposit' ? 'text-green-300' : 'text-red-300'"
+              :class="
+                h.action === 'deposit'
+                  ? 'text-green-300'
+                  : h.action === 'withdraw'
+                    ? 'text-red-300'
+                    : 'text-ink'
+              "
             >
-              {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
+              {{
+                h.action === "edit"
+                  ? getMovementActionLabel(h.action)
+                  : `${h.action === "deposit" ? "+" : "−"}${h.quantity}`
+              }}
             </strong>
           </template>
           <span class="text-muted"> by </span>
@@ -39,6 +49,7 @@
 
 <script setup lang="ts">
 import type { Movement } from "~/composables/useWarehouseApi";
+import { getMovementActionLabel } from "~/utils/movementActions";
 
 const props = defineProps<{ itemId: number }>();
 
@@ -64,7 +75,10 @@ function formatHistoryTime(iso: string) {
   const d = new Date(iso);
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return `${day}/${month} ${time}`;
 }
 </script>

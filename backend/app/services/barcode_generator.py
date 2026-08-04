@@ -7,7 +7,7 @@ DIGITS = 8
 
 
 def generate_unique_barcode(db: Session) -> str:
-    prefix = now_rome().strftime("%y-IENER-")
+    prefix = now_rome().strftime("%YIENER")
 
     max_id = db.execute(select(func.max(Item.id))).scalar()
     next_id = (max_id or 0) + 1

@@ -2,21 +2,118 @@
   <section class="card">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
-        <h2 class="text-[1.5rem] font-bold leading-tight text-ink">
-          {{ item.name }}
-        </h2>
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          <span v-if="item.pn" class="badge badge--pn">P/N {{ item.pn }}</span>
-          <span v-if="item.serial" class="badge badge--serial"
-            >S/N {{ item.serial }}</span
-          >
-          <span class="badge badge--category">{{ item.category }}</span>
-          <span v-if="item.program" class="badge badge--program">{{
-            item.program
-          }}</span>
-          <span class="badge badge--size" :class="`badge--size-${item.size}`">{{
-            sizeLabel(item.size)
-          }}</span>
+        <template v-if="!editing">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <h2 class="text-[1.65rem] font-bold leading-tight text-ink">
+              {{ item.name }}
+            </h2>
+            <button
+              type="button"
+              class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent/40 bg-accent/12 px-3 py-1.5 text-[0.82rem] font-semibold text-accent transition-colors hover:border-accent/70 hover:bg-accent/22 active:bg-accent/28"
+              title="Edit item"
+              aria-label="Edit item"
+              @click="startEdit"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
+                />
+              </svg>
+              Edit
+            </button>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <span v-if="item.pn" class="badge badge--pn"
+              >P/N {{ item.pn }}</span
+            >
+            <span v-if="item.serial" class="badge badge--serial"
+              >S/N {{ item.serial }}</span
+            >
+            <span class="badge badge--category">{{ item.category }}</span>
+            <span v-if="item.program" class="badge badge--program">{{
+              item.program
+            }}</span>
+            <span
+              class="badge badge--size"
+              :class="`badge--size-${item.size}`"
+              >{{ sizeLabel(item.size) }}</span
+            >
+          </div>
+        </template>
+
+        <div v-else class="flex flex-col gap-2">
+          <input
+            v-model="editForm.name"
+            type="text"
+            placeholder="Item name"
+            class="field-input text-[1.12rem] font-semibold"
+          />
+          <div class="grid grid-cols-2 gap-2 max-[480px]:grid-cols-1">
+            <input
+              v-model="editForm.pn"
+              type="text"
+              placeholder="P/N (optional)"
+              class="field-input text-[0.92rem]"
+            />
+            <input
+              v-model="editForm.serial"
+              type="text"
+              placeholder="Serial (optional)"
+              class="field-input text-[0.92rem]"
+            />
+            <select
+              v-model="editForm.category"
+              class="field-input text-[0.92rem]"
+            >
+              <option value="" disabled>Select a category…</option>
+              <option v-for="cat in editCategories" :key="cat" :value="cat">
+                {{ cat }}
+              </option>
+            </select>
+            <select
+              v-model="editForm.program"
+              class="field-input text-[0.92rem]"
+            >
+              <option value="">— No program —</option>
+              <option v-for="p in editPrograms" :key="p" :value="p">
+                {{ p }}
+              </option>
+            </select>
+            <select v-model="editForm.size" class="field-input text-[0.92rem]">
+              <option value="small">Small</option>
+              <option value="big">Big</option>
+              <option value="xl">XL</option>
+            </select>
+          </div>
+          <p v-if="editError" class="m-0 text-[0.88rem] text-red-300">
+            {{ editError }}
+          </p>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="btn btn--confirm btn--small cursor-pointer"
+              :disabled="savingEdit"
+              @click="saveEdit"
+            >
+              {{ savingEdit ? "Saving…" : "Save changes" }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost btn--small cursor-pointer"
+              :disabled="savingEdit"
+              @click="cancelEdit"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
       <NuxtLink
@@ -31,26 +128,26 @@
           :class="item.shelf_position ? 'bg-accent/16' : 'bg-surface-2'"
         >
           <div
-            class="text-[0.65rem] font-bold uppercase tracking-[0.12em]"
+            class="text-[0.72rem] font-bold uppercase tracking-[0.12em]"
             :class="item.shelf_position ? 'text-accent' : 'text-muted'"
           >
             📍 Location
           </div>
           <div
             v-if="item.shelf_position"
-            class="mt-1 text-[1.9rem] font-extrabold leading-none text-ink"
+            class="mt-1 text-[2rem] font-extrabold leading-none text-ink"
           >
             {{ item.shelf_position }}
           </div>
           <div
             v-else
-            class="mt-1 text-[1.15rem] font-bold leading-none text-muted"
+            class="mt-1 text-[1.22rem] font-bold leading-none text-muted"
           >
             Not shelved
           </div>
           <div
             v-if="zoneLabel"
-            class="mt-1 text-[0.75rem] font-medium text-muted"
+            class="mt-1 text-[0.82rem] font-medium text-muted"
           >
             Zone {{ zoneLabel }}
           </div>
@@ -58,7 +155,7 @@
       </NuxtLink>
     </div>
 
-    <p v-if="otherShelves.length" class="m-0 mt-2.5 text-[0.8rem] text-muted">
+    <p v-if="otherShelves.length" class="m-0 mt-2.5 text-[0.88rem] text-muted">
       Also on
       <span
         v-for="(o, i) in otherShelves"
@@ -75,10 +172,10 @@
       class="mt-3.5 inline-flex items-center gap-2.5 rounded-lg bg-surface-2 px-3.5 py-2"
     >
       <span
-        class="text-[0.68rem] font-semibold uppercase tracking-wide text-muted"
+        class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
         >Stock</span
       >
-      <span class="text-[1.35rem] font-bold text-ink">{{ item.quantity }}</span>
+      <span class="text-[1.45rem] font-bold text-ink">{{ item.quantity }}</span>
     </div>
 
     <!-- Step 1: pick the movement -->
@@ -108,7 +205,7 @@
           </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-[1.05rem] font-semibold text-ink">Withdraw</span>
+          <span class="text-[1.12rem] font-semibold text-ink">Withdraw</span>
         </span>
       </button>
       <button
@@ -133,7 +230,7 @@
           </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-[1.05rem] font-semibold text-ink">Add</span>
+          <span class="text-[1.12rem] font-semibold text-ink">Add</span>
         </span>
       </button>
       <button
@@ -148,7 +245,7 @@
           <img src="~/assets/icons/move.svg" class="w-6 h-auto" />
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-[1.05rem] font-semibold text-ink">Move</span>
+          <span class="text-[1.12rem] font-semibold text-ink">Move</span>
         </span>
       </button>
     </div>
@@ -160,7 +257,7 @@
     >
       <div class="flex items-center justify-between gap-2">
         <span
-          class="text-[0.8rem] font-semibold uppercase tracking-wide"
+          class="text-[0.88rem] font-semibold uppercase tracking-wide"
           :class="
             pendingAction === 'withdraw' ? 'text-red-300' : 'text-green-300'
           "
@@ -169,7 +266,7 @@
         </span>
         <button
           type="button"
-          class="text-[0.8rem] text-muted underline-offset-2 hover:underline"
+          class="text-[0.88rem] text-muted underline-offset-2 hover:underline"
           :disabled="busy"
           @click="cancelAction"
         >
@@ -193,7 +290,7 @@
           type="number"
           min="1"
           :max="pendingAction === 'withdraw' ? item.quantity : undefined"
-          class="field-input w-17.5 px-1 text-center text-[1.1rem] no-spinner"
+          class="field-input w-17.5 px-1 text-center text-[1.18rem] no-spinner"
         />
         <button
           type="button"
@@ -210,7 +307,7 @@
             v-for="preset in quickQuantities"
             :key="preset.label"
             type="button"
-            class="rounded-full border border-edge/70 px-2.5 py-1 text-[0.75rem] font-semibold text-muted hover:border-accent/50 hover:text-ink"
+            class="rounded-full border border-edge/70 px-2.5 py-1 text-[0.82rem] font-semibold text-muted hover:border-accent/50 hover:text-ink"
             :class="{ 'border-accent/60 text-ink': qty === preset.value }"
             @click="qty = preset.value"
           >
@@ -219,7 +316,7 @@
         </div>
       </div>
 
-      <p v-if="qtyError" class="m-0 text-[0.8rem] text-red-300">
+      <p v-if="qtyError" class="m-0 text-[0.88rem] text-red-300">
         {{ qtyError }}
       </p>
 
@@ -229,7 +326,7 @@
         class="flex flex-col gap-2 rounded-lg bg-surface px-3 py-2.5"
       >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-[0.78rem] font-semibold text-muted"
+          <span class="text-[0.85rem] font-semibold text-muted"
             >Deposit onto</span
           >
           <button
@@ -250,26 +347,26 @@
           </button>
         </div>
 
-        <p v-if="!depositElsewhere" class="m-0 text-[0.85rem] text-ink">
+        <p v-if="!depositElsewhere" class="m-0 text-[0.92rem] text-ink">
           Shelf {{ item.shelf_position }}
           <span class="text-muted">(current)</span>
         </p>
         <template v-else>
-          <p v-if="!item.shelf_position" class="m-0 text-[0.78rem] text-muted">
+          <p v-if="!item.shelf_position" class="m-0 text-[0.85rem] text-muted">
             This item isn't on a shelf yet -- pick where to deposit it.
           </p>
           <div
             v-if="otherShelves.length"
             class="flex flex-wrap items-center gap-1.5"
           >
-            <span class="text-[0.75rem] text-muted"
+            <span class="text-[0.82rem] text-muted"
               >You also have this on:</span
             >
             <button
               v-for="o in otherShelves"
               :key="o.id"
               type="button"
-              class="rounded-full border px-2.5 py-1 text-[0.75rem] font-semibold"
+              class="rounded-full border px-2.5 py-1 text-[0.82rem] font-semibold"
               :class="
                 depositShelfPosition === o.shelf_position
                   ? 'border-accent/60 bg-accent/15 text-ink'
@@ -281,7 +378,7 @@
             </button>
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-[0.78rem] text-muted">Destination shelf</label>
+            <label class="text-[0.85rem] text-muted">Destination shelf</label>
             <ShelfPicker
               v-model="depositShelfPosition"
               :options="shelfOptions"
@@ -292,7 +389,7 @@
       </div>
 
       <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-[0.85rem]"
+        class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-[0.92rem]"
       >
         <span class="text-muted">
           {{ pendingAction === "withdraw" ? "Withdraw" : "Add" }}
@@ -326,7 +423,7 @@
 
       <button
         type="button"
-        class="cursor-pointer py-2.5 text-[0.95rem] font-semibold"
+        class="cursor-pointer py-2.5 text-[1.02rem] font-semibold"
         :class="
           pendingAction === 'withdraw' ? 'btn btn--danger' : 'btn btn--confirm'
         "
@@ -358,13 +455,13 @@
     >
       <div class="flex items-center justify-between gap-2">
         <span
-          class="text-[0.8rem] font-semibold uppercase tracking-wide text-accent"
+          class="text-[0.88rem] font-semibold uppercase tracking-wide text-accent"
         >
           Moving to another shelf
         </span>
         <button
           type="button"
-          class="text-[0.8rem] text-muted underline-offset-2 hover:underline"
+          class="text-[0.88rem] text-muted underline-offset-2 hover:underline"
           :disabled="busy"
           @click="cancelAction"
         >
@@ -372,7 +469,7 @@
         </button>
       </div>
 
-      <p class="m-0 text-[0.85rem] text-muted">
+      <p class="m-0 text-[0.92rem] text-muted">
         <template v-if="item.shelf_position">
           Currently on
           <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
@@ -397,7 +494,7 @@
           type="number"
           min="1"
           :max="item.quantity"
-          class="field-input w-17.5 px-1 text-center text-[1.1rem] no-spinner"
+          class="field-input w-17.5 px-1 text-center text-[1.18rem] no-spinner"
         />
         <button
           type="button"
@@ -414,7 +511,7 @@
             v-for="preset in moveQuickQuantities"
             :key="preset.label"
             type="button"
-            class="rounded-full border border-edge/70 px-2.5 py-1 text-[0.75rem] font-semibold text-muted hover:border-accent/50 hover:text-ink"
+            class="rounded-full border border-edge/70 px-2.5 py-1 text-[0.82rem] font-semibold text-muted hover:border-accent/50 hover:text-ink"
             :class="{ 'border-accent/60 text-ink': moveQty === preset.value }"
             @click="moveQty = preset.value"
           >
@@ -422,7 +519,7 @@
           </button>
         </div>
       </div>
-      <p class="m-0 text-[0.78rem] text-muted">
+      <p class="m-0 text-[0.85rem] text-muted">
         {{
           moveQty >= item.quantity
             ? "Moving all of it -- the shelf will be freed up."
@@ -434,12 +531,12 @@
         v-if="otherShelves.length"
         class="flex flex-wrap items-center gap-1.5"
       >
-        <span class="text-[0.75rem] text-muted">You also have this on:</span>
+        <span class="text-[0.82rem] text-muted">You also have this on:</span>
         <button
           v-for="o in otherShelves"
           :key="o.id"
           type="button"
-          class="rounded-full border px-2.5 py-1 text-[0.75rem] font-semibold"
+          class="rounded-full border px-2.5 py-1 text-[0.82rem] font-semibold"
           :class="
             moveShelfPosition === o.shelf_position
               ? 'border-accent/60 bg-accent/15 text-ink'
@@ -452,7 +549,7 @@
       </div>
 
       <div class="flex flex-col gap-1.5">
-        <label class="text-[0.78rem] text-muted">Destination shelf</label>
+        <label class="text-[0.85rem] text-muted">Destination shelf</label>
         <ShelfPicker
           v-model="moveShelfPosition"
           :options="shelfOptions"
@@ -460,16 +557,16 @@
         />
       </div>
 
-      <p v-if="moveError" class="m-0 text-[0.8rem] text-red-300">
+      <p v-if="moveError" class="m-0 text-[0.88rem] text-red-300">
         {{ moveError }}
       </p>
-      <p v-else-if="moveQtyError" class="m-0 text-[0.8rem] text-red-300">
+      <p v-else-if="moveQtyError" class="m-0 text-[0.88rem] text-red-300">
         {{ moveQtyError }}
       </p>
 
       <button
         type="button"
-        class="btn btn--confirm cursor-pointer py-2.5 text-[0.95rem] font-semibold"
+        class="btn btn--confirm cursor-pointer py-2.5 text-[1.02rem] font-semibold"
         :disabled="
           busy ||
           !moveShelfPosition ||
@@ -489,16 +586,16 @@
     <div class="mt-5">
       <div class="mb-1.5 flex items-center justify-between">
         <span
-          class="text-[0.75rem] font-semibold uppercase tracking-wide text-muted"
+          class="text-[0.82rem] font-semibold uppercase tracking-wide text-muted"
           >Recent activity</span
         >
-        <span v-if="loadingHistory" class="text-[0.75rem] text-muted"
+        <span v-if="loadingHistory" class="text-[0.82rem] text-muted"
           >Loading…</span
         >
       </div>
       <p
         v-if="!loadingHistory && !history.length"
-        class="m-0 text-[0.8rem] text-muted"
+        class="m-0 text-[0.88rem] text-muted"
       >
         No movements recorded yet for this item.
       </p>
@@ -506,7 +603,7 @@
         <li
           v-for="h in history"
           :key="h.id"
-          class="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[0.8rem]"
+          class="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[0.88rem]"
           :class="{ 'opacity-45': h.voided }"
         >
           <span>
@@ -519,16 +616,24 @@
             <template v-else>
               <strong
                 :class="
-                  h.action === 'deposit' ? 'text-green-300' : 'text-red-300'
+                  h.action === 'deposit'
+                    ? 'text-green-300'
+                    : h.action === 'withdraw'
+                      ? 'text-red-300'
+                      : 'text-ink'
                 "
               >
-                {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
+                {{
+                  h.action === "edit"
+                    ? getMovementActionLabel(h.action)
+                    : `${h.action === "deposit" ? "+" : "−"}${h.quantity}`
+                }}
               </strong>
             </template>
             <span class="text-muted"> by </span>
             <span class="text-ink">{{ h.operator }}</span>
           </span>
-          <span class="whitespace-nowrap text-[0.72rem] text-muted">{{
+          <span class="whitespace-nowrap text-[0.78rem] text-muted">{{
             formatHistoryTime(h.timestamp)
           }}</span>
         </li>
@@ -610,6 +715,58 @@
         </svg>
         <span>Locate</span>
       </NuxtLink>
+
+      <button
+        v-if="isAdmin && !confirmingDelete"
+        type="button"
+        class="btn btn--ghost ml-auto inline-flex cursor-pointer items-center gap-2 text-red-300 hover:bg-bad/12"
+        title="Delete item"
+        aria-label="Delete item"
+        @click="confirmingDelete = true"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="h-4.5 w-4.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        </svg>
+        <span>Delete item</span>
+      </button>
+    </div>
+
+    <div
+      v-if="confirmingDelete"
+      class="mt-2.5 flex flex-wrap items-center gap-2 rounded-lg bg-bad/10 px-3.5 py-2.5"
+    >
+      <span class="flex-1 text-[0.92rem] text-red-200">
+        Delete "{{ item.name }}" permanently
+        <template v-if="item.quantity > 0"
+          >, including its {{ item.quantity }} unit(s) in stock</template
+        >? This can't be undone.
+      </span>
+      <button
+        type="button"
+        class="btn btn--danger btn--small cursor-pointer"
+        :disabled="deleting"
+        @click="confirmDelete"
+      >
+        {{ deleting ? "Deleting…" : "Yes, delete" }}
+      </button>
+      <button
+        type="button"
+        class="btn btn--ghost btn--small cursor-pointer"
+        :disabled="deleting"
+        @click="confirmingDelete = false"
+      >
+        Cancel
+      </button>
     </div>
   </section>
 </template>
@@ -625,33 +782,61 @@ import type {
 const props = defineProps<{
   item: Item;
   zoneLabel?: string;
-  /** Where the current selection came from -- tags the *next* quick action for the audit log. */
   defaultSource?: MovementSource;
-  /** Skip step 1 and jump straight into this action (used by the quick-action popups). */
   autoStartAction?: "withdraw" | "deposit" | "move";
 }>();
 
 const emit = defineEmits<{
   close: [];
   updated: [item: Item];
+  deleted: [itemId: number];
 }>();
 
 const {
   withdrawItem,
   depositItem,
   moveItem,
+  updateItem,
+  deleteItem,
   getShelfPositions,
   labelUrl,
   listMovements,
   listItems,
+  listCategories,
+  listItemPrograms,
 } = useWarehouseApi();
-const { show } = useToast();
 
-const qty = ref<number>(1);
+const { show } = useToast();
+const { isAdmin } = useAuth();
+const qty = ref(1);
 const busy = ref(false);
 
-// Small "who did what with this item" panel, refreshed whenever the
-// selected item changes or a new movement is confirmed on it.
+// -- Form Types & State ----------------------------------------------
+interface EditFormState {
+  name: string;
+  pn: string;
+  serial: string;
+  category: string;
+  program: string;
+  size: Item["size"];
+}
+
+const editing = ref(false);
+const savingEdit = ref(false);
+const editError = ref("");
+const editCategories = ref<string[]>([]);
+const editPrograms = ref<string[]>([]);
+
+const editForm = ref<EditFormState>({
+  name: "",
+  pn: "",
+  serial: "",
+  category: "",
+  program: "",
+  size: "small",
+});
+
+// -- History Panel ----------------------------------------------------
 const history = ref<Movement[]>([]);
 const loadingHistory = ref(false);
 
@@ -677,13 +862,9 @@ function formatHistoryTime(iso: string) {
   return `${day}/${month} ${time}`;
 }
 
-// Step 1 only picks *which* movement; step 2 (below) then asks for the
-// quantity (or destination shelf) and shows a confirmation summary before
-// anything is sent.
+// -- Actions State ----------------------------------------------------
 const pendingAction = ref<"withdraw" | "deposit" | "move" | null>(null);
 
-// Common quick-pick amounts, plus "All" (the full current stock) so clearing
-// out a shelf in one withdrawal doesn't require typing the exact number.
 const quickQuantities = computed(() => {
   const cap =
     pendingAction.value === "withdraw"
@@ -692,6 +873,7 @@ const quickQuantities = computed(() => {
   const presets = [1, 5, 10]
     .filter((n) => n <= Math.max(cap, 1))
     .map((n) => ({ label: String(n), value: n }));
+
   if (
     pendingAction.value === "withdraw" &&
     props.item.quantity > 0 &&
@@ -725,15 +907,11 @@ function sizeLabel(size: string) {
   );
 }
 
-// -- Move to another shelf --------------------------------------------
+// -- Move Logic -------------------------------------------------------
 const shelfOptions = ref<ShelfPositionOption[]>([]);
 const loadingShelves = ref(false);
 const moveShelfPosition = ref("");
 const moveQty = ref(1);
-
-// Same part (same P/N) can legitimately live on more than one shelf --
-// surface the other locations so an operator doesn't miss stock elsewhere,
-// and let them jump straight to one as a deposit/move destination.
 const otherShelves = ref<Item[]>([]);
 
 async function loadOtherShelves() {
@@ -749,9 +927,13 @@ async function loadOtherShelves() {
   }
 }
 
-// -- Deposit onto a different shelf ------------------------------------
+// -- Deposit Logic -----------------------------------------------------
 const depositElsewhere = ref(false);
 const depositShelfPosition = ref("");
+
+// -- Delete Logic -----------------------------------------------------
+const confirmingDelete = ref(false);
+const deleting = ref(false);
 
 watch(
   () => props.item.id,
@@ -762,6 +944,8 @@ watch(
     moveQty.value = props.item.quantity || 1;
     depositElsewhere.value = false;
     depositShelfPosition.value = "";
+    editing.value = false;
+    confirmingDelete.value = false;
     loadHistory();
     loadOtherShelves();
     if (props.autoStartAction) startAction(props.autoStartAction);
@@ -774,7 +958,7 @@ async function loadShelfOptions() {
   try {
     shelfOptions.value = await getShelfPositions();
   } catch {
-    // Non-critical: the move/deposit panels just won't have options to pick from.
+    // Non-critical
   } finally {
     loadingShelves.value = false;
   }
@@ -791,8 +975,6 @@ const moveError = computed(() => {
   return "";
 });
 
-// Common quick-pick amounts for a move, same idea as quickQuantities but
-// capped to what's actually on the shelf right now.
 const moveQuickQuantities = computed(() => {
   const cap = Math.max(props.item.quantity, 1);
   const presets = [1, 5, 10]
@@ -812,7 +994,6 @@ const moveQtyError = computed(() => {
   return "";
 });
 
-/** Quick-pick one of `otherShelves` as the move destination. */
 function pickMoveSuggestion(o: Item) {
   moveShelfPosition.value = o.shelf_position;
   if (!shelfOptions.value.length) loadShelfOptions();
@@ -828,7 +1009,6 @@ function resetDepositShelf() {
   depositShelfPosition.value = "";
 }
 
-/** Quick-pick one of `otherShelves` as the deposit destination. */
 function pickDepositSuggestion(o: Item) {
   depositElsewhere.value = true;
   depositShelfPosition.value = o.shelf_position;
@@ -844,7 +1024,6 @@ function startAction(action: "withdraw" | "deposit" | "move") {
     if (!shelfOptions.value.length) loadShelfOptions();
   }
   if (action === "deposit") {
-    // No current shelf to fall back to -- go straight into "pick a shelf".
     depositElsewhere.value = !props.item.shelf_position;
     depositShelfPosition.value = "";
     if (depositElsewhere.value && !shelfOptions.value.length)
@@ -923,6 +1102,87 @@ async function confirmAction() {
     show("error", err?.data?.detail || "Operation failed");
   } finally {
     busy.value = false;
+  }
+}
+
+// -- Edit Handlers ----------------------------------------------------
+async function startEdit() {
+  // Pre-fetch options if they haven't been loaded yet
+  if (!editCategories.value.length || !editPrograms.value.length) {
+    try {
+      const [cats, progs] = await Promise.all([
+        listCategories(),
+        listItemPrograms(),
+      ]);
+      editCategories.value = cats;
+      editPrograms.value = progs;
+    } catch {
+      // Non-critical: select elements will fallback gracefully
+    }
+  }
+
+  // Initialize form strictly after options are available
+  editForm.value = {
+    name: props.item.name ?? "",
+    pn: props.item.pn ?? "",
+    serial: props.item.serial ?? "",
+    category: props.item.category ?? "",
+    program: props.item.program ?? "",
+    size: props.item.size ?? "small",
+  };
+
+  editError.value = "";
+  editing.value = true;
+}
+
+function cancelEdit() {
+  editing.value = false;
+  editError.value = "";
+}
+
+async function saveEdit() {
+  const name = (editForm.value.name ?? "").trim();
+  const category = (editForm.value.category ?? "").trim();
+  if (!name) {
+    editError.value = "Name can't be blank.";
+    return;
+  }
+  if (!category) {
+    editError.value = "Category can't be blank.";
+    return;
+  }
+  editError.value = "";
+  savingEdit.value = true;
+  try {
+    const updated = await updateItem(props.item.id, {
+      name,
+      pn: (editForm.value.pn ?? "").trim(),
+      serial: (editForm.value.serial ?? "").trim() || null,
+      category,
+      program: (editForm.value.program ?? "").trim() || null,
+      size: editForm.value.size,
+    });
+    show("success", `"${updated.name}" updated`);
+    editing.value = false;
+    emit("updated", updated);
+  } catch (err: any) {
+    editError.value = err?.data?.detail || "Failed to save changes";
+  } finally {
+    savingEdit.value = false;
+  }
+}
+
+async function confirmDelete() {
+  deleting.value = true;
+  try {
+    await deleteItem(props.item.id);
+    show("success", `"${props.item.name}" deleted`);
+    emit("deleted", props.item.id);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to delete item");
+    confirmingDelete.value = false;
+  } finally {
+    deleting.value = false;
   }
 }
 </script>

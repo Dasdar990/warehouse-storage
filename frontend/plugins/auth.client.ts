@@ -5,7 +5,8 @@
  * user can act on stale session data.
  */
 export default defineNuxtPlugin(async () => {
-  const { hydrateFromStorage, fetchMe } = useAuth()
-  hydrateFromStorage()
-  await fetchMe()
-})
+  const { hydrateFromStorage, fetchMe, ready } = useAuth();
+  hydrateFromStorage();
+  await fetchMe();
+  ready.value = true;
+});

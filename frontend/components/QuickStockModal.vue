@@ -84,6 +84,7 @@
         default-source="manual"
         @updated="handleUpdated"
         @close="backToSearch"
+        @deleted="backToSearch"
       />
     </div>
   </div>

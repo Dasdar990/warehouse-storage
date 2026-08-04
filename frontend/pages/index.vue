@@ -189,6 +189,7 @@
           :auto-start-action="autoStartAction"
           @close="clearSelection"
           @updated="handleItemUpdated"
+          @deleted="handleItemDeleted"
         />
 
         <div v-else class="flex flex-col gap-4">
@@ -419,6 +420,12 @@ function handleLocateItem(item: Item) {
 function handleItemUpdated(item: Item) {
   selectedItem.value = item;
   activityLogRef.value?.refresh();
+}
+
+function handleItemDeleted() {
+  selectedItem.value = null;
+  activityLogRef.value?.refresh();
+  loadLayout(true);
 }
 
 /** Row click (or a Deposit/Withdraw button) on the shelf's item list -- jump

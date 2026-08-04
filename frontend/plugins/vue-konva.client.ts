@@ -2,7 +2,13 @@ import { defineNuxtPlugin } from "#app";
 import VueKonva from "vue-konva";
 
 export default defineNuxtPlugin((nuxtApp) => {
-  const app = nuxtApp.vueApp as typeof nuxtApp.vueApp & { __vueKonvaInstalled?: boolean };
+  const app = nuxtApp.vueApp as typeof nuxtApp.vueApp & {
+    __vueKonvaInstalled?: boolean;
+  };
+
+  if (import.meta.server) {
+    return;
+  }
 
   // In dev, Vite HMR can re-execute this plugin on the *same* app instance
   // (e.g. when this file itself is edited). Vue's app.use() warns if the
