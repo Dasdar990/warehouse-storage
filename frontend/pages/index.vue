@@ -212,9 +212,19 @@
             @close="closeDrilldown"
             @back="backToRack"
             @select-item="handleSelectItemFromShelf"
+            @info="openInfoModal"
           />
         </div>
       </transition>
+    </BaseModal>
+
+    <BaseModal v-model="showInfoModal" title="Activity log" size="md">
+      <div v-if="infoItem">
+        <p class="m-0 mb-3 text-[0.9rem] font-semibold text-ink">
+          {{ infoItem.name }}
+        </p>
+        <ItemActivityLog :item-id="infoItem.id" />
+      </div>
     </BaseModal>
 
     <BaseModal v-model="showCatalogModal" title="Categories & Programs" size="lg">
@@ -313,11 +323,20 @@ async function handleItemCreated(item: Item) {
 // --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
 const selectedItem = ref<Item | null>(null);
 const lastSelectionSource = ref<"barcode" | "manual">("manual");
-const autoStartAction = ref<"deposit" | "withdraw" | undefined>(undefined);
+const autoStartAction = ref<"deposit" | "withdraw" | "move" | undefined>(undefined);
 // Bumped on every selection so the card remounts (and autoStartAction jumps
 // straight to the right step) even when re-selecting the same item.
 const selectionNonce = ref(0);
 const zoneNameById = ref<Map<number, string>>(new Map());
+
+// --- Info icon on a shelf's item row: quick glance at its activity log ---
+const showInfoModal = ref(false);
+const infoItem = ref<Item | null>(null);
+
+function openInfoModal(item: Item) {
+  infoItem.value = item;
+  showInfoModal.value = true;
+}
 
 const selectedItemZoneLabel = computed(() => {
   if (!selectedItem.value || !layout.value?.has_custom_layout) return undefined;
@@ -406,7 +425,7 @@ function handleItemUpdated(item: Item) {
  *  straight into the full item card, optionally already on the right step. */
 function handleSelectItemFromShelf(
   item: Item,
-  action?: "deposit" | "withdraw",
+  action?: "deposit" | "withdraw" | "move",
 ) {
   lastSelectionSource.value = "manual";
   selectedItem.value = item;

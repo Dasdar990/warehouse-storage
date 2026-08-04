@@ -88,7 +88,7 @@
     >
       <button
         type="button"
-        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-bad/35 bg-bad/[0.09] px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/60 hover:bg-bad/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-bad/35 bg-bad/9 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/60 hover:bg-bad/16 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         :disabled="busy || item.quantity <= 0"
         @click="startAction('withdraw')"
       >
@@ -108,12 +108,12 @@
           </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-[1.05rem] font-semibold text-ink">Remove</span>
+          <span class="text-[1.05rem] font-semibold text-ink">Withdraw</span>
         </span>
       </button>
       <button
         type="button"
-        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-good/35 bg-good/[0.09] px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-good/60 hover:bg-good/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-good/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-good/35 bg-good/9 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-good/60 hover:bg-good/16 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-good/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         :disabled="busy"
         @click="startAction('deposit')"
       >
@@ -138,27 +138,17 @@
       </button>
       <button
         type="button"
-        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-accent/35 bg-accent/[0.09] px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+        class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-accent/35 bg-accent/9 px-3.5 py-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         :disabled="busy"
         @click="startAction('move')"
       >
         <span
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/22 transition-colors duration-200 group-hover:bg-accent/32"
         >
-          <svg
-            viewBox="0 0 24 24"
-            class="h-5.5 w-5.5 text-emerald-200"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4 7l4-4 4 4M8 3v14M20 17l-4 4-4-4M16 21V7" />
-          </svg>
+          <img src="~/assets/icons/move.svg" class="w-6 h-auto" />
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span class="text-[1.05rem] font-semibold text-ink">Move shelf</span>
+          <span class="text-[1.05rem] font-semibold text-ink">Move</span>
         </span>
       </button>
     </div>
@@ -290,45 +280,13 @@
               📍 {{ o.shelf_position }} ({{ o.quantity }} pcs)
             </button>
           </div>
-          <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-[0.78rem] text-muted">Rack</label>
-              <select
-                v-model="depositRackCode"
-                :disabled="loadingShelves"
-                class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="" disabled>Select a rack…</option>
-                <option
-                  v-for="rack in moveRacks"
-                  :key="rack.code"
-                  :value="rack.code"
-                >
-                  {{ rack.label }}
-                </option>
-              </select>
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-[0.78rem] text-muted">Shelf</label>
-              <select
-                v-model="depositShelfPosition"
-                :disabled="loadingShelves || !depositRackCode"
-                class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="" disabled>
-                  {{
-                    depositRackCode ? "Select a shelf…" : "Select a rack first"
-                  }}
-                </option>
-                <option
-                  v-for="opt in depositShelvesForRack"
-                  :key="opt.value"
-                  :value="opt.value"
-                >
-                  Level {{ opt.level }} ({{ opt.value }})
-                </option>
-              </select>
-            </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[0.78rem] text-muted">Destination shelf</label>
+            <ShelfPicker
+              v-model="depositShelfPosition"
+              :options="shelfOptions"
+              :loading="loadingShelves"
+            />
           </div>
         </template>
       </div>
@@ -337,7 +295,7 @@
         class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-[0.85rem]"
       >
         <span class="text-muted">
-          {{ pendingAction === "withdraw" ? "Remove" : "Add" }}
+          {{ pendingAction === "withdraw" ? "Withdraw" : "Add" }}
           <strong class="text-ink">{{ qty }}</strong> unit(s) of
           <strong class="text-ink">{{ item.name }}</strong>
           <template
@@ -493,43 +451,13 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-2 gap-2.5 max-[480px]:grid-cols-1">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-[0.78rem] text-muted">Rack</label>
-          <select
-            v-model="moveRackCode"
-            :disabled="loadingShelves"
-            class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <option value="" disabled>Select a rack…</option>
-            <option
-              v-for="rack in moveRacks"
-              :key="rack.code"
-              :value="rack.code"
-            >
-              {{ rack.label }}
-            </option>
-          </select>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-[0.78rem] text-muted">Shelf</label>
-          <select
-            v-model="moveShelfPosition"
-            :disabled="loadingShelves || !moveRackCode"
-            class="field-input disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <option value="" disabled>
-              {{ moveRackCode ? "Select a shelf…" : "Select a rack first" }}
-            </option>
-            <option
-              v-for="opt in moveShelvesForRack"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              Level {{ opt.level }} ({{ opt.value }})
-            </option>
-          </select>
-        </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[0.78rem] text-muted">Destination shelf</label>
+        <ShelfPicker
+          v-model="moveShelfPosition"
+          :options="shelfOptions"
+          :loading="loadingShelves"
+        />
       </div>
 
       <p v-if="moveError" class="m-0 text-[0.8rem] text-red-300">
@@ -583,7 +511,7 @@
         >
           <span>
             <template v-if="h.action === 'move'">
-              <strong class="text-accent">Moved</strong>
+              <strong class="text-accent">Moved </strong>
               <span class="text-muted">
                 {{ h.from_shelf_position }} → {{ h.shelf_position }}</span
               >
@@ -719,7 +647,7 @@ const {
 } = useWarehouseApi();
 const { show } = useToast();
 
-const qty = ref(1);
+const qty = ref<number>(1);
 const busy = ref(false);
 
 // Small "who did what with this item" panel, refreshed whenever the
@@ -800,7 +728,6 @@ function sizeLabel(size: string) {
 // -- Move to another shelf --------------------------------------------
 const shelfOptions = ref<ShelfPositionOption[]>([]);
 const loadingShelves = ref(false);
-const moveRackCode = ref("");
 const moveShelfPosition = ref("");
 const moveQty = ref(1);
 
@@ -824,7 +751,6 @@ async function loadOtherShelves() {
 
 // -- Deposit onto a different shelf ------------------------------------
 const depositElsewhere = ref(false);
-const depositRackCode = ref("");
 const depositShelfPosition = ref("");
 
 watch(
@@ -832,11 +758,9 @@ watch(
   () => {
     pendingAction.value = null;
     qty.value = 1;
-    moveRackCode.value = "";
     moveShelfPosition.value = "";
     moveQty.value = props.item.quantity || 1;
     depositElsewhere.value = false;
-    depositRackCode.value = "";
     depositShelfPosition.value = "";
     loadHistory();
     loadOtherShelves();
@@ -855,22 +779,6 @@ async function loadShelfOptions() {
     loadingShelves.value = false;
   }
 }
-
-const moveRacks = computed(() => {
-  const seen = new Map<string, string>();
-  for (const opt of shelfOptions.value) {
-    if (!seen.has(opt.rack_code)) seen.set(opt.rack_code, opt.rack_label);
-  }
-  return Array.from(seen, ([code, label]) => ({ code, label }));
-});
-
-const moveShelvesForRack = computed(() =>
-  shelfOptions.value.filter((opt) => opt.rack_code === moveRackCode.value),
-);
-
-const depositShelvesForRack = computed(() =>
-  shelfOptions.value.filter((opt) => opt.rack_code === depositRackCode.value),
-);
 
 const moveError = computed(() => {
   if (pendingAction.value !== "move") return "";
@@ -904,29 +812,10 @@ const moveQtyError = computed(() => {
   return "";
 });
 
-// Reset the shelf pick when the rack changes -- but not if it was just set
-// programmatically (see pickMoveSuggestion) to a shelf that's already valid
-// for the new rack, which would otherwise immediately wipe it out again.
-watch(moveRackCode, (rack) => {
-  const stillValid = shelfOptions.value.some(
-    (o) => o.rack_code === rack && o.value === moveShelfPosition.value,
-  );
-  if (!stillValid) moveShelfPosition.value = "";
-});
-
-watch(depositRackCode, (rack) => {
-  const stillValid = shelfOptions.value.some(
-    (o) => o.rack_code === rack && o.value === depositShelfPosition.value,
-  );
-  if (!stillValid) depositShelfPosition.value = "";
-});
-
 /** Quick-pick one of `otherShelves` as the move destination. */
-async function pickMoveSuggestion(o: Item) {
-  if (!shelfOptions.value.length) await loadShelfOptions();
-  const opt = shelfOptions.value.find((s) => s.value === o.shelf_position);
-  if (opt) moveRackCode.value = opt.rack_code;
+function pickMoveSuggestion(o: Item) {
   moveShelfPosition.value = o.shelf_position;
+  if (!shelfOptions.value.length) loadShelfOptions();
 }
 
 function openDepositElsewhere() {
@@ -936,17 +825,14 @@ function openDepositElsewhere() {
 
 function resetDepositShelf() {
   depositElsewhere.value = false;
-  depositRackCode.value = "";
   depositShelfPosition.value = "";
 }
 
 /** Quick-pick one of `otherShelves` as the deposit destination. */
-async function pickDepositSuggestion(o: Item) {
+function pickDepositSuggestion(o: Item) {
   depositElsewhere.value = true;
-  if (!shelfOptions.value.length) await loadShelfOptions();
-  const opt = shelfOptions.value.find((s) => s.value === o.shelf_position);
-  if (opt) depositRackCode.value = opt.rack_code;
   depositShelfPosition.value = o.shelf_position;
+  if (!shelfOptions.value.length) loadShelfOptions();
 }
 
 function startAction(action: "withdraw" | "deposit" | "move") {
@@ -954,14 +840,12 @@ function startAction(action: "withdraw" | "deposit" | "move") {
   qty.value = 1;
   if (action === "move") {
     moveQty.value = props.item.quantity || 1;
-    moveRackCode.value = "";
     moveShelfPosition.value = "";
     if (!shelfOptions.value.length) loadShelfOptions();
   }
   if (action === "deposit") {
     // No current shelf to fall back to -- go straight into "pick a shelf".
     depositElsewhere.value = !props.item.shelf_position;
-    depositRackCode.value = "";
     depositShelfPosition.value = "";
     if (depositElsewhere.value && !shelfOptions.value.length)
       loadShelfOptions();
@@ -971,10 +855,8 @@ function startAction(action: "withdraw" | "deposit" | "move") {
 function cancelAction() {
   pendingAction.value = null;
   qty.value = 1;
-  moveRackCode.value = "";
   moveShelfPosition.value = "";
   depositElsewhere.value = false;
-  depositRackCode.value = "";
   depositShelfPosition.value = "";
 }
 

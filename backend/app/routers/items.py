@@ -6,14 +6,21 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin
 from app.db import get_db
 from app.models.item import Item, ItemSize
 from app.models.user import User
 from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut
-from app.schemas.movement import RelocateItemRequest, RelocateItemResponse, StockMoveRequest, StockMoveResponse
+from app.schemas.movement import (
+    BulkMoveRequest,
+    BulkMoveResponse,
+    RelocateItemRequest,
+    RelocateItemResponse,
+    StockMoveRequest,
+    StockMoveResponse,
+)
 from app.services.barcode_generator import generate_unique_barcode
-from app.services.movement_service import deposit_stock, move_item, withdraw_stock
+from app.services.movement_service import bulk_move, deposit_stock, move_item, withdraw_stock
 
 router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -250,3 +257,19 @@ def move_item_endpoint(
         to_shelf_position=movement.shelf_position,
         message=message,
     )
+
+
+@router.post("/special-move", response_model=BulkMoveResponse)
+def special_move(
+    payload: BulkMoveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Admin-only: relocate everything on one shelf, or an entire rack, in one
+    shot -- e.g. when a physical shelving unit gets moved, or a shelf's
+    contents get consolidated elsewhere. Every item found there is
+    relocated with its own MOVE audit-log entry; quantities are untouched.
+    """
+    moved_items, moved_quantity, message = bulk_move(db, payload, operator=current_user.full_name)
+    return BulkMoveResponse(moved_items=moved_items, moved_quantity=moved_quantity, message=message)

@@ -1,5 +1,6 @@
 """Pydantic schemas for stock movements (deposit/withdraw) and the audit log."""
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -61,6 +62,41 @@ class RelocateItemResponse(BaseModel):
     item: ItemOut
     from_shelf_position: str
     to_shelf_position: str
+    message: str
+
+
+class BulkMoveRequest(BaseModel):
+    """
+    Shape for POST /items/special-move: relocate *everything* currently on
+    one shelf, or an entire rack's worth of shelves, somewhere else in one
+    shot -- e.g. when a physical shelving unit gets moved, or a shelf's
+    contents get consolidated elsewhere. Unlike /items/move, this isn't
+    about a single item: every item found at the source location(s) comes
+    along, keeping its own quantity.
+    """
+
+    mode: Literal["shelf", "rack"] = Field(
+        ...,
+        description=(
+            "'shelf' moves everything on one shelf position (e.g. '12B') to another. "
+            "'rack' moves an entire rack's levels to another rack, level-for-level in order."
+        ),
+    )
+    from_code: str = Field(
+        ..., min_length=1, description="Source shelf position ('shelf' mode) or rack code ('rack' mode)"
+    )
+    to_code: str = Field(
+        ..., min_length=1, description="Destination shelf position ('shelf' mode) or rack code ('rack' mode)"
+    )
+    source: MovementSource = Field(
+        default=MovementSource.MANUAL,
+        description="'barcode' if triggered by a scanner read, 'manual' if typed/clicked in the UI",
+    )
+
+
+class BulkMoveResponse(BaseModel):
+    moved_items: int
+    moved_quantity: int
     message: str
 
 

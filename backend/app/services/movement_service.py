@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.timezone import APP_TZ
 from app.models.item import Item
 from app.models.movement import Movement, MovementAction, MovementSource
-from app.schemas.movement import RelocateItemRequest, StockMoveRequest
+from app.schemas.movement import BulkMoveRequest, RelocateItemRequest, StockMoveRequest
+from app.services.shelf_service import get_shelf_node
 from app.services.barcode_generator import generate_unique_barcode
 
 
@@ -382,3 +383,89 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
     db.refresh(original)
     db.refresh(reversal)
     return item, reversal
+
+
+def bulk_move(db: Session, payload: BulkMoveRequest, *, operator: str) -> tuple[int, int, str]:
+    """
+    Relocate everything on a shelf, or an entire rack, in one shot.
+
+    'shelf' mode moves every item currently at `from_code` to `to_code`
+    (both plain shelf positions like '12B'). 'rack' mode moves every level
+    of the `from_code` rack to the matching level (by order) on the
+    `to_code` rack -- e.g. rack "12"'s levels A,B,C,D map onto rack "9"'s
+    A,B,C,D. The destination rack must have at least as many levels as the
+    source, so nothing is left with nowhere to go.
+
+    Unlike `move_item`, there's no merge-or-create step: a shelf position
+    already holds however many items happen to be there (that's normal --
+    see ShelfDetailPanel), so items just get their `shelf_position`
+    reassigned directly. Each moved item gets its own MOVE audit-log row.
+    """
+    clean_operator = operator.strip() or "Operator"
+    source_code = payload.from_code.strip().upper()
+    dest_code = payload.to_code.strip().upper()
+
+    if source_code == dest_code:
+        raise HTTPException(status_code=400, detail="Source and destination are the same")
+
+    if payload.mode == "shelf":
+        pairs = [(source_code, dest_code)]
+    else:
+        source_rack = get_shelf_node(db, source_code)
+        dest_rack = get_shelf_node(db, dest_code)
+        if source_rack is None:
+            raise HTTPException(status_code=404, detail=f"Rack '{source_code}' not found")
+        if dest_rack is None:
+            raise HTTPException(status_code=404, detail=f"Rack '{dest_code}' not found")
+
+        src_levels = [lvl for lvl in (source_rack.levels or "").split(",") if lvl]
+        dst_levels = [lvl for lvl in (dest_rack.levels or "").split(",") if lvl]
+        if len(dst_levels) < len(src_levels):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Rack '{dest_code}' only has {len(dst_levels)} level(s), but "
+                    f"'{source_code}' has {len(src_levels)} -- pick a rack with at least as many levels"
+                ),
+            )
+        pairs = [
+            (f"{source_rack.rack_code}{s_lvl}", f"{dest_rack.rack_code}{d_lvl}")
+            for s_lvl, d_lvl in zip(src_levels, dst_levels)
+        ]
+
+    moved_items = 0
+    moved_quantity = 0
+    for src_pos, dst_pos in pairs:
+        if src_pos == dst_pos:
+            continue
+        shelf_items = list(db.execute(select(Item).where(Item.shelf_position == src_pos)).scalars().all())
+        for item in shelf_items:
+            item.shelf_position = dst_pos
+            movement = Movement(
+                item_id=item.id,
+                item_name=item.name,
+                pn=item.pn,
+                shelf_position=dst_pos,
+                from_shelf_position=src_pos,
+                action=MovementAction.MOVE,
+                quantity=item.quantity,
+                balance_after=item.quantity,
+                source=payload.source,
+                operator=clean_operator,
+            )
+            db.add(movement)
+            moved_items += 1
+            moved_quantity += item.quantity
+
+    if moved_items == 0:
+        noun = "Shelf" if payload.mode == "shelf" else "Rack"
+        raise HTTPException(status_code=400, detail=f"{noun} '{source_code}' has no items to move")
+
+    db.commit()
+
+    if payload.mode == "shelf":
+        message = f"Moved {moved_items} item(s) ({moved_quantity} unit(s)) from shelf {source_code} to {dest_code}."
+    else:
+        message = f"Moved {moved_items} item(s) ({moved_quantity} unit(s)) from rack {source_code} to rack {dest_code}."
+
+    return moved_items, moved_quantity, message

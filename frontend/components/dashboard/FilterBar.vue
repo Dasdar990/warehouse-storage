@@ -52,7 +52,7 @@
         update('shelf_position', ($event.target as HTMLSelectElement).value)
       "
     >
-      <option value="">All shelves</option>
+      <option value="" default>All shelves</option>
       <option v-for="shelf in shelves" :key="shelf" :value="shelf">
         {{ shelf }}
       </option>

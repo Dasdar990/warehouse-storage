@@ -53,7 +53,10 @@
         <tr
           v-for="item in items"
           :key="item.id"
-          :class="{ 'cursor-pointer transition-colors hover:bg-surface-2/60': selectable }"
+          :class="{
+            'cursor-pointer transition-colors hover:bg-surface-2/60':
+              selectable,
+          }"
           @click="onRowClick(item, $event)"
         >
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
@@ -71,7 +74,10 @@
               </span>
             </span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
-            <div v-if="item.serial" class="mt-1 font-mono text-[0.7rem] text-muted">
+            <div
+              v-if="item.serial"
+              class="mt-1 font-mono text-[0.7rem] text-muted"
+            >
               S/N {{ item.serial }}
             </div>
           </td>
@@ -79,7 +85,9 @@
             <span class="badge badge--category">{{ item.category }}</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span v-if="item.program" class="badge badge--program">{{ item.program }}</span>
+            <span v-if="item.program" class="badge badge--program">{{
+              item.program
+            }}</span>
             <span v-else class="text-[0.82rem] text-muted">—</span>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
@@ -93,8 +101,15 @@
             v-if="showShelf"
             class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
           >
-            <span v-if="item.shelf_position" class="badge badge--shelf">{{ item.shelf_position }}</span>
-            <span v-else class="text-[0.82rem] text-muted" title="Fully withdrawn -- no shelf assigned">—</span>
+            <span v-if="item.shelf_position" class="badge badge--shelf">{{
+              item.shelf_position
+            }}</span>
+            <span
+              v-else
+              class="text-[0.82rem] text-muted"
+              title="Fully withdrawn -- no shelf assigned"
+              >—</span
+            >
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             {{ item.quantity }}
@@ -107,26 +122,21 @@
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <div class="flex gap-1.5">
               <button
+                type="button"
+                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-edge bg-transparent text-muted transition-colors hover:border-accent/40 hover:text-accent"
+                title="Activity log for this item"
+                @click="emit('info', item)"
+              >
+                <img src="~/assets/icons/activity.svg" class="w-5 h-auto" />
+              </button>
+              <button
                 v-if="showLocate && item.shelf_position"
                 type="button"
                 class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20"
                 title="Locate on the map"
                 @click="emit('locate', item)"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z"
-                  />
-                  <circle cx="12" cy="9.5" r="2.5" />
-                </svg>
+                <img src="~/assets/icons/locate.svg" class="w-5 h-auto" />
               </button>
               <button
                 type="button"
@@ -164,6 +174,15 @@
                 >
                   <path d="M5 12h14" />
                 </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-edge bg-transparent text-ink transition-colors hover:border-accent/40 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Move to another shelf"
+                :disabled="item.quantity <= 0"
+                @click="emit('relocate', item)"
+              >
+                <img src="~/assets/icons/move.svg" class="w-4 h-auto" />
               </button>
               <a
                 class="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink no-underline"
@@ -222,6 +241,8 @@ const emit = defineEmits<{
   move: [item: Item, action: "deposit" | "withdraw"];
   select: [item: Item];
   locate: [item: Item];
+  info: [item: Item];
+  relocate: [item: Item];
 }>();
 
 function onRowClick(item: Item, event: MouseEvent) {

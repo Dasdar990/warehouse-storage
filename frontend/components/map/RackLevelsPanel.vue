@@ -19,9 +19,9 @@
         @click="emit('select-level', lvl.shelf_position)"
       >
         <span class="text-[0.85rem] font-bold">Level {{ lvl.level }}</span>
-        <span class="text-[0.72rem] text-muted">{{ lvl.shelf_position }}</span>
+        <span class="text-[0.72rem]" :class="lvl.item_count > 0 ? 'text-muted' : 'text-sky-300/80'">{{ lvl.shelf_position }}</span>
         <span v-if="lvl.item_count" class="mt-1 text-[0.75rem] font-semibold">{{ lvl.item_count }} item(s) · {{ lvl.total_quantity }} unit(s)</span>
-        <span v-else class="mt-1 text-[0.75rem] font-normal text-muted">Empty</span>
+        <span v-else class="mt-1 inline-flex items-center gap-1 text-[0.78rem] font-bold text-sky-300">＋ Empty · Available</span>
       </button>
     </div>
   </section>
@@ -44,7 +44,7 @@ const emit = defineEmits<{ 'select-level': [string]; close: [] }>()
 
 function levelClass(shelfPosition: string, hasLowStock: boolean, hasItems: boolean) {
   const base = !hasItems
-    ? 'bg-surface-2 border-edge'
+    ? 'border-dashed border-sky-400/40 bg-sky-500/[0.07] hover:bg-sky-500/[0.12]'
     : hasLowStock
       ? 'bg-bad/[0.14] border-bad/50'
       : 'bg-accent/[0.14] border-accent/45'

@@ -46,6 +46,14 @@
       <p v-if="query && !filteredItems.length" class="py-5 text-center text-muted">
         No item on this shelf matches "{{ query }}".
       </p>
+      <div
+        v-else-if="!items.length"
+        class="mt-3.5 flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-sky-400/40 bg-sky-500/[0.07] px-4 py-6 text-center"
+      >
+        <span class="text-[1.5rem]">＋</span>
+        <span class="text-[0.95rem] font-bold text-sky-300">This shelf is empty</span>
+        <span class="text-[0.8rem] text-muted">Plenty of room here for new stock.</span>
+      </div>
       <DashboardItemTable
         v-else
         :items="filteredItems"
@@ -54,6 +62,8 @@
         selectable
         @select="emit('select-item', $event)"
         @move="(item, action) => emit('select-item', item, action)"
+        @relocate="(item) => emit('select-item', item, 'move')"
+        @info="(item) => emit('info', item)"
       />
     </template>
   </section>
@@ -76,7 +86,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   close: []
   back: []
-  'select-item': [item: Item, action?: 'deposit' | 'withdraw']
+  'select-item': [item: Item, action?: 'deposit' | 'withdraw' | 'move']
+  info: [item: Item]
 }>()
 
 const query = ref('')

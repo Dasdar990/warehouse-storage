@@ -191,6 +191,19 @@ export interface RelocateItemResult {
   message: string
 }
 
+export interface BulkMoveInput {
+  mode: 'shelf' | 'rack'
+  from_code: string
+  to_code: string
+  source?: MovementSource
+}
+
+export interface BulkMoveResult {
+  moved_items: number
+  moved_quantity: number
+  message: string
+}
+
 export interface Movement {
   id: number
   timestamp: string
@@ -355,6 +368,11 @@ export function useWarehouseApi() {
     return apiFetch<RelocateItemResult>('/items/move', { method: 'POST', body: payload })
   }
 
+  /** Admin-only: relocate everything on a shelf, or an entire rack, in one shot. */
+  function specialMove(payload: BulkMoveInput) {
+    return apiFetch<BulkMoveResult>('/items/special-move', { method: 'POST', body: payload })
+  }
+
   function listMovements(
     limit = 50,
     filters: {
@@ -463,6 +481,7 @@ export function useWarehouseApi() {
     withdrawItem,
     depositItem,
     moveItem,
+    specialMove,
     listMovements,
     rollbackMovement,
     labelUrl,
