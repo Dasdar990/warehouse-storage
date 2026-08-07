@@ -206,6 +206,10 @@ export interface RelocateItemResult {
   from_shelf_position: string;
   to_shelf_position: string;
   message: string;
+  /** Only meaningful on a *partial* move: whichever item the moved quantity landed on. */
+  destination_item?: Item | null;
+  /** True if `destination_item` was just created (new barcode -- needs its first label printed). */
+  destination_is_new?: boolean;
 }
 
 export interface BulkMoveInput {

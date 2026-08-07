@@ -380,7 +380,7 @@ def move_item_endpoint(
     recording both the origin and destination shelf, with `operator`
     derived from the logged-in user.
     """
-    item, movement, full = move_item(
+    item, movement, full, destination_item, destination_is_new = move_item(
         db, payload, operator=current_user.full_name)
     if full:
         message = f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}."
@@ -394,6 +394,8 @@ def move_item_endpoint(
         from_shelf_position=movement.from_shelf_position or "",
         to_shelf_position=movement.shelf_position,
         message=message,
+        destination_item=destination_item,
+        destination_is_new=destination_is_new,
     )
 
 

@@ -27,12 +27,15 @@ def _get_item_by_barcode(db: Session, barcode: str) -> Item:
     return item
 
 
-def _find_or_create_destination(db: Session, source: Item, destination: str) -> Item:
+def _find_or_create_destination(db: Session, source: Item, destination: str) -> tuple[Item, bool]:
     """
     Find the item that a cross-shelf deposit or partial move should land on
     at `destination`: an existing row for the same part number if one is
     already there, otherwise a freshly-created item (starting at quantity 0,
-    topped up by the caller) so the stock has somewhere to go.
+    topped up by the caller) so the stock has somewhere to go. Returns
+    `(item, created)` -- callers use `created` to tell the operator whether
+    that destination needs a brand-new label printed (new item) or already
+    has one (existing item, nothing to print).
 
     Items with no P/N can't be reliably matched to "the same part" on
     another shelf, so those always get a brand-new row rather than risking
@@ -48,6 +51,7 @@ def _find_or_create_destination(db: Session, source: Item, destination: str) -> 
             )
         ).scalar_one_or_none()
 
+    created = target is None
     if target is None:
         target = Item(
             name=source.name,
@@ -65,7 +69,7 @@ def _find_or_create_destination(db: Session, source: Item, destination: str) -> 
         db.add(target)
         db.flush()  # assign target.id so the audit-log row below can reference it
 
-    return target
+    return target, created
 
 
 def _clear_shelf_if_empty(item: Item) -> None:
@@ -117,8 +121,9 @@ def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> t
 
     destination = (payload.shelf_position or "").strip().upper()
     redirected = bool(destination) and destination != item.shelf_position
-    target = _find_or_create_destination(
-        db, item, destination) if redirected else item
+    target = item
+    if redirected:
+        target, _created = _find_or_create_destination(db, item, destination)
 
     target.quantity += payload.quantity
     movement = _log_movement(
@@ -159,7 +164,9 @@ def log_edit_item(
     return movement
 
 
-def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tuple[Item, Movement, bool]:
+def move_item(
+    db: Session, payload: RelocateItemRequest, *, operator: str
+) -> tuple[Item, Movement, bool, Item, bool]:
     """
     Relocate stock to a different shelf.
 
@@ -170,8 +177,15 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
     Moving a smaller quantity splits the stock instead: the source keeps
     the remainder on its current shelf, and the moved quantity either tops
     up a matching item already on the destination shelf or creates a new
-    one there. Returns whether this was a full relocation (vs. a split),
-    so the caller can word its response accordingly.
+    one there.
+
+    Returns `(item, movement, full, destination_item, destination_is_new)`:
+    `full` says whether this was a full relocation (vs. a split); for a
+    full move `destination_item` is just `item` itself (same barcode, new
+    shelf) and `destination_is_new` is always False. For a split,
+    `destination_item`/`destination_is_new` describe wherever the moved
+    quantity actually landed -- the caller uses this to tell the operator
+    whether that shelf needs a brand-new label printed.
     """
     item = _get_item_by_barcode(db, payload.barcode)
     destination = payload.shelf_position.strip().upper()
@@ -214,11 +228,11 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
         db.commit()
         db.refresh(item)
         db.refresh(movement)
-        return item, movement, True
+        return item, movement, True, item, False
 
     # Partial move: shrink the source, grow (or create) the destination.
     item.quantity -= move_qty
-    target = _find_or_create_destination(db, item, destination)
+    target, target_is_new = _find_or_create_destination(db, item, destination)
     target.quantity += move_qty
     movement = Movement(
         item_id=target.id,
@@ -238,7 +252,7 @@ def move_item(db: Session, payload: RelocateItemRequest, *, operator: str) -> tu
     db.refresh(item)
     db.refresh(target)
     db.refresh(movement)
-    return item, movement, False
+    return item, movement, False, target, target_is_new
 
 
 def _log_movement(

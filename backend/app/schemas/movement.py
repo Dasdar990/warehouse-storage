@@ -64,6 +64,12 @@ class RelocateItemResponse(BaseModel):
     from_shelf_position: str
     to_shelf_position: str
     message: str
+    # Only meaningfully different from `item` on a *partial* move: whichever
+    # item the moved quantity actually landed on, and whether that item was
+    # just created (brand-new barcode, needs its first label printed) or
+    # already existed there (already labeled, nothing to print).
+    destination_item: ItemOut | None = None
+    destination_is_new: bool = False
 
 
 class BulkMoveRequest(BaseModel):

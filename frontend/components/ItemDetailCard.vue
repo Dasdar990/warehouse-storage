@@ -819,6 +819,39 @@
       </button>
     </div>
   </section>
+
+  <BaseModal v-model="showNewLabelModal" title="New location, new label" size="md">
+    <div v-if="newLabelItem" class="flex flex-col gap-3">
+      <p class="m-0 text-[0.9rem] text-ink">
+        📦 There was no <strong>{{ newLabelItem.pn || newLabelItem.name }}</strong>
+        already on shelf <strong>{{ newLabelItem.shelf_position }}</strong>, so
+        {{ newLabelItem.quantity }} unit(s) landed there as a brand-new item
+        with its own barcode.
+      </p>
+      <p class="m-0 text-[0.85rem] text-muted">
+        This location has never had a label printed -- print one now so it
+        can be found and scanned later.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <a
+          :href="labelUrl(newLabelItem.id)"
+          target="_blank"
+          rel="noopener"
+          class="btn btn--confirm inline-flex cursor-pointer items-center gap-2"
+          @click="showNewLabelModal = false"
+        >
+          🖨 Print label now
+        </a>
+        <button
+          type="button"
+          class="btn btn--ghost cursor-pointer"
+          @click="showNewLabelModal = false"
+        >
+          I'll do it later
+        </button>
+      </div>
+    </div>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -994,6 +1027,11 @@ const deleting = ref(false);
 // unchanged, but the "Shelf:" line printed on the label is now stale.
 const needsReprint = ref(false);
 
+// Set after a *partial* move that had to create a brand-new item at the
+// destination (see confirmMove): that item has never had a label printed.
+const showNewLabelModal = ref(false);
+const newLabelItem = ref<Item | null>(null);
+
 watch(
   () => props.item.id,
   () => {
@@ -1006,6 +1044,8 @@ watch(
     editing.value = false;
     confirmingDelete.value = false;
     needsReprint.value = false;
+    showNewLabelModal.value = false;
+    newLabelItem.value = null;
     loadHistory();
     loadOtherShelves();
     if (props.autoStartAction) startAction(props.autoStartAction);
@@ -1115,6 +1155,13 @@ async function confirmMove() {
     // the wrong shelf. A *partial* move leaves this item right where it
     // was (see move_item on the backend), so nothing on its label changed.
     needsReprint.value = res.item.shelf_position === destination;
+    // A *partial* move that had to create a brand-new item at the
+    // destination (no existing stock of this part there) needs a proper
+    // heads-up: that new item has never had a label printed at all.
+    if (res.destination_is_new && res.destination_item) {
+      newLabelItem.value = res.destination_item;
+      showNewLabelModal.value = true;
+    }
     emit("updated", res.item);
     cancelAction();
     await loadHistory();
