@@ -2,7 +2,7 @@
   <div ref="rootRef" class="relative">
     <button
       type="button"
-      class="field-input flex h-8.5 w-full items-center justify-between gap-2 text-left text-[0.82rem]"
+      class="field-input flex h-9.5 w-full items-center justify-between gap-2 text-left text-[0.82rem]"
       :class="{ 'text-muted': !modelValue }"
       @click="toggleOpen"
     >
@@ -34,7 +34,9 @@
         >
           ‹
         </button>
-        <span class="text-[0.85rem] font-semibold text-ink">{{ monthLabel }}</span>
+        <span class="text-[0.85rem] font-semibold text-ink">{{
+          monthLabel
+        }}</span>
         <button
           type="button"
           class="btn--icon h-7 w-7 text-sm"
@@ -45,7 +47,9 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-7 gap-0.5 text-center text-[0.68rem] font-semibold uppercase text-muted">
+      <div
+        class="grid grid-cols-7 gap-0.5 text-center text-[0.68rem] font-semibold uppercase text-muted"
+      >
         <span v-for="d in weekdayLabels" :key="d">{{ d }}</span>
       </div>
       <div class="mt-1 grid grid-cols-7 gap-0.5">
@@ -62,7 +66,9 @@
         </button>
       </div>
 
-      <div class="mt-2.5 flex items-center justify-between border-t border-edge/60 pt-2">
+      <div
+        class="mt-2.5 flex items-center justify-between border-t border-edge/60 pt-2"
+      >
         <button
           type="button"
           class="text-[0.75rem] text-muted underline-offset-2 hover:underline"
@@ -143,12 +149,21 @@ function shiftMonth(delta: number) {
 }
 
 const monthLabel = computed(() =>
-  viewDate.value.toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+  viewDate.value.toLocaleDateString("it-IT", {
+    month: "long",
+    year: "numeric",
+  }),
 );
 
 const weekdayLabels = ["L", "M", "M", "G", "V", "S", "D"];
 
-type Cell = { key: string; day: number; iso: string; inMonth: boolean; disabled: boolean };
+type Cell = {
+  key: string;
+  day: number;
+  iso: string;
+  inMonth: boolean;
+  disabled: boolean;
+};
 
 const calendarCells = computed<Cell[]>(() => {
   const year = viewDate.value.getFullYear();
@@ -167,7 +182,10 @@ const calendarCells = computed<Cell[]>(() => {
     const cellDate = new Date(gridStart);
     cellDate.setDate(gridStart.getDate() + i);
     const iso = toIso(cellDate);
-    const disabled = !!((minDate && cellDate < minDate) || (maxDate && cellDate > maxDate));
+    const disabled = !!(
+      (minDate && cellDate < minDate) ||
+      (maxDate && cellDate > maxDate)
+    );
     cells.push({
       key: iso,
       day: cellDate.getDate(),
@@ -176,7 +194,12 @@ const calendarCells = computed<Cell[]>(() => {
       disabled,
     });
     // Stop once we've completed the row that contains the month's last day.
-    if (cellDate.getMonth() === month && cellDate.getDate() === daysInMonth && (i + 1) % 7 === 0) break;
+    if (
+      cellDate.getMonth() === month &&
+      cellDate.getDate() === daysInMonth &&
+      (i + 1) % 7 === 0
+    )
+      break;
   }
   return cells;
 });
@@ -223,5 +246,7 @@ function onDocumentMousedown(e: MouseEvent) {
 }
 
 onMounted(() => document.addEventListener("mousedown", onDocumentMousedown));
-onUnmounted(() => document.removeEventListener("mousedown", onDocumentMousedown));
+onUnmounted(() =>
+  document.removeEventListener("mousedown", onDocumentMousedown),
+);
 </script>

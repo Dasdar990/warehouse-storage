@@ -5,7 +5,7 @@
     <input
       class="field-input flex-1 basis-55"
       type="text"
-      placeholder="Search name, P/N, or barcode…"
+      placeholder="Search name, P/N, barcode, tags, or notes…"
       :value="modelValue.search"
       @input="update('search', ($event.target as HTMLInputElement).value)"
     />
@@ -30,6 +30,15 @@
       <option v-for="prog in programs" :key="prog" :value="prog">
         {{ prog }}
       </option>
+    </select>
+
+    <select
+      class="field-input"
+      :value="modelValue.tag || ''"
+      @change="update('tag', ($event.target as HTMLSelectElement).value)"
+    >
+      <option value="">All tags</option>
+      <option v-for="t in tags" :key="t" :value="t">#{{ t }}</option>
     </select>
 
     <select
@@ -104,6 +113,7 @@ const props = defineProps<{
   categories: string[];
   programs: string[];
   shelves: string[];
+  tags: string[];
 }>();
 
 const emit = defineEmits<{

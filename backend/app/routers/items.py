@@ -44,6 +44,9 @@ def list_items(
     pn: Optional[str] = Query(
         default=None, description="Exact P/N match -- finds every shelf location for one part"
     ),
+    tag: Optional[str] = Query(
+        default=None, description="Exact tag match (one of the item's tags, not a substring)"
+    ),
     min_qty: Optional[int] = Query(
         default=None, ge=0, description="Only items with quantity >= this value"),
     max_qty: Optional[int] = Query(
@@ -66,6 +69,8 @@ def list_items(
                 Item.pn.ilike(like),
                 Item.barcode.ilike(like),
                 Item.serial.ilike(like),
+                Item.tags.ilike(like),
+                Item.notes.ilike(like),
             )
         )
     if category:
@@ -78,6 +83,19 @@ def list_items(
         stmt = stmt.where(Item.shelf_position == shelf_position.upper())
     if pn:
         stmt = stmt.where(Item.pn.ilike(pn.strip()))
+    if tag:
+        # Tags are stored comma-separated with no spaces (see _normalize_tags),
+        # so match this exact tag as one element of that list, not just any
+        # substring -- a filter for "spa" shouldn't also pull in "spare-part".
+        t = tag.strip()
+        stmt = stmt.where(
+            or_(
+                Item.tags.ilike(t),
+                Item.tags.ilike(f"{t},%"),
+                Item.tags.ilike(f"%,{t},%"),
+                Item.tags.ilike(f"%,{t}"),
+            )
+        )
     if min_qty is not None:
         stmt = stmt.where(Item.quantity >= min_qty)
     if max_qty is not None:
@@ -87,6 +105,32 @@ def list_items(
 
     stmt = stmt.order_by(Item.id.desc())
     return db.execute(stmt).scalars().all()
+
+
+@router.get("/categories", response_model=list[str])
+def list_categories(db: Session = Depends(get_db)):
+    """Distinct categories currently in use -- populates the dashboard filter dropdown."""
+    rows = db.execute(select(Item.category).distinct()).scalars().all()
+    return sorted(rows)
+
+
+@router.get("/programs", response_model=list[str])
+def list_item_programs(db: Session = Depends(get_db)):
+    """Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown."""
+    rows = db.execute(select(Item.program).distinct()).scalars().all()
+    return sorted(r for r in rows if r)
+
+
+@router.get("/tags", response_model=list[str])
+def list_item_tags(db: Session = Depends(get_db)):
+    """Distinct tags currently in use across all items -- populates the dashboard's tag filter dropdown."""
+    rows = db.execute(select(Item.tags).where(Item.tags.isnot(None))).scalars().all()
+    seen: set[str] = set()
+    for row in rows:
+        for tag in row.split(","):
+            if tag:
+                seen.add(tag)
+    return sorted(seen, key=str.lower)
 
 
 @router.get("/shelves", response_model=list[str])
@@ -163,7 +207,9 @@ def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
             status_code=409, detail=f"Barcode '{payload.barcode}' is already assigned to another item"
         )
 
-    item = Item(**payload.model_dump())
+    data = payload.model_dump()
+    tags = data.pop("tags", [])
+    item = Item(**data, tags=",".join(tags) if tags else None)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -179,44 +225,59 @@ def update_item(
 ):
     """
     Edit an item's descriptive fields (name, P/N, serial, category,
-    program, size). Quantity, shelf, and barcode aren't editable here --
-    see /items/deposit, /withdraw, /move for stock changes, all of which
-    keep a matching Activity Log entry.
+    program, size, tags, notes). Quantity, shelf, and barcode aren't
+    editable here -- see /items/deposit, /withdraw, /move for stock
+    changes, all of which keep a matching Activity Log entry. Whatever
+    *does* change here is diffed and logged as an EDIT movement too, so
+    it shows up in the Activity Log and can be rolled back like any other
+    change (see rollback_movement).
     """
     item = db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
 
     updates = payload.model_dump(exclude_unset=True)
+    changes: dict[str, list[str | None]] = {}
+
+    def apply(field: str, new_value):
+        old_value = getattr(item, field)
+        if old_value != new_value:
+            changes[field] = [old_value, new_value]
+        setattr(item, field, new_value)
 
     if "name" in updates:
         name = (updates["name"] or "").strip()
         if not name:
             raise HTTPException(status_code=400, detail="Name can't be blank")
-        item.name = name
+        apply("name", name)
 
     if "category" in updates:
         category = (updates["category"] or "").strip()
         if not category:
-            raise HTTPException(
-                status_code=400, detail="Category can't be blank")
-        item.category = category
+            raise HTTPException(status_code=400, detail="Category can't be blank")
+        apply("category", category)
 
     if "pn" in updates:
-        item.pn = (updates["pn"] or "").strip()
+        apply("pn", (updates["pn"] or "").strip())
 
     if "serial" in updates:
-        serial = (updates["serial"] or "").strip()
-        item.serial = serial or None
+        apply("serial", (updates["serial"] or "").strip() or None)
 
     if "program" in updates:
-        program = (updates["program"] or "").strip()
-        item.program = program or None
+        apply("program", (updates["program"] or "").strip() or None)
 
     if "size" in updates:
-        item.size = updates["size"]
+        apply("size", updates["size"])
 
-    log_edit_item(db, item, operator=current_user.full_name)
+    if "tags" in updates:
+        tags = updates["tags"] or []
+        apply("tags", ",".join(tags) if tags else None)
+
+    if "notes" in updates:
+        apply("notes", (updates["notes"] or "").strip() or None)
+
+    if changes:
+        log_edit_item(db, item, changes, operator=current_user.full_name)
 
     db.commit()
     db.refresh(item)

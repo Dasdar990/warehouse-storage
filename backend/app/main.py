@@ -101,6 +101,25 @@ def _add_missing_columns() -> None:
             conn.execute(text("ALTER TABLE movements ADD COLUMN split_from_item_id INTEGER"))
             conn.commit()
 
+        # Free-form tags and notes, to make items easier to find in search --
+        # add the columns in place so existing rows are preserved.
+        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        if item_columns and "tags" not in item_columns:
+            conn.execute(text("ALTER TABLE items ADD COLUMN tags VARCHAR"))
+            conn.commit()
+        if item_columns and "notes" not in item_columns:
+            conn.execute(text("ALTER TABLE items ADD COLUMN notes VARCHAR"))
+            conn.commit()
+
+        # EDIT movements need to remember what actually changed (old/new
+        # values) both to be a meaningful audit-log entry and to be
+        # roll-back-able at all -- add the column in place so existing
+        # movement rows are preserved.
+        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        if movement_columns and "field_changes" not in movement_columns:
+            conn.execute(text("ALTER TABLE movements ADD COLUMN field_changes TEXT"))
+            conn.commit()
+
 
 _add_missing_columns()
 

@@ -18,6 +18,17 @@
               {{ h.from_shelf_position }} → {{ h.shelf_position }}</span
             >
           </template>
+          <template v-else-if="h.action === 'edit'">
+            <strong class="text-ink">{{ getMovementActionLabel(h.action) }}</strong>
+            <span v-if="h.field_changes" class="text-muted">
+              <span
+                v-for="(pair, field) in h.field_changes"
+                :key="field"
+                class="mr-1.5"
+                >{{ field }}: {{ pair[0] || "—" }} → {{ pair[1] || "—" }}</span
+              >
+            </span>
+          </template>
           <template v-else>
             <strong
               :class="
@@ -28,11 +39,7 @@
                     : 'text-ink'
               "
             >
-              {{
-                h.action === "edit"
-                  ? getMovementActionLabel(h.action)
-                  : `${h.action === "deposit" ? "+" : "−"}${h.quantity}`
-              }}
+              {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
             </strong>
           </template>
           <span class="text-muted"> by </span>

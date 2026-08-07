@@ -11,10 +11,14 @@
       </div>
       <div class="flex items-center gap-2.5">
         <button
-          v-if="isAdmin"
           type="button"
           class="flex items-center btn btn--ghost btn--small text-[0.9rem]"
-          title="Move everything on a shelf, or a whole rack, at once"
+          :disabled="!isAdmin"
+          :title="
+            isAdmin
+              ? 'Move everything on a shelf, or a whole rack, at once'
+              : 'Admins only'
+          "
           @click="showSpecialMoveModal = true"
         >
           <img
@@ -73,6 +77,7 @@
         :categories="categories"
         :programs="programs"
         :shelves="shelves"
+        :tags="tags"
       />
     </section>
 
@@ -155,7 +160,7 @@ import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
 
 const { isAdmin } = useAuth();
 const route = useRoute();
-const { listItems, listCategories, listItemPrograms, listItemShelves } =
+const { listItems, listCategories, listItemPrograms, listItemShelves, listItemTags } =
   useWarehouseApi();
 
 const filters = ref<ItemFilters>({
@@ -168,6 +173,7 @@ const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);
 const programs = ref<string[]>([]);
 const shelves = ref<string[]>([]);
+const tags = ref<string[]>([]);
 const loading = ref(false);
 const showAddForm = ref(false);
 
@@ -250,6 +256,7 @@ function syncItemInList(item: Item) {
   const idx = items.value.findIndex((i) => i.id === item.id);
   if (idx !== -1) items.value[idx] = item;
   fetchShelves();
+  fetchTags();
 }
 
 function onQuickActionUpdated(item: Item) {
@@ -294,6 +301,10 @@ async function fetchShelves() {
   shelves.value = await listItemShelves();
 }
 
+async function fetchTags() {
+  tags.value = await listItemTags();
+}
+
 watch(
   filters,
   () => {
@@ -310,6 +321,7 @@ async function onItemCreated() {
     fetchCategories(),
     fetchPrograms(),
     fetchShelves(),
+    fetchTags(),
   ]);
 }
 
@@ -318,5 +330,6 @@ onMounted(() => {
   fetchCategories();
   fetchPrograms();
   fetchShelves();
+  fetchTags();
 });
 </script>

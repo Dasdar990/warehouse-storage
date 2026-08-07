@@ -46,17 +46,17 @@
         v-model="itemQuery"
         type="text"
         placeholder="Search item name or P/N…"
-        class="field-input h-8.5 min-w-40 flex-1 basis-45 text-[0.82rem]"
+        class="field-input h-9.5 min-w-40 flex-1 basis-45 text-[0.82rem]"
       />
       <input
         v-model="operatorQuery"
         type="text"
         placeholder="Search by operator…"
-        class="field-input h-8.5 min-w-36 flex-1 basis-40 text-[0.82rem]"
+        class="field-input h-9.5 min-w-36 flex-1 basis-40 text-[0.82rem]"
       />
       <select
         v-model="actionFilter"
-        class="field-input h-8.5 min-w-32 flex-1 basis-32 text-[0.82rem]"
+        class="field-input h-9.5 min-w-32 flex-1 basis-32 text-[0.82rem]"
       >
         <option value="">All actions</option>
         <option value="deposit">Added</option>
@@ -66,7 +66,7 @@
       </select>
       <select
         v-model="sourceFilter"
-        class="field-input h-8.5 min-w-32 flex-1 basis-36 text-[0.82rem]"
+        class="field-input h-9.5 min-w-32 flex-1 basis-36 text-[0.82rem]"
       >
         <option value="">All sources</option>
         <option value="barcode">Barcode verified</option>
@@ -126,7 +126,7 @@
               <th class="pb-2 pr-3 font-semibold text-right">Qty</th>
               <th class="pb-2 pr-3 font-semibold">Item / P/N</th>
               <th class="pb-2 pr-3 font-semibold">Source</th>
-              <th v-if="isAdmin" class="pb-2 font-semibold">Rollback</th>
+              <th class="pb-2 font-semibold">Rollback</th>
             </tr>
           </thead>
           <transition-group tag="tbody" name="log-row">
@@ -165,7 +165,9 @@
               <td
                 class="whitespace-nowrap py-2.5 pr-3 text-right font-semibold text-ink"
               >
-                {{ m.action === "move" ? "—" : m.quantity }}
+                {{
+                  m.action === "move" || m.action === "edit" ? "—" : m.quantity
+                }}
               </td>
               <td class="py-2.5 pr-3">
                 <div class="font-medium text-ink">{{ m.item_name }}</div>
@@ -173,6 +175,16 @@
                   <template v-if="m.action === 'move'">
                     P/N {{ m.pn }} · {{ m.from_shelf_position }} →
                     {{ m.shelf_position }}
+                  </template>
+                  <template v-else-if="m.action === 'edit' && m.field_changes">
+                    <span
+                      v-for="(pair, field) in m.field_changes"
+                      :key="field"
+                      class="mr-2 inline-block"
+                    >
+                      <span class="font-semibold text-muted">{{ field }}:</span>
+                      {{ pair[0] || "—" }} → {{ pair[1] || "—" }}
+                    </span>
                   </template>
                   <template v-else>
                     P/N {{ m.pn }} · Shelf {{ m.shelf_position }}
@@ -193,7 +205,7 @@
                   >Manual entry</span
                 >
               </td>
-              <td v-if="isAdmin" class="whitespace-nowrap py-2.5">
+              <td class="whitespace-nowrap py-2.5">
                 <span v-if="m.voided" class="text-[0.75rem] text-muted"
                   >Rolled back</span
                 >
@@ -206,7 +218,8 @@
                   v-else
                   type="button"
                   class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-bad/40 bg-bad/12 px-3 py-1.5 text-[0.78rem] font-semibold text-red-200 shadow-[0_1px_0_rgba(255,255,255,0.03)] transition-colors duration-150 hover:border-bad/60 hover:bg-bad/22 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bad/12"
-                  :disabled="rollingBack === m.id"
+                  :disabled="!isAdmin || rollingBack === m.id"
+                  :title="isAdmin ? undefined : 'Admins only'"
                   @click="confirmRollback(m)"
                 >
                   <svg
@@ -314,9 +327,15 @@ async function confirmRollback(m: Movement) {
   const question =
     m.action === "move"
       ? `Roll back this move? This will send "${m.item_name}" back from shelf ${m.shelf_position} to shelf ${m.from_shelf_position}.`
-      : `Roll back this movement? This will log a compensating entry ${
-          m.action === "deposit" ? "removing" : "adding back"
-        } ${m.quantity} unit(s) of "${m.item_name}".`;
+      : m.action === "edit"
+        ? `Roll back this edit? This will restore the previous value(s) for ${
+            m.field_changes
+              ? Object.keys(m.field_changes).join(", ")
+              : "this item"
+          } on "${m.item_name}".`
+        : `Roll back this movement? This will log a compensating entry ${
+            m.action === "deposit" ? "removing" : "adding back"
+          } ${m.quantity} unit(s) of "${m.item_name}".`;
   const ok = window.confirm(question);
   if (!ok) return;
 

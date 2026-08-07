@@ -4,13 +4,14 @@ Stock movement logic: mutates an item's quantity and writes a matching
 drift apart.
 """
 from datetime import date, datetime, time
+import json
 
 from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.timezone import APP_TZ
-from app.models.item import Item
+from app.models.item import Item, ItemSize
 from app.models.movement import Movement, MovementAction, MovementSource
 from app.schemas.movement import BulkMoveRequest, RelocateItemRequest, StockMoveRequest
 from app.services.shelf_service import get_shelf_node
@@ -128,13 +129,19 @@ def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> t
     return target, movement, redirected
 
 
-def log_edit_item(db: Session, item: Item, *, operator: str) -> Movement:
-    """Log an EDIT movement for an already-modified Item row.
+def log_edit_item(
+    db: Session, item: Item, changes: dict[str, list], *, operator: str
+) -> Movement:
+    """
+    Log an EDIT movement for an already-modified Item row, recording what
+    actually changed.
 
-    This writes an audit-log row recording that the item was edited
-    (metadata changed). The item's current values are denormalized into
-    the movement so the log remains meaningful even if the item changes
-    again later.
+    `changes` is `{field: [old_value, new_value]}` for every field that
+    differs -- this is what makes the entry both meaningful to read in the
+    Activity Log and possible to roll back (see rollback_movement), unlike
+    a bare "item was edited" note with no record of the previous values.
+    Doesn't commit -- the caller (update_item) does, in the same
+    transaction as the field changes themselves.
     """
     movement = Movement(
         item_id=item.id,
@@ -146,10 +153,9 @@ def log_edit_item(db: Session, item: Item, *, operator: str) -> Movement:
         balance_after=item.quantity,
         source=MovementSource.MANUAL,
         operator=operator.strip() or "Operator",
+        field_changes=json.dumps(changes, default=str),
     )
     db.add(movement)
-    db.commit()
-    db.refresh(movement)
     return movement
 
 
@@ -369,6 +375,39 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
         db.refresh(original)
         db.refresh(reversal)
         return origin_item, reversal
+    elif original.action == MovementAction.EDIT:
+        if not original.field_changes:
+            raise HTTPException(
+                status_code=400,
+                detail="This edit has no recorded changes to roll back",
+            )
+        changes: dict[str, list] = json.loads(original.field_changes)
+        reverse_changes: dict[str, list] = {}
+        for field, (old_value, _new_value) in changes.items():
+            current_value = getattr(item, field)
+            restored = ItemSize(old_value) if field == "size" and old_value is not None else old_value
+            setattr(item, field, restored)
+            reverse_changes[field] = [current_value, restored]
+        reversal = Movement(
+            item_id=item.id,
+            item_name=item.name,
+            pn=item.pn,
+            shelf_position=item.shelf_position,
+            action=MovementAction.EDIT,
+            quantity=item.quantity,
+            balance_after=item.quantity,
+            source=MovementSource.MANUAL,
+            operator=operator.strip() or "Operator",
+            reversal_of_id=original.id,
+            field_changes=json.dumps(reverse_changes, default=str),
+        )
+        db.add(reversal)
+        original.voided = True
+        db.commit()
+        db.refresh(item)
+        db.refresh(original)
+        db.refresh(reversal)
+        return item, reversal
     elif original.action == MovementAction.MOVE:
         reverse_action = MovementAction.MOVE
         origin = item.shelf_position

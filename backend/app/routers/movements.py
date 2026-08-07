@@ -1,4 +1,5 @@
 """Live stock-movement audit log endpoint (powers the ActivityLog feed)."""
+import json
 from datetime import date
 from typing import Optional
 
@@ -56,6 +57,9 @@ def rollback(
     item, reversal = rollback_movement(db, movement_id, operator=current_user.full_name)
     if reversal.action == MovementAction.MOVE:
         detail = f"moved back to shelf {reversal.shelf_position}"
+    elif reversal.action == MovementAction.EDIT:
+        fields = ", ".join(json.loads(reversal.field_changes)) if reversal.field_changes else "its details"
+        detail = f"reverted {fields} to the previous value(s)"
     else:
         detail = f"{reversal.action.value} {reversal.quantity} unit(s)"
     return RollbackResponse(

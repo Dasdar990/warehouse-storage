@@ -1,7 +1,7 @@
 """SQLAlchemy ORM model for the live inventory movement / audit log."""
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.core.timezone import now_rome
@@ -60,6 +60,12 @@ class Movement(Base):
                     length=16), nullable=False)
     quantity = Column(Integer, nullable=False)
     balance_after = Column(Integer, nullable=False)
+    # Only set on EDIT rows: JSON-encoded {field: [old_value, new_value]}
+    # for every descriptive field that actually changed (see update_item /
+    # log_edit_item). This is what makes an EDIT both meaningful to read
+    # and possible to roll back -- without it there'd be no record of what
+    # the values used to be.
+    field_changes = Column(Text, nullable=True)
 
     source = Column(SAEnum(MovementSource, native_enum=False,
                     length=16), nullable=False)

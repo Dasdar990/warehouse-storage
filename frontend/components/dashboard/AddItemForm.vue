@@ -127,7 +127,12 @@
     </div>
 
     <div class="flex flex-col gap-1.5 col-span-full">
-      <label class="text-[0.8rem] text-muted">Shelf</label>
+      <label class="text-[0.8rem] text-muted"
+        >Shelf
+        <span class="text-[0.72rem] text-muted"
+          >(required unless quantity is 0)</span
+        ></label
+      >
       <ShelfPicker
         v-model="form.shelf_position"
         :options="shelfOptions"
@@ -151,6 +156,29 @@
         type="number"
         min="0"
         class="field-input no-spinner disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    </div>
+
+    <div class="flex flex-col gap-1.5 col-span-full">
+      <label class="text-[0.8rem] text-muted"
+        >Tags
+        <span class="text-[0.72rem] text-muted"
+          >(optional -- helps find this item later)</span
+        ></label
+      >
+      <TagsInput v-model="form.tags" placeholder="e.g. spare, critical…" />
+    </div>
+
+    <div class="flex flex-col gap-1.5 col-span-full">
+      <label class="text-[0.8rem] text-muted"
+        >Notes
+        <span class="text-[0.72rem] text-muted">(optional)</span></label
+      >
+      <textarea
+        v-model="form.notes"
+        rows="2"
+        placeholder="Anything that helps identify or find this item later…"
+        class="field-input resize-y disabled:cursor-not-allowed disabled:opacity-60"
       />
     </div>
 
@@ -269,6 +297,8 @@ const EMPTY_FORM = {
   size: "small" as Item["size"],
   shelf_position: "",
   quantity: 0,
+  tags: [] as string[],
+  notes: "",
 };
 
 const form = ref({ ...EMPTY_FORM });
@@ -365,8 +395,9 @@ async function suggestBarcode() {
 
 async function submit() {
   error.value = "";
-  if (!form.value.shelf_position) {
-    error.value = "Pick a shelf from the list before saving.";
+  const quantity = Number(form.value.quantity) || 0;
+  if (quantity > 0 && !form.value.shelf_position) {
+    error.value = "Pick a shelf before saving, or set the quantity to 0 to create it without one for now.";
     return;
   }
   submitting.value = true;
@@ -374,7 +405,7 @@ async function submit() {
   try {
     const item = await createItem({
       ...form.value,
-      quantity: Number(form.value.quantity) || 0,
+      quantity,
     });
     lastCreated.value = item;
     show("success", `Item "${item.name}" created`);

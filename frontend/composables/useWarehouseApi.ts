@@ -11,6 +11,10 @@ export interface Item {
   size: ItemSize;
   shelf_position: string;
   quantity: number;
+  /** Free-form tags to help find this item later, e.g. ['spare', 'critical']. */
+  tags: string[];
+  /** Free-form notes to help find/identify this item later. */
+  notes?: string | null;
 }
 
 /** PATCH /items/{id}: every field optional, only send what actually changed. */
@@ -21,6 +25,8 @@ export interface ItemUpdateInput {
   category?: string;
   program?: string | null;
   size?: ItemSize;
+  tags?: string[];
+  notes?: string | null;
 }
 
 export interface ShelfSummary {
@@ -162,6 +168,8 @@ export interface ItemFilters {
   shelf_position?: string;
   /** Exact P/N match -- finds every shelf location for one part. */
   pn?: string;
+  /** Exact tag match (one of the item's tags, not a substring). */
+  tag?: string;
   min_qty?: number;
   max_qty?: number;
   low_stock?: boolean;
@@ -228,6 +236,8 @@ export interface Movement {
   operator: string;
   voided: boolean;
   reversal_of_id: number | null;
+  /** Only set on 'edit' rows: {field: [old_value, new_value]}. */
+  field_changes: Record<string, [unknown, unknown]> | null;
 }
 
 export type UserRole = "admin" | "operator";
@@ -296,6 +306,7 @@ export function useWarehouseApi() {
     if (filters.size) params.size = filters.size;
     if (filters.shelf_position) params.shelf_position = filters.shelf_position;
     if (filters.pn) params.pn = filters.pn;
+    if (filters.tag) params.tag = filters.tag;
     if (filters.min_qty !== undefined && filters.min_qty !== null)
       params.min_qty = filters.min_qty;
     if (filters.max_qty !== undefined && filters.max_qty !== null)
@@ -310,12 +321,16 @@ export function useWarehouseApi() {
 
   /** Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown. */
   function listItemPrograms() {
-    return apiFetch<string[]>("/programs");
+    return apiFetch<string[]>("/items/programs");
   }
 
   /** Distinct (non-empty) shelf positions currently in use -- populates the dashboard filter dropdown. */
   function listItemShelves() {
     return apiFetch<string[]>("/items/shelves");
+  }
+
+  function listItemTags() {
+    return apiFetch<string[]>("/items/tags");
   }
 
   function scanItem(barcode: string) {
@@ -518,6 +533,7 @@ export function useWarehouseApi() {
     listCategories,
     listItemPrograms,
     listItemShelves,
+    listItemTags,
     scanItem,
     createItem,
     updateItem,

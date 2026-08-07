@@ -61,6 +61,21 @@
         >
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             {{ item.name }}
+            <div v-if="item.tags?.length" class="mt-1 flex flex-wrap gap-1">
+              <span
+                v-for="tag in item.tags"
+                :key="tag"
+                class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.68rem] font-semibold text-muted"
+                >#{{ tag }}</span
+              >
+            </div>
+            <div
+              v-if="item.notes"
+              class="mt-1 max-w-50 truncate text-[0.75rem] italic text-muted"
+              :title="item.notes"
+            >
+              📝 {{ item.notes }}
+            </div>
           </td>
           <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
             <span v-if="item.pn" class="inline-flex items-center gap-1.5">
@@ -130,9 +145,9 @@
                 <img src="~/assets/icons/activity.svg" class="w-5 h-auto" />
               </button>
               <button
-                v-if="showLocate && item.shelf_position"
+                :disabled="!item.shelf_position"
                 type="button"
-                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent/10"
                 title="Locate on the map"
                 @click="emit('locate', item)"
               >

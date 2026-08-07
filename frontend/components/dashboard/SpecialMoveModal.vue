@@ -173,6 +173,11 @@ async function submit() {
   try {
     const res = await specialMove({ mode: mode.value, from_code: fromCode.value, to_code: toCode.value });
     show("success", res.message);
+    show(
+      "info",
+      `Reprint the label for ${res.moved_items} moved item(s) when convenient -- their "Shelf:" line is now out of date.`,
+      8000,
+    );
     fromCode.value = "";
     toCode.value = "";
     emit("done");

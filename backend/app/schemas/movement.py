@@ -1,8 +1,9 @@
 """Pydantic schemas for stock movements (deposit/withdraw) and the audit log."""
+import json
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.movement import MovementAction, MovementSource
 from app.schemas.item import ItemOut
@@ -115,6 +116,18 @@ class MovementOut(BaseModel):
     operator: str
     voided: bool
     reversal_of_id: int | None
+    # Only set on EDIT rows: {field: [old_value, new_value]}.
+    field_changes: dict[str, list] | None = None
+
+    @field_validator("field_changes", mode="before")
+    @classmethod
+    def parse_field_changes(cls, value):
+        if value is None or isinstance(value, dict):
+            return value
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return None
 
     class Config:
         from_attributes = True

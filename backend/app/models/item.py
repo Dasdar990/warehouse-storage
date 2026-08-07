@@ -35,3 +35,9 @@ class Item(Base):
     quantity = Column(Integer, default=0, nullable=False)
     # Alphanumeric shelf position, e.g. "12B" or "3A" (shelf number + level letter)
     shelf_position = Column(String, index=True, nullable=False)
+    # Free-form search helpers -- neither drives any business logic, they
+    # just make an item easier to find later. Stored as a comma-separated
+    # string (same pattern as Shelf.levels) rather than a second table,
+    # since tags are cheap, unordered, and never need their own identity.
+    tags = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
