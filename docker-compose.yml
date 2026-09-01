@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - nginxNetwork 
 
   frontend:
       build:
@@ -29,7 +31,8 @@ services:
         - "3000:3000"
       command: npm run dev
       environment:
-        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8000}
+        environment:
+        NUXT_PUBLIC_API_BASE: "https://dasdar.ddns.net/warehouse-storage-api"
         HOST: 0.0.0.0
         PORT: 3000
         WATCHPACK_POLLING: "true"
@@ -39,7 +42,13 @@ services:
       depends_on:
         backend:
           condition: service_healthy
+      networks:
+        - nginxNetwork 
 
 volumes:
   warehouse_db:
   warehouse_labels:
+
+networks:
+  nginxNetwork:
+    external: true

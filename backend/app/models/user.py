@@ -26,3 +26,8 @@ class User(Base):
     role = Column(SAEnum(UserRole, native_enum=False, length=16), nullable=False, default=UserRole.OPERATOR)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=now_rome, nullable=False)
+    # Normalized (uppercase, no separators) UID of the NFC badge assigned to
+    # this user, if any. Nullable: most users may still log in with
+    # username/password only. Unique so a badge can't be linked to two
+    # accounts at once.
+    badge_uid = Column(String, nullable=True, unique=True, index=True)

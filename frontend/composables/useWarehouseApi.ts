@@ -83,6 +83,20 @@ export interface RoomLayoutInput {
   doors: DoorInput[];
 }
 
+/**
+ * Full-map export/import bundle (GET/POST /map/export, /map/import).
+ * `zones[].id` / `nodes[].id` are only meaningful within the same bundle
+ * (a rack's `zone_id` points at a zone elsewhere in this file) -- the
+ * backend recreates everything with new database ids on import.
+ */
+export interface MapBundle {
+  version: number
+  zones: Zone[]
+  nodes: ShelfNodeOut[]
+  walls: Wall[]
+  doors: Door[]
+}
+
 export interface ShelfNode {
   rack_code: string;
   label: string | null;
@@ -247,12 +261,13 @@ export interface Movement {
 export type UserRole = "admin" | "operator";
 
 export interface AppUser {
-  id: number;
-  username: string;
-  full_name: string;
-  role: UserRole;
-  is_active: boolean;
-  created_at: string;
+  id: number
+  username: string
+  full_name: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+  badge_uid?: string | null
 }
 
 export interface UserCreateInput {
@@ -263,10 +278,11 @@ export interface UserCreateInput {
 }
 
 export interface UserUpdateInput {
-  full_name?: string;
-  password?: string;
-  role?: UserRole;
-  is_active?: boolean;
+  full_name?: string
+  password?: string
+  role?: UserRole
+  is_active?: boolean
+  badge_uid?: string
 }
 
 /**
@@ -325,7 +341,7 @@ export function useWarehouseApi() {
 
   /** Distinct (non-empty) programs currently in use -- populates the dashboard filter dropdown. */
   function listItemPrograms() {
-    return apiFetch<string[]>("/items/programs");
+    return apiFetch<string[]>("/programs");
   }
 
   /** Distinct (non-empty) shelf positions currently in use -- populates the dashboard filter dropdown. */
@@ -511,6 +527,16 @@ export function useWarehouseApi() {
     });
   }
 
+  /** Admin-only: everything on the map (zones, racks, walls, doors) as one JSON bundle. */
+  function exportMap() {
+    return apiFetch<MapBundle>('/map/export')
+  }
+
+  /** Admin-only: replaces the entire map with the contents of an exported bundle. */
+  function importMap(bundle: MapBundle) {
+    return apiFetch<MapBundle>('/map/import', { method: 'POST', body: bundle })
+  }
+
   /** Admin-only: user management (login accounts + audit-log attribution). */
   function listUsers() {
     return apiFetch<AppUser[]>("/users");
@@ -567,6 +593,8 @@ export function useWarehouseApi() {
     saveZones,
     getRoomLayout,
     saveRoomLayout,
+    exportMap,
+    importMap,
     listUsers,
     createUser,
     updateUser,

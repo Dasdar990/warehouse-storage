@@ -7,6 +7,7 @@ export interface AuthUser {
   role: UserRole
   is_active: boolean
   created_at: string
+  badge_uid?: string | null
 }
 
 const TOKEN_STORAGE_KEY = 'warehouse_auth_token'
@@ -28,17 +29,31 @@ export function useAuth() {
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  async function login(username: string, password: string) {
-    const res = await $fetch<{ access_token: string; user: AuthUser }>(`${apiBase}/auth/login`, {
-      method: 'POST',
-      body: { username, password },
-    })
+  /** Stores a freshly-issued token/user pair, shared by login and badgeLogin. */
+  function applySession(res: { access_token: string; user: AuthUser }) {
     token.value = res.access_token
     user.value = res.user
     if (import.meta.client) {
       localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token)
     }
     return res.user
+  }
+
+  async function login(username: string, password: string) {
+    const res = await $fetch<{ access_token: string; user: AuthUser }>(`${apiBase}/auth/login`, {
+      method: 'POST',
+      body: { username, password },
+    })
+    return applySession(res)
+  }
+
+  /** Same session flow as login(), but authenticating with a scanned NFC badge UID. */
+  async function badgeLogin(badgeUid: string) {
+    const res = await $fetch<{ access_token: string; user: AuthUser }>(`${apiBase}/auth/badge-login`, {
+      method: 'POST',
+      body: { badge_uid: badgeUid },
+    })
+    return applySession(res)
   }
 
   function logout() {
@@ -74,5 +89,5 @@ export function useAuth() {
     }
   }
 
-  return { token, user, ready, isAuthenticated, isAdmin, login, logout, fetchMe, hydrateFromStorage }
+  return { token, user, ready, isAuthenticated, isAdmin, login, badgeLogin, logout, fetchMe, hydrateFromStorage }
 }
