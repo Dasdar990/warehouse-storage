@@ -15,93 +15,94 @@
  * quietly in the background rather than surfacing an error.
  */
 export interface UseNfcBridgeOptions {
-  onBadgeTap?: (uid: string) => void
-  onBadgeRemoved?: () => void
+  onBadgeTap?: (uid: string) => void;
+  onBadgeRemoved?: () => void;
 }
 
 type BridgeMessage =
-  | { type: 'badge_tap'; uid: string }
-  | { type: 'badge_removed' }
-  | { type: 'reader_status'; status: string }
+  | { type: "badge_tap"; uid: string }
+  | { type: "badge_removed" }
+  | { type: "reader_status"; status: string };
 
-const RECONNECT_DELAY_MS = 3000
+const RECONNECT_DELAY_MS = 3000;
 
 export function useNfcBridge(options: UseNfcBridgeOptions = {}) {
-  const config = useRuntimeConfig()
-  const bridgeUrl = config.public.nfcBridgeUrl as string
+  const config = useRuntimeConfig();
+  const bridgeUrl =
+    (config.public.nfcBridgeUrl as string) || "ws://localhost:8765";
 
   // Shared across components so only one indicator is needed even if
   // multiple pages mount this composable.
-  const connected = useState<boolean>('nfc-bridge-connected', () => false)
+  const connected = useState<boolean>("nfc-bridge-connected", () => false);
 
-  let socket: WebSocket | null = null
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let stopped = false
+  let socket: WebSocket | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
 
   function connect() {
-    if (!import.meta.client || stopped || socket) return
+    if (!import.meta.client || stopped || socket) return;
 
     try {
-      socket = new WebSocket(bridgeUrl)
+      socket = new WebSocket(bridgeUrl);
     } catch {
-      socket = null
-      scheduleReconnect()
-      return
+      socket = null;
+      scheduleReconnect();
+      return;
     }
 
     socket.onopen = () => {
-      connected.value = true
-    }
+      connected.value = true;
+    };
 
     socket.onmessage = (event: MessageEvent) => {
-      let msg: BridgeMessage
+      let msg: BridgeMessage;
       try {
-        msg = JSON.parse(event.data)
+        msg = JSON.parse(event.data);
       } catch {
-        return
+        return;
       }
-      if (msg.type === 'badge_tap' && typeof msg.uid === 'string' && msg.uid) {
-        options.onBadgeTap?.(msg.uid)
-      } else if (msg.type === 'badge_removed') {
-        options.onBadgeRemoved?.()
+      if (msg.type === "badge_tap" && typeof msg.uid === "string" && msg.uid) {
+        options.onBadgeTap?.(msg.uid);
+      } else if (msg.type === "badge_removed") {
+        options.onBadgeRemoved?.();
       }
-    }
+    };
 
     socket.onclose = () => {
-      connected.value = false
-      socket = null
-      scheduleReconnect()
-    }
+      connected.value = false;
+      socket = null;
+      scheduleReconnect();
+    };
 
     // The close event fires right after error, so just let onclose drive
     // the reconnect -- no need to duplicate that logic here.
     socket.onerror = () => {
-      socket?.close()
-    }
+      socket?.close();
+    };
   }
 
   function scheduleReconnect() {
-    if (stopped || reconnectTimer) return
+    if (stopped || reconnectTimer) return;
     reconnectTimer = setTimeout(() => {
-      reconnectTimer = null
-      connect()
-    }, RECONNECT_DELAY_MS)
+      reconnectTimer = null;
+      connect();
+    }, RECONNECT_DELAY_MS);
   }
 
   function stop() {
-    stopped = true
+    stopped = true;
     if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
     }
-    socket?.close()
-    socket = null
-    connected.value = false
+    socket?.close();
+    socket = null;
+    connected.value = false;
   }
 
   if (import.meta.client) {
-    connect()
+    connect();
   }
 
-  return { connected, stop }
+  return { connected, stop };
 }

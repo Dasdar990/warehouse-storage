@@ -34,7 +34,7 @@
       >
       <div
         v-for="preset in PALETTE_ITEMS"
-        :key="preset.kind"
+        :key="preset.id"
         class="flex cursor-grab select-none items-center gap-2 rounded-lg border border-edge bg-surface px-3 py-2 text-[0.82rem] active:cursor-grabbing"
         draggable="true"
         @dragstart="onPaletteDragStart($event, preset)"
@@ -68,7 +68,12 @@
         <ClientOnly fallback="Loading map…">
           <v-stage
             ref="stageRef"
-            :config="{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }"
+            :config="{
+              width: CANVAS_WIDTH,
+              height: CANVAS_HEIGHT,
+              scaleX: 0.7,
+              scaleY: 0.7,
+            }"
             class="block"
             @mousedown="handleStageMouseDown"
             @touchstart="handleStageMouseDown"
@@ -542,8 +547,8 @@ const emit = defineEmits<{
   "update:doors": [DoorInput[]];
 }>();
 
-const CANVAS_WIDTH = 1400;
-const CANVAS_HEIGHT = 760;
+const CANVAS_WIDTH = 1600;
+const CANVAS_HEIGHT = 900;
 const GRID_STEP = 10;
 const PALETTE = [
   "#3b82f6",
@@ -756,12 +761,33 @@ function createDoor(x: number, y: number, width: number): EditorDoor {
   return { _key: nextKey("door-"), x, y, width, rotation: 0 };
 }
 
-// Only one rack size is offered for now (4 levels by default); walls and
-// doors are placed the same way, by dragging onto the canvas.
+// Three rack sizes matching the actual warehouse racks (150/120/90cm
+// wide, 60cm deep); walls and the door are placed the same way, by
+// dragging onto the canvas.
 const PALETTE_ITEMS = [
-  { kind: "rack", label: "Rack (4 levels)", width: 90, height: 140 },
-  { kind: "wall", label: "Wall", width: 120, height: 3 },
-  { kind: "door", label: "Door", width: 40, height: 40 },
+  {
+    id: "rack-large",
+    kind: "rack",
+    label: "Rack — 150cm",
+    width: 150,
+    height: 60,
+  },
+  {
+    id: "rack-standard",
+    kind: "rack",
+    label: "Rack — 120cm",
+    width: 120,
+    height: 60,
+  },
+  {
+    id: "rack-small",
+    kind: "rack",
+    label: "Rack — 90cm",
+    width: 90,
+    height: 60,
+  },
+  { id: "wall", kind: "wall", label: "Wall", width: 120, height: 3 },
+  { id: "door", kind: "door", label: "Door", width: 180, height: 180 },
 ] as const;
 
 function onPaletteDragStart(
@@ -863,7 +889,9 @@ function handleTransformEnd(
   item.y = snap(node.y());
 
   if (kind === "rack" || kind === "wall" || kind === "door") {
-    (item as EditorWall | EditorDoor | EditorRack).rotation = normalizeAngle(node.rotation());
+    (item as EditorWall | EditorDoor | EditorRack).rotation = normalizeAngle(
+      node.rotation(),
+    );
   }
 
   const minSize = kind === "zone" ? 60 : kind === "wall" ? 10 : 20;

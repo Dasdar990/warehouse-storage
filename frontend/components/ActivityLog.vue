@@ -46,17 +46,17 @@
         v-model="itemQuery"
         type="text"
         placeholder="Search item name or P/N…"
-        class="field-input h-8.5 min-w-40 flex-1 basis-45 text-[0.82rem]"
+        class="field-input h-9.5min-w-40 flex-1 basis-45 text-[0.82rem]"
       />
       <input
         v-model="operatorQuery"
         type="text"
         placeholder="Search by operator…"
-        class="field-input h-8.5 min-w-36 flex-1 basis-40 text-[0.82rem]"
+        class="field-input h-9.5min-w-36 flex-1 basis-40 text-[0.82rem]"
       />
       <select
         v-model="actionFilter"
-        class="field-input h-8.5 min-w-32 flex-1 basis-32 text-[0.82rem]"
+        class="field-input h-9.5 min-w-32 flex-1 basis-32 text-[0.82rem]"
       >
         <option value="">All actions</option>
         <option value="deposit">Added</option>
@@ -66,7 +66,7 @@
       </select>
       <select
         v-model="sourceFilter"
-        class="field-input h-8.5 min-w-32 flex-1 basis-36 text-[0.82rem]"
+        class="field-input h-9.5min-w-32 flex-1 basis-36 text-[0.82rem]"
       >
         <option value="">All sources</option>
         <option value="barcode">Barcode verified</option>
@@ -165,7 +165,9 @@
               <td
                 class="whitespace-nowrap py-2.5 pr-3 text-right font-semibold text-ink"
               >
-                {{ m.action === "move" || m.action === "edit" ? "—" : m.quantity }}
+                {{
+                  m.action === "move" || m.action === "edit" ? "—" : m.quantity
+                }}
               </td>
               <td class="py-2.5 pr-3">
                 <div class="font-medium text-ink">{{ m.item_name }}</div>
@@ -327,7 +329,9 @@ async function confirmRollback(m: Movement) {
       ? `Roll back this move? This will send "${m.item_name}" back from shelf ${m.shelf_position} to shelf ${m.from_shelf_position}.`
       : m.action === "edit"
         ? `Roll back this edit? This will restore the previous value(s) for ${
-            m.field_changes ? Object.keys(m.field_changes).join(", ") : "this item"
+            m.field_changes
+              ? Object.keys(m.field_changes).join(", ")
+              : "this item"
           } on "${m.item_name}".`
         : `Roll back this movement? This will log a compensating entry ${
             m.action === "deposit" ? "removing" : "adding back"

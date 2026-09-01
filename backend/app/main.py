@@ -46,9 +46,11 @@ def _add_missing_columns() -> None:
     if not settings.database_url.startswith("sqlite"):
         return
     with engine.connect() as conn:
-        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(shelves)"))}
+        columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(shelves)"))}
         if "rotation" not in columns:
-            conn.execute(text("ALTER TABLE shelves ADD COLUMN rotation FLOAT NOT NULL DEFAULT 0"))
+            conn.execute(
+                text("ALTER TABLE shelves ADD COLUMN rotation FLOAT NOT NULL DEFAULT 0"))
             conn.commit()
 
         # The `walls` table's very first shape (two endpoints, x1/y1/x2/y2)
@@ -57,7 +59,8 @@ def _add_missing_columns() -> None:
         # already used for racks. This is a brand-new, purely-visual table
         # with nothing worth preserving, so just drop and let create_all's
         # sibling call above (already run) recreate it with the new columns.
-        wall_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(walls)"))}
+        wall_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(walls)"))}
         if wall_columns and "width" not in wall_columns:
             conn.execute(text("DROP TABLE walls"))
             conn.commit()
@@ -65,22 +68,28 @@ def _add_missing_columns() -> None:
 
         # Rollback support was added after the first release -- add the two
         # new columns in place so an existing movements table keeps its rows.
-        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        movement_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(movements)"))}
         if movement_columns and "voided" not in movement_columns:
-            conn.execute(text("ALTER TABLE movements ADD COLUMN voided BOOLEAN NOT NULL DEFAULT 0"))
-            conn.execute(text("ALTER TABLE movements ADD COLUMN reversal_of_id INTEGER"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN voided BOOLEAN NOT NULL DEFAULT 0"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN reversal_of_id INTEGER"))
             conn.commit()
 
         # Shelf-to-shelf moves were added after the first release -- add
         # the column in place so an existing movements table keeps its rows.
-        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        movement_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(movements)"))}
         if movement_columns and "from_shelf_position" not in movement_columns:
-            conn.execute(text("ALTER TABLE movements ADD COLUMN from_shelf_position VARCHAR"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN from_shelf_position VARCHAR"))
             conn.commit()
 
         # The optional "program" field was added after the first release --
         # add the column in place so an existing items table keeps its rows.
-        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        item_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(items)"))}
         if item_columns and "program" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN program VARCHAR"))
             conn.commit()
@@ -88,7 +97,8 @@ def _add_missing_columns() -> None:
         # The optional "serial" field (one specific physical unit, as opposed
         # to `pn` which identifies the part type) was added after the first
         # release -- add the column in place so existing rows are preserved.
-        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        item_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(items)"))}
         if item_columns and "serial" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN serial VARCHAR"))
             conn.commit()
@@ -97,9 +107,11 @@ def _add_missing_columns() -> None:
         # they need to remember which item a portion was split off from so a
         # later rollback can correctly move the quantity back. Add the column
         # in place so an existing movements table keeps its rows.
-        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        movement_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(movements)"))}
         if movement_columns and "split_from_item_id" not in movement_columns:
-            conn.execute(text("ALTER TABLE movements ADD COLUMN split_from_item_id INTEGER"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN split_from_item_id INTEGER"))
             conn.commit()
 
         # Badge-tap login was added after the first release -- add the
@@ -108,15 +120,19 @@ def _add_missing_columns() -> None:
         # column is added plain and the unique index is created separately
         # (matching the `unique=True, index=True` on the model, which
         # SQLAlchemy names `ix_users_badge_uid` by default on a fresh DB).
-        user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+        user_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(users)"))}
         if user_columns and "badge_uid" not in user_columns:
-            conn.execute(text("ALTER TABLE users ADD COLUMN badge_uid VARCHAR"))
-            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_badge_uid ON users (badge_uid)"))
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN badge_uid VARCHAR"))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_badge_uid ON users (badge_uid)"))
             conn.commit()
 
         # Free-form tags and notes, to make items easier to find in search --
         # add the columns in place so existing rows are preserved.
-        item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(items)"))}
+        item_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(items)"))}
         if item_columns and "tags" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN tags VARCHAR"))
             conn.commit()
@@ -128,9 +144,11 @@ def _add_missing_columns() -> None:
         # values) both to be a meaningful audit-log entry and to be
         # roll-back-able at all -- add the column in place so existing
         # movement rows are preserved.
-        movement_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(movements)"))}
+        movement_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(movements)"))}
         if movement_columns and "field_changes" not in movement_columns:
-            conn.execute(text("ALTER TABLE movements ADD COLUMN field_changes TEXT"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN field_changes TEXT"))
             conn.commit()
 
 
@@ -156,7 +174,6 @@ _seed_default_admin()
 app = FastAPI(
     title="Warehouse Storage API",
     description="Inventory tracking, withdrawal, and warehouse-map API for barcode-driven warehouse operations.",
-    root_path="/warehouse-storage-api",
     version="1.1.0",
 )
 
@@ -196,4 +213,5 @@ app.include_router(movements.router)
 # mean replacing StaticFiles with a per-request token-checked endpoint, which
 # felt like a lot of complexity for a low-value target. Happy to add it if
 # you'd rather be strict about it.
-app.mount("/labels_static", StaticFiles(directory=str(settings.labels_dir)), name="labels_static")
+app.mount("/labels_static",
+          StaticFiles(directory=str(settings.labels_dir)), name="labels_static")

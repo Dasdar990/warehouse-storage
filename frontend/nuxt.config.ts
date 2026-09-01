@@ -23,7 +23,6 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
 
   app: {
-    baseURL: "/warehouse-storage-frontend/",
     head: {
       title: "Industrial Engineering Warehouse",
       meta: [
@@ -38,7 +37,6 @@ export default defineNuxtConfig({
       ],
     },
   },
-  
 
   runtimeConfig: {
     public: {
@@ -50,7 +48,8 @@ export default defineNuxtConfig({
       // PN7150 dongle is plugged into -- regardless of where the backend
       // itself is hosted, so this defaults to localhost independently of
       // apiBase.
-      nfcBridgeUrl: process.env.NUXT_PUBLIC_NFC_BRIDGE_URL || "ws://localhost:8765",
+      nfcBridgeUrl:
+        process.env.NUXT_PUBLIC_NFC_BRIDGE_URL || "ws://localhost:8765",
     },
   },
 

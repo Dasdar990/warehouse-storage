@@ -18,58 +18,74 @@
  */
 export interface UseBarcodeScannerOptions {
   /** Average ms/char below which a burst is classified as a scanner read. Default 35ms. */
-  maxIntervalMs?: number
+  maxIntervalMs?: number;
   /** Minimum characters required before we even consider it a "scan" (avoids false positives on 1-2 char bursts). */
-  minScanLength?: number
-  onScan?: (value: string) => void
-  onManualSubmit?: (value: string) => void
+  minScanLength?: number;
+  onScan?: (value: string) => void;
+  onManualSubmit?: (value: string) => void;
 }
 
 export function useBarcodeScanner(options: UseBarcodeScannerOptions = {}) {
-  const maxIntervalMs = options.minScanLength !== undefined ? options.maxIntervalMs ?? 35 : options.maxIntervalMs ?? 35
-  const minScanLength = options.minScanLength ?? 4
+  const maxIntervalMs =
+    options.minScanLength !== undefined
+      ? (options.maxIntervalMs ?? 35)
+      : (options.maxIntervalMs ?? 35);
+  const minScanLength = options.minScanLength ?? 4;
 
-  let firstKeyTime = 0
-  let lastKeyTime = 0
-  let keyCount = 0
+  let firstKeyTime = 0;
+  let lastKeyTime = 0;
+  let keyCount = 0;
 
   /** Wire to @keydown on the input to sample keystroke timing. */
   function onKeydown(event: KeyboardEvent) {
-    // Ignore modifier/navigation keys so they don't skew timing.
-    if (event.key.length > 1 && event.key !== 'Enter' && event.key !== 'Backspace') return
+    // Defensive: a real KeyboardEvent always has a string `.key` (even ''
+    // for an unidentified key), but some browser extensions (password
+    // managers, autofill) and synthetic/automation-driven events can fire
+    // a keydown listener with an incomplete event object. Ignore anything
+    // that doesn't look like a real keystroke rather than crashing on it.
+    if (typeof event?.key !== "string") return;
 
-    const now = performance.now()
+    // Ignore modifier/navigation keys so they don't skew timing.
+    if (
+      event.key.length > 1 &&
+      event.key !== "Enter" &&
+      event.key !== "Backspace"
+    )
+      return;
+
+    const now = performance.now();
     if (keyCount === 0) {
-      firstKeyTime = now
+      firstKeyTime = now;
     }
-    lastKeyTime = now
-    keyCount += 1
+    lastKeyTime = now;
+    keyCount += 1;
   }
 
   /** Wire to @keyup.enter; classifies and fires the right callback, then resets. */
   function onEnter(_event: KeyboardEvent, value: string) {
-    const trimmed = value.trim()
+    const trimmed = value.trim();
     if (!trimmed) {
-      resetTiming()
-      return
+      resetTiming();
+      return;
     }
 
-    const elapsed = lastKeyTime - firstKeyTime
-    const avgIntervalMs = keyCount > 1 ? elapsed / (keyCount - 1) : Infinity
-    const looksLikeScan = trimmed.length >= minScanLength && avgIntervalMs <= maxIntervalMs
+    const elapsed = lastKeyTime - firstKeyTime;
+    const avgIntervalMs = keyCount > 1 ? elapsed / (keyCount - 1) : Infinity;
+    const looksLikeScan =
+      trimmed.length >= minScanLength && avgIntervalMs <= maxIntervalMs;
 
     if (looksLikeScan) {
-      options.onScan?.(trimmed)
+      options.onScan?.(trimmed);
     } else {
-      options.onManualSubmit?.(trimmed)
+      options.onManualSubmit?.(trimmed);
     }
-    resetTiming()
+    resetTiming();
   }
 
   function resetTiming() {
-    firstKeyTime = 0
-    lastKeyTime = 0
-    keyCount = 0
+    firstKeyTime = 0;
+    lastKeyTime = 0;
+    keyCount = 0;
   }
 
   /**
@@ -80,10 +96,10 @@ export function useBarcodeScanner(options: UseBarcodeScannerOptions = {}) {
    * `onEnter` (fired on keyup) to intervene.
    */
   function looksLikeScan(): boolean {
-    const elapsed = lastKeyTime - firstKeyTime
-    const avgIntervalMs = keyCount > 1 ? elapsed / (keyCount - 1) : Infinity
-    return keyCount >= minScanLength && avgIntervalMs <= maxIntervalMs
+    const elapsed = lastKeyTime - firstKeyTime;
+    const avgIntervalMs = keyCount > 1 ? elapsed / (keyCount - 1) : Infinity;
+    return keyCount >= minScanLength && avgIntervalMs <= maxIntervalMs;
   }
 
-  return { onKeydown, onEnter, resetTiming, looksLikeScan }
+  return { onKeydown, onEnter, resetTiming, looksLikeScan };
 }
