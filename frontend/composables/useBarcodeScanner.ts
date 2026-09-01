@@ -72,5 +72,18 @@ export function useBarcodeScanner(options: UseBarcodeScannerOptions = {}) {
     keyCount = 0
   }
 
-  return { onKeydown, onEnter, resetTiming }
+  /**
+   * Non-destructive peek at the burst captured so far (does not reset
+   * state). Useful to preempt a keydown's own default action -- e.g. a
+   * form's implicit "Enter submits" behavior -- *before* that Enter
+   * keystroke's default action runs, which happens too early for
+   * `onEnter` (fired on keyup) to intervene.
+   */
+  function looksLikeScan(): boolean {
+    const elapsed = lastKeyTime - firstKeyTime
+    const avgIntervalMs = keyCount > 1 ? elapsed / (keyCount - 1) : Infinity
+    return keyCount >= minScanLength && avgIntervalMs <= maxIntervalMs
+  }
+
+  return { onKeydown, onEnter, resetTiming, looksLikeScan }
 }

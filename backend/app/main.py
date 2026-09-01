@@ -12,6 +12,7 @@ Route modules live in app/routers/:
                       GET  /shelves/{shelf_position}/items, /shelves/config CRUD
     zones.py       -> GET/PUT /zones (delimited map areas)
     room.py        -> GET/PUT /room-layout (walls + door, purely visual orientation aid)
+    map_transfer.py -> GET /map/export, POST /map/import (full map as one JSON file, admin-only)
     categories.py  -> GET/POST /categories, DELETE /categories/{id}
     programs.py    -> GET/POST /programs, DELETE /programs/{id}
     movements.py   -> GET /movements (live deposit/withdraw audit log)
@@ -25,7 +26,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db import Base, SessionLocal, engine
-from app.routers import auth, categories, health, items, labels, movements, programs, room, shelves, users, zones
+from app.routers import auth, categories, health, items, labels, map_transfer, movements, programs, room, shelves, users, zones
 from app.services.user_service import seed_default_admin
 
 settings = get_settings()
@@ -101,6 +102,18 @@ def _add_missing_columns() -> None:
             conn.execute(text("ALTER TABLE movements ADD COLUMN split_from_item_id INTEGER"))
             conn.commit()
 
+        # Badge-tap login was added after the first release -- add the
+        # column in place so an existing users table keeps its rows.
+        # SQLite's ALTER TABLE can't add a UNIQUE column directly, so the
+        # column is added plain and the unique index is created separately
+        # (matching the `unique=True, index=True` on the model, which
+        # SQLAlchemy names `ix_users_badge_uid` by default on a fresh DB).
+        user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+        if user_columns and "badge_uid" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN badge_uid VARCHAR"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_badge_uid ON users (badge_uid)"))
+            conn.commit()
+
 
 _add_missing_columns()
 
@@ -151,6 +164,7 @@ app.include_router(labels.router)
 app.include_router(shelves.router)
 app.include_router(zones.router)
 app.include_router(room.router)
+app.include_router(map_transfer.router)
 app.include_router(categories.router)
 app.include_router(programs.router)
 app.include_router(movements.router)

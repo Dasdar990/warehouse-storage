@@ -11,6 +11,10 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class BadgeLoginRequest(BaseModel):
+    badge_uid: str = Field(..., min_length=1)
+
+
 class UserOut(BaseModel):
     id: int
     username: str
@@ -18,6 +22,7 @@ class UserOut(BaseModel):
     role: UserRole
     is_active: bool
     created_at: datetime
+    badge_uid: str | None = None
 
     class Config:
         from_attributes = True
@@ -43,3 +48,6 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=6)
     role: UserRole | None = None
     is_active: bool | None = None
+    # Not provided (key absent) -> leave untouched. Explicit "" -> unassign
+    # the badge. Explicit non-empty string -> (re)assign that badge.
+    badge_uid: str | None = None

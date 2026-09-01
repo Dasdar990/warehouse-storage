@@ -43,6 +43,12 @@ export default defineNuxtConfig({
       // If the browser makes the calls, use the host's public IP/localhost.
       // If the server makes them (even with ssr: false), point to the right fallback.
       apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:8000",
+      // The NFC bridge (nfc-bridge/bridge.py) always runs on the same
+      // machine as the browser showing the login page -- the kiosk the
+      // PN7150 dongle is plugged into -- regardless of where the backend
+      // itself is hosted, so this defaults to localhost independently of
+      // apiBase.
+      nfcBridgeUrl: process.env.NUXT_PUBLIC_NFC_BRIDGE_URL || "ws://localhost:8765",
     },
   },
 

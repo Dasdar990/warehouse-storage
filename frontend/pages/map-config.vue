@@ -21,6 +21,29 @@
         >
           {{ saving ? "Saving…" : "Save layout" }}
         </button>
+        <button
+          class="btn btn--ghost disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          :disabled="exporting"
+          @click="exportLayout"
+        >
+          {{ exporting ? "Exporting…" : "Export map" }}
+        </button>
+        <button
+          class="btn btn--ghost disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          :disabled="importing"
+          @click="triggerImport"
+        >
+          {{ importing ? "Importing…" : "Import map" }}
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept="application/json,.json"
+          class="hidden"
+          @change="importLayout"
+        />
         <span v-if="dirty" class="text-[0.8rem] font-semibold text-warn">Unsaved changes</span>
       </div>
 
@@ -42,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DoorInput, ShelfNode, WallInput, ZoneInput } from "~/composables/useWarehouseApi";
+import type { DoorInput, MapBundle, ShelfNode, WallInput, ZoneInput } from "~/composables/useWarehouseApi";
 
 const {
   getShelfConfig,
@@ -51,6 +74,8 @@ const {
   saveZones,
   getRoomLayout,
   saveRoomLayout,
+  exportMap,
+  importMap,
 } = useWarehouseApi();
 const { show } = useToast();
 
@@ -60,6 +85,9 @@ const walls = ref<WallInput[]>([]);
 const doors = ref<DoorInput[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const exporting = ref(false);
+const importing = ref(false);
+const importInput = ref<HTMLInputElement | null>(null);
 const dirty = ref(false);
 
 // Zones need real IDs on the rack editor (to populate the zone dropdown and
@@ -149,6 +177,68 @@ async function save() {
     show("error", err?.data?.detail || "Failed to save the layout");
   } finally {
     saving.value = false;
+  }
+}
+
+/**
+ * Downloads everything currently saved on the map (zones, racks, walls,
+ * doors) as one JSON file -- for backup, or to copy the layout onto
+ * another instance via "Import map".
+ */
+async function exportLayout() {
+  exporting.value = true;
+  try {
+    const bundle = await exportMap();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `warehouse-map-${stamp}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to export the map");
+  } finally {
+    exporting.value = false;
+  }
+}
+
+function triggerImport() {
+  importInput.value?.click();
+}
+
+/**
+ * Replaces the entire map with the contents of a previously exported file.
+ * This is destructive (it overwrites whatever is currently saved), so it
+ * asks for confirmation before sending anything to the backend.
+ */
+async function importLayout(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // reset so picking the same file twice still fires @change
+  if (!file) return;
+
+  if (!window.confirm("Import this file? It replaces the entire current map (zones, racks, walls, doors).")) {
+    return;
+  }
+
+  importing.value = true;
+  try {
+    const text = await file.text();
+    let bundle: MapBundle;
+    try {
+      bundle = JSON.parse(text);
+    } catch {
+      throw new Error("That file isn't valid JSON.");
+    }
+    await importMap(bundle);
+    await load();
+    show("success", "Warehouse map imported");
+  } catch (err: any) {
+    show("error", err?.data?.detail || err?.message || "Failed to import the map");
+  } finally {
+    importing.value = false;
   }
 }
 

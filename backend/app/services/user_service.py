@@ -15,6 +15,32 @@ def get_user_by_username(db: Session, username: str) -> User | None:
     return db.execute(select(User).where(User.username == username)).scalar_one_or_none()
 
 
+def normalize_badge_uid(raw: str) -> str:
+    """
+    Same normalization the badge reader applies (uppercase, no separators),
+    so a badge scanned by the bridge always matches what's stored here
+    regardless of how an admin happened to type/paste it in.
+    """
+    cleaned = raw.strip().upper()
+    for sep in (":", "-", " "):
+        cleaned = cleaned.replace(sep, "")
+    return cleaned
+
+
+def get_user_by_badge_uid(db: Session, badge_uid: str) -> User | None:
+    normalized = normalize_badge_uid(badge_uid)
+    if not normalized:
+        return None
+    return db.execute(select(User).where(User.badge_uid == normalized)).scalar_one_or_none()
+
+
+def authenticate_by_badge(db: Session, badge_uid: str) -> User | None:
+    user = get_user_by_badge_uid(db, badge_uid)
+    if user is None or not user.is_active:
+        return None
+    return user
+
+
 def authenticate_user(db: Session, username: str, password: str) -> User | None:
     user = get_user_by_username(db, username)
     if user is None or not user.is_active:
@@ -64,6 +90,18 @@ def update_user(db: Session, user_id: int, payload: UserUpdate, *, acting_user: 
         user.role = payload.role
     if payload.is_active is not None:
         user.is_active = payload.is_active
+    if payload.badge_uid is not None:
+        if payload.badge_uid == "":
+            user.badge_uid = None
+        else:
+            normalized = normalize_badge_uid(payload.badge_uid)
+            existing = get_user_by_badge_uid(db, normalized)
+            if existing is not None and existing.id != user.id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"This badge is already assigned to '{existing.username}'",
+                )
+            user.badge_uid = normalized
 
     db.commit()
     db.refresh(user)
