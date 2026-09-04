@@ -1,5 +1,43 @@
 <template>
   <div class="flex flex-col gap-4">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      leave-active-class="transition duration-150 ease-in"
+      enter-from-class="opacity-0 -translate-y-3 scale-90"
+      enter-to-class="opacity-100 translate-y-0 scale-100"
+      leave-from-class="opacity-100 translate-y-0 scale-100"
+      leave-to-class="opacity-0 -translate-y-3 scale-90"
+    >
+      <div
+        v-if="locatedItem"
+        class="fixed left-6 top-6 z-100 max-w-md min-w-80 rounded-2xl border-2 border-accent bg-slate-900/95 p-5 pr-12 text-white shadow-[0_15px_40px_rgba(0,0,0,0.6)] shadow-accent/25 backdrop-blur-md"
+      >
+        <p class="m-0 text-sm font-black uppercase tracking-widest text-accent">
+          Highlighting
+        </p>
+
+        <p class="m-0 mt-1 text-2xl font-black leading-tight text-white">
+          {{ locatedItem.name }}
+        </p>
+
+        <p class="m-0 mt-2 font-semibold text-slate-300">
+          {{ locatedItem.pn }} · Shelf
+          <span class="font-extrabold text-white text-lg">{{
+            locatedItem.shelf_position
+          }}</span>
+        </p>
+
+        <button
+          type="button"
+          class="absolute right-3 top-3 rounded-xl p-2 text-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+          title="Stop highlighting"
+          @click="locatedItem = null"
+        >
+          ✕
+        </button>
+      </div>
+    </Transition>
+
     <!-- SEARCH BAR -->
     <div class="flex flex-wrap items-stretch gap-3">
       <UnifiedSearchBar
@@ -19,7 +57,7 @@
       <div class="flex flex-wrap gap-2.5 max-[640px]:flex-col">
         <button
           type="button"
-          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-accent/35 bg-accent/[0.09] px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:translate-y-0 active:shadow-none"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-accent/35 bg-accent/9 px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/16 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:translate-y-0 active:shadow-none"
           @click="showAddItemModal = true"
         >
           <span
@@ -47,7 +85,7 @@
         </button>
         <button
           type="button"
-          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-good/35 bg-good/[0.09] px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-good/60 hover:bg-good/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-good/60 active:translate-y-0 active:shadow-none"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-good/35 bg-good/9 px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-good/60 hover:bg-good/16 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-good/60 active:translate-y-0 active:shadow-none"
           @click="quickAction = 'deposit'"
         >
           <span
@@ -77,7 +115,7 @@
         </button>
         <button
           type="button"
-          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-bad/35 bg-bad/[0.09] px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/60 hover:bg-bad/[0.16] hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none"
+          class="group relative flex flex-1 items-center gap-3 overflow-hidden rounded-lg border border-bad/35 bg-bad/9 px-3.5 py-3 text-left shadow-[0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-bad/60 hover:bg-bad/16 hover:shadow-[0_8px_20px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad/60 active:translate-y-0 active:shadow-none"
           @click="quickAction = 'withdraw'"
         >
           <span
@@ -125,7 +163,13 @@
               <path
                 d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L3 3v6.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"
               />
-              <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+              <circle
+                cx="7.5"
+                cy="7.5"
+                r="1.5"
+                fill="currentColor"
+                stroke="none"
+              />
             </svg>
           </span>
           <span class="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -228,7 +272,11 @@
       </div>
     </BaseModal>
 
-    <BaseModal v-model="showCatalogModal" title="Categories & Programs" size="lg">
+    <BaseModal
+      v-model="showCatalogModal"
+      title="Categories & Programs"
+      size="lg"
+    >
       <div class="flex flex-col gap-5">
         <section>
           <h2 class="mb-1 text-[1.05rem]">Categories</h2>
@@ -274,13 +322,8 @@ import type {
   WarehouseLayout,
 } from "~/composables/useWarehouseApi";
 
-const {
-  getWarehouseLayout,
-  getRackLevels,
-  getShelfItems,
-  getZones,
-  scanItem,
-} = useWarehouseApi();
+const { getWarehouseLayout, getRackLevels, getShelfItems, getZones, scanItem } =
+  useWarehouseApi();
 const { show } = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -324,7 +367,9 @@ async function handleItemCreated(item: Item) {
 // --- Search/scan-driven selection (UnifiedSearchBar -> ItemDetailCard) ---
 const selectedItem = ref<Item | null>(null);
 const lastSelectionSource = ref<"barcode" | "manual">("manual");
-const autoStartAction = ref<"deposit" | "withdraw" | "move" | undefined>(undefined);
+const autoStartAction = ref<"deposit" | "withdraw" | "move" | undefined>(
+  undefined,
+);
 // Bumped on every selection so the card remounts (and autoStartAction jumps
 // straight to the right step) even when re-selecting the same item.
 const selectionNonce = ref(0);
@@ -371,7 +416,8 @@ const highlightShelfPosition = computed(
     null,
 );
 const highlightRackCode = computed(() => {
-  if (selectedItem.value) return parseRackCode(selectedItem.value.shelf_position);
+  if (selectedItem.value)
+    return parseRackCode(selectedItem.value.shelf_position);
   if (selectedRack.value) return selectedRack.value;
   if (locatedItem.value) return parseRackCode(locatedItem.value.shelf_position);
   return null;
@@ -412,9 +458,8 @@ function handleScanNotFound(code: string) {
 function handleLocateItem(item: Item) {
   lastSelectionSource.value = "manual";
   closeDrilldown();
-  selectedItem.value = item;
-  autoStartAction.value = undefined;
-  selectionNonce.value += 1;
+  selectedItem.value = null;
+  locatedItem.value = item;
 }
 
 function handleItemUpdated(item: Item) {
@@ -522,9 +567,11 @@ async function handleLocateFromQuery() {
     quickAction.value = null;
     closeDrilldown();
     locatedItem.value = item;
-    show("success", `Highlighted on shelf ${item.shelf_position}.`);
   } catch {
-    show("error", "Couldn't find that item anymore -- it may have been removed.");
+    show(
+      "error",
+      "Couldn't find that item anymore -- it may have been removed.",
+    );
   } finally {
     // Strip the query param so a refresh/back-nav doesn't re-trigger this.
     router.replace({ path: "/", query: {} });

@@ -12,6 +12,8 @@ frontend/.nuxt/
 frontend/.output/
 frontend/dist/
 
+frontend/package-lock.json
+
 # OS / editor
 .DS_Store
 .vscode/

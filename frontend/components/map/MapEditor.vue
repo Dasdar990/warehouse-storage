@@ -61,7 +61,7 @@
 
     <div class="flex items-start gap-4">
       <div
-        class="scrollbar-slim max-h-[65vh] flex-1 overflow-auto rounded-card border border-edge bg-input bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-[length:20px_20px]"
+        class="scrollbar-slim max-h-[65vh] flex-1 overflow-auto rounded-card border border-edge bg-input bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-size-[20px_20px]"
         @dragover="onCanvasDragOver"
         @drop="onCanvasDrop"
       >
@@ -142,6 +142,22 @@
                 @click="select('wall', wall._key)"
                 @tap="select('wall', wall._key)"
               >
+                <!-- Invisible padded hit target: real wall thickness can be
+                     just a few px (default 3, further scaled 0.7x by the
+                     stage), leaving an on-screen clickable band under ~2px --
+                     essentially impossible to hit with a mouse (verified: a
+                     1px pointer offset from the centerline already misses).
+                     This keeps the thin visual but makes the wall reliably
+                     selectable/draggable regardless of how thin it's set. -->
+                <v-rect
+                  :config="{
+                    x: 0,
+                    y: -Math.max(0, (16 - wall.height) / 2),
+                    width: wall.width,
+                    height: Math.max(wall.height, 16),
+                    fill: 'rgba(0,0,0,0.001)',
+                  }"
+                />
                 <!-- End-caps: small perpendicular nubs hinting at a joint/corner -->
                 <v-rect
                   :config="{
@@ -291,7 +307,7 @@
       </div>
 
       <aside
-        class="flex w-[280px] shrink-0 flex-col gap-3 rounded-card border border-edge bg-surface-2 p-4"
+        class="flex w-70 shrink-0 flex-col gap-3 rounded-card border border-edge bg-surface-2 p-4"
       >
         <template v-if="selectedZone">
           <h3 class="m-0 border-b border-edge pb-2 text-[0.95rem]">Zone</h3>
