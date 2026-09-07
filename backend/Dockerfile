@@ -1,27 +1,29 @@
 FROM python:3.11-slim
 
-# fonts-dejavu-core provides the TrueType font used to render label text,
-# libjpeg/zlib dev headers are needed by Pillow's wheel fallback build.
+# Copy uv pre-built binary directly from the official image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# fonts-dejavu-core provides the TrueType font used to render label text
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-ENV POETRY_HOME=/opt/poetry \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-RUN pip install --no-cache-dir poetry==1.8.3
-ENV PATH="/opt/poetry/bin:${PATH}"
+# Environment variables to optimize Python & uv behavior in Docker
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
 # Install dependencies first (better layer caching)
-COPY pyproject.toml README.md ./
-RUN poetry install --no-root --only main
+COPY pyproject.toml uv.lock* README.md ./
+RUN uv sync --frozen --no-install-project --no-dev
+
+# Place the virtual environment's executables directly in PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application source
 COPY app ./app

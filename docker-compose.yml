@@ -20,26 +20,26 @@ services:
       retries: 5
 
   frontend:
-      build:
-        context: ./frontend
-      container_name: warehouse-storage-frontend
-      restart: unless-stopped
-      user: "root"
-      ports:
-        - "3000:3000"
-      command: npm run dev
-      environment:
-        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8000}
-        HOST: 0.0.0.0
-        PORT: 3000
-        WATCHPACK_POLLING: "true"
-      volumes:
-        - ./frontend:/app # Mounts your local code
-        # 👇 KEY: protects the node_modules generated inside the container
-        - /app/node_modules 
-      depends_on:
-        backend:
-          condition: service_healthy
+    build:
+      context: ./frontend
+    container_name: warehouse-storage-frontend
+    restart: unless-stopped
+    user: "root"
+    ports:
+      - "3000:3000"
+    command: bun run dev
+    environment:
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8000}
+      HOST: 0.0.0.0
+      PORT: 3000
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.nuxt
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   warehouse_db:

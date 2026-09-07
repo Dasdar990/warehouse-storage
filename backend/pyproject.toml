@@ -1,26 +1,27 @@
-[tool.poetry]
+[project]
 name = "warehouse-storage-backend"
 version = "1.0.0"
 description = "Warehouse Storage inventory tracking API (FastAPI + SQLAlchemy + SQLite)"
-authors = ["Warehouse Storage"]
+authors = [{ name = "Warehouse Storage" }]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.11"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.115.0"
-uvicorn = { extras = ["standard"], version = "^0.32.0" }
-sqlalchemy = "^2.0.35"
-python-barcode = "^0.15.1"
-pillow = "^10.4.0"
-pydantic = "^2.9.2"
-python-multipart = "^0.0.12"
-passlib = { extras = ["bcrypt"], version = "^1.7.4" }
-# Pinned: passlib's bcrypt feature-detection code errors out on bcrypt>=4.1
-# (known, unresolved upstream issue), so pin the last compatible release.
-bcrypt = "4.0.1"
-python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.35",
+    "python-barcode>=0.15.1",
+    "pillow>=10.4.0",
+    "pydantic>=2.9.2",
+    "python-multipart>=0.0.12",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt==4.0.1",
+    "python-jose[cryptography]>=3.3.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false

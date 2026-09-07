@@ -5,6 +5,7 @@ backend/.venv/
 backend/data/
 backend/labels/
 *.db
+*/uv.lock
 
 # Frontend
 frontend/node_modules/

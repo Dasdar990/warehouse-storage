@@ -1,16 +1,17 @@
-FROM node:22-alpine
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Copia i file dei pacchetti
-COPY package*.json ./
+# Copia i file delle dipendenze (package.json e bun.lock / bun.lockb se presenti)
+COPY package*.json bun.lock* ./
 
-# Installa le dipendenze dentro il container
-RUN npm install
+# Installa le dipendenze usando Bun
+RUN bun install --frozen-lockfile
 
-# Copia il resto del codice
+# Copia il resto del codice dell'applicazione
 COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+# Avvia lo script 'dev' definito nel package.json tramite Bun
+CMD ["bun", "run", "dev"]
