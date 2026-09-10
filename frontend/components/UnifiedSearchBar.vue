@@ -46,7 +46,9 @@
                   }}<template v-if="item.program">
                     · {{ item.program }}</template
                   >
-                  · Shelf {{ item.shelf_position }}
+                  <template v-if="item.shelf_position">
+                    · Shelf {{ item.shelf_position }}</template
+                  ><template v-else-if="item.zone_id"> · In a zone</template>
                 </div>
               </div>
               <span

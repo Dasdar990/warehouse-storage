@@ -21,9 +21,10 @@
         </p>
 
         <p class="m-0 mt-2 font-semibold text-slate-300">
-          {{ locatedItem.pn }} · Shelf
+          {{ locatedItem.pn }} ·
+          {{ locatedItem.shelf_position ? "Shelf" : "Zone" }}
           <span class="font-extrabold text-white text-lg">{{
-            locatedItem.shelf_position
+            locatedItemLocationLabel
           }}</span>
         </p>
 
@@ -202,6 +203,7 @@
         v-else-if="layout?.has_custom_layout"
         :layout="layout"
         :selected-rack="highlightRackCode"
+        :selected-zone-id="highlightZoneId"
         @select="selectRack"
         @select-zone="selectZone"
       />
@@ -407,7 +409,15 @@ function openInfoModal(item: Item) {
 }
 
 const selectedItemZoneLabel = computed(() => {
-  if (!selectedItem.value || !layout.value?.has_custom_layout) return undefined;
+  if (!selectedItem.value) return undefined;
+  // Zone-only item (no shelf) -- its zone comes straight from `zone_id`,
+  // there's no rack to derive it from.
+  if (!selectedItem.value.shelf_position) {
+    return selectedItem.value.zone_id != null
+      ? zoneNameById.value.get(selectedItem.value.zone_id)
+      : undefined;
+  }
+  if (!layout.value?.has_custom_layout) return undefined;
   const node = layout.value.nodes.find(
     (n) => n.rack_code === parseRackCode(selectedItem.value!.shelf_position),
   );
@@ -451,7 +461,40 @@ const highlightRackCode = computed(() => {
   return null;
 });
 
-function parseRackCode(shelfPosition: string): string | null {
+// Mirror of highlightRackCode, but for items sitting directly in a
+// direct-storage zone (no shelf_position at all). Same priority order:
+// an explicitly selected item wins, then a directly-clicked zone, then
+// whatever's being "located" from the dashboard/search.
+const highlightZoneId = computed(() => {
+  if (selectedItem.value)
+    return !selectedItem.value.shelf_position
+      ? (selectedItem.value.zone_id ?? null)
+      : null;
+  if (selectedZone.value) return selectedZone.value.id;
+  if (locatedItem.value)
+    return !locatedItem.value.shelf_position
+      ? (locatedItem.value.zone_id ?? null)
+      : null;
+  return null;
+});
+
+// What the "Highlighting" banner shows under the item name/PN.
+const locatedItemLocationLabel = computed(() => {
+  if (!locatedItem.value) return "";
+  if (locatedItem.value.shelf_position) return locatedItem.value.shelf_position;
+  if (locatedItem.value.zone_id != null) {
+    return zoneNameById.value.get(locatedItem.value.zone_id) ?? `Zone ${locatedItem.value.zone_id}`;
+  }
+  return "—";
+});
+
+// A missing/undefined shelf_position (zone-only or fully-withdrawn items)
+// used to blow up here with "Cannot read properties of undefined (reading
+// 'match')", which took down this whole computed -- and with it, the
+// highlight/fly-to for *any* item, not just the zone one. Guard it instead
+// of assuming every item has a shelf.
+function parseRackCode(shelfPosition: string | null | undefined): string | null {
+  if (!shelfPosition) return null;
   const match = shelfPosition.match(/^(\d+)/);
   return match ? match[1] : null;
 }

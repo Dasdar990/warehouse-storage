@@ -50,187 +50,237 @@
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="item in items"
-          :key="item.id"
-          :class="{
-            'cursor-pointer transition-colors hover:bg-surface-2/60':
-              selectable,
-          }"
-          @click="onRowClick(item, $event)"
-        >
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            {{ item.name }}
-            <div v-if="item.tags?.length" class="mt-1 flex flex-wrap gap-1">
-              <span
-                v-for="tag in item.tags"
-                :key="tag"
-                class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.68rem] font-semibold text-muted"
-                >#{{ tag }}</span
-              >
-            </div>
-            <div
-              v-if="item.notes"
-              class="mt-1 max-w-50 truncate text-[0.75rem] italic text-muted"
-              :title="item.notes"
-            >
-              📝 {{ item.notes }}
-            </div>
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span v-if="item.pn" class="inline-flex items-center gap-1.5">
-              <span class="badge badge--pn">{{ item.pn }}</span>
-              <span
-                v-if="shelfCountByPn.get(item.pn.toLowerCase())! > 1"
-                class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[0.68rem] font-bold text-accent"
-                :title="`Also on: ${otherShelvesForPn(item).join(', ')}`"
-              >
-                ×{{ shelfCountByPn.get(item.pn.toLowerCase()) }} shelves
+        <template v-for="row in displayRows" :key="row.key">
+          <!-- Group header: same P/N (or name), several serials -->
+          <tr
+            v-if="row.kind === 'group'"
+            class="cursor-pointer bg-surface-2/30 transition-colors hover:bg-surface-2/60"
+            @click="toggleGroup(row.key)"
+          >
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span class="inline-flex items-center gap-1.5">
+                <span
+                  class="inline-block w-3 text-center text-muted transition-transform"
+                  :style="{
+                    transform: expandedGroups.has(row.key)
+                      ? 'rotate(90deg)'
+                      : 'none',
+                  }"
+                  >▶</span
+                >
+                {{ row.items[0].name }}
               </span>
-            </span>
-            <span v-else class="text-[0.82rem] text-muted">—</span>
-            <div
-              v-if="item.serial"
-              class="mt-1 font-mono text-[0.7rem] text-muted"
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span v-if="row.pn" class="inline-flex items-center gap-1.5">
+                <span class="badge badge--pn">{{ row.pn }}</span>
+              </span>
+              <span v-else class="text-[0.82rem] text-muted">—</span>
+              <span
+                class="ml-1.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[0.68rem] font-bold text-accent"
+                >×{{ row.items.length }} serials</span
+              >
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span class="badge badge--category">{{
+                row.items[0].category
+              }}</span>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span v-if="row.items[0].program" class="badge badge--program">{{
+                row.items[0].program
+              }}</span>
+              <span v-else class="text-[0.82rem] text-muted">—</span>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span
+                class="badge badge--size"
+                :class="`badge--size-${row.items[0].size}`"
+                >{{ sizeLabel(row.items[0].size) }}</span
+              >
+            </td>
+            <td
+              v-if="showShelf"
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
             >
-              S/N {{ item.serial }}
-            </div>
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span class="badge badge--category">{{ item.category }}</span>
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span v-if="item.program" class="badge badge--program">{{
-              item.program
-            }}</span>
-            <span v-else class="text-[0.82rem] text-muted">—</span>
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <span
-              class="badge badge--size"
-              :class="`badge--size-${item.size}`"
-              >{{ sizeLabel(item.size) }}</span
+              <span class="text-[0.82rem] text-muted">{{
+                row.locationsLabel
+              }}</span>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              {{ row.totalQuantity }}
+            </td>
+            <td
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
+            ></td>
+            <td
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
+            ></td>
+          </tr>
+
+          <!-- Expanded serials for that group -->
+          <template v-if="row.kind === 'group' && expandedGroups.has(row.key)">
+            <tr
+              v-for="item in row.items"
+              :key="item.id"
+              class="bg-surface/40"
+              :class="{
+                'cursor-pointer transition-colors hover:bg-surface-2/60':
+                  selectable,
+              }"
+              @click="onRowClick(item, $event)"
             >
-          </td>
-          <td
-            v-if="showShelf"
-            class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] py-2 pl-8 pr-2 text-[0.85rem] text-muted"
+              >
+                ↳ S/N {{ item.serial || "—" }}
+              </td>
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2"
+              ></td>
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2"
+              ></td>
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2"
+              ></td>
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2"
+              ></td>
+              <td
+                v-if="showShelf"
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2"
+              >
+                <span v-if="item.shelf_position" class="badge badge--shelf">{{
+                  item.shelf_position
+                }}</span>
+                <span
+                  v-else-if="item.zone_id"
+                  class="badge badge--shelf"
+                  title="Placed at zone-level, no specific shelf"
+                  >📍 {{ zoneName(item.zone_id) }}</span
+                >
+                <span v-else class="text-[0.82rem] text-muted">—</span>
+              </td>
+              <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2">
+                {{ item.quantity }}
+              </td>
+              <td
+                class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2 font-mono text-muted"
+              >
+                {{ item.barcode }}
+              </td>
+              <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2">
+                <DashboardItemRowActions
+                  :item="item"
+                  :show-locate="showLocate"
+                  @info="emit('info', $event)"
+                  @locate="emit('locate', $event)"
+                  @move="(i, a) => emit('move', i, a)"
+                  @relocate="emit('relocate', $event)"
+                />
+              </td>
+            </tr>
+          </template>
+
+          <!-- Standalone item, no grouping -->
+          <tr
+            v-if="row.kind === 'single'"
+            :class="{
+              'cursor-pointer transition-colors hover:bg-surface-2/60':
+                selectable,
+            }"
+            @click="onRowClick(row.item, $event)"
           >
-            <span v-if="item.shelf_position" class="badge badge--shelf">{{
-              item.shelf_position
-            }}</span>
-            <span
-              v-else-if="item.zone_id"
-              class="badge badge--shelf"
-              title="Placed at zone-level, no specific shelf"
-              >{{ zoneName(item.zone_id) }}</span
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              {{ row.item.name }}
+              <div
+                v-if="row.item.tags?.length"
+                class="mt-1 flex flex-wrap gap-1"
+              >
+                <span
+                  v-for="tag in row.item.tags"
+                  :key="tag"
+                  class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.68rem] font-semibold text-muted"
+                  >#{{ tag }}</span
+                >
+              </div>
+              <div
+                v-if="row.item.notes"
+                class="mt-1 max-w-50 truncate text-[0.75rem] italic text-muted"
+                :title="row.item.notes"
+              >
+                📝 {{ row.item.notes }}
+              </div>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span v-if="row.item.pn" class="inline-flex items-center gap-1.5">
+                <span class="badge badge--pn">{{ row.item.pn }}</span>
+              </span>
+              <span v-else class="text-[0.82rem] text-muted">—</span>
+              <div
+                v-if="row.item.serial"
+                class="mt-1 font-mono text-[0.7rem] text-muted"
+              >
+                S/N {{ row.item.serial }}
+              </div>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span class="badge badge--category">{{ row.item.category }}</span>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span v-if="row.item.program" class="badge badge--program">{{
+                row.item.program
+              }}</span>
+              <span v-else class="text-[0.82rem] text-muted">—</span>
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <span
+                class="badge badge--size"
+                :class="`badge--size-${row.item.size}`"
+                >{{ sizeLabel(row.item.size) }}</span
+              >
+            </td>
+            <td
+              v-if="showShelf"
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
             >
-            <span
-              v-else
-              class="text-[0.82rem] text-muted"
-              title="Fully withdrawn -- no shelf assigned"
-              >—</span
+              <span v-if="row.item.shelf_position" class="badge badge--shelf">{{
+                row.item.shelf_position
+              }}</span>
+              <span
+                v-else-if="row.item.zone_id"
+                class="badge badge--shelf"
+                title="Placed at zone-level, no specific shelf"
+                >📍 {{ zoneName(row.item.zone_id) }}</span
+              >
+              <span
+                v-else
+                class="text-[0.82rem] text-muted"
+                title="Fully withdrawn -- no shelf assigned"
+                >—</span
+              >
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              {{ row.item.quantity }}
+            </td>
+            <td
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5 font-mono text-muted"
             >
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            {{ item.quantity }}
-          </td>
-          <td
-            class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5 font-mono text-muted"
-          >
-            {{ item.barcode }}
-          </td>
-          <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
-            <div class="flex gap-1.5">
-              <button
-                type="button"
-                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-edge bg-transparent text-muted transition-colors hover:border-accent/40 hover:text-accent"
-                title="Activity log for this item"
-                @click="emit('info', item)"
-              >
-                <img src="~/assets/icons/activity.svg" class="w-5 h-auto" />
-              </button>
-              <button
-                :disabled="!item.shelf_position"
-                type="button"
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent/10"
-                title="Locate on the map"
-                @click="emit('locate', item)"
-              >
-                <img src="~/assets/icons/locate.svg" class="w-5 h-auto" />
-              </button>
-              <button
-                type="button"
-                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-good/40 bg-good/10 text-green-300 transition-colors hover:bg-good/20"
-                title="Deposit stock"
-                @click="emit('move', item, 'deposit')"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.25"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-bad/40 bg-bad/10 text-red-300 transition-colors hover:bg-bad/20 disabled:cursor-not-allowed disabled:opacity-40"
-                title="Withdraw stock"
-                :disabled="item.quantity <= 0"
-                @click="emit('move', item, 'withdraw')"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.25"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-edge bg-transparent text-ink transition-colors hover:border-accent/40 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
-                title="Move to another shelf"
-                :disabled="item.quantity <= 0"
-                @click="emit('relocate', item)"
-              >
-                <img src="~/assets/icons/move.svg" class="w-4 h-auto" />
-              </button>
-              <a
-                class="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink no-underline"
-                :href="labelUrl(item.id)"
-                target="_blank"
-                rel="noopener"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M8 3h8" />
-                  <path
-                    d="M8 3v3H6a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2V3"
-                  />
-                  <rect x="8" y="12" width="8" height="8" rx="1" />
-                </svg>
-                Label
-              </a>
-            </div>
-          </td>
-        </tr>
+              {{ row.item.barcode }}
+            </td>
+            <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
+              <DashboardItemRowActions
+                :item="row.item"
+                :show-locate="showLocate"
+                @info="emit('info', $event)"
+                @locate="emit('locate', $event)"
+                @move="(i, a) => emit('move', i, a)"
+                @relocate="emit('relocate', $event)"
+              />
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
     <p v-else class="py-7.5 text-center text-muted">
@@ -256,7 +306,7 @@ const props = withDefaults(
   { showShelf: true, selectable: false, showLocate: true },
 );
 
-const { labelUrl, getZones } = useWarehouseApi();
+const { getZones } = useWarehouseApi();
 
 // Fetched lazily (only if the table actually has to render a zone-only
 // item) so pages that never deal with zones don't pay for the request.
@@ -293,26 +343,77 @@ function onRowClick(item: Item, event: MouseEvent) {
   emit("select", item);
 }
 
-// Same part (same P/N) can legitimately live on more than one shelf --
-// count occurrences (within the currently displayed/filtered list) so the
-// table can flag it instead of looking like unrelated duplicate rows.
-const shelfCountByPn = computed(() => {
-  const counts = new Map<string, number>();
-  for (const it of props.items) {
-    if (!it.pn) continue;
-    const key = it.pn.toLowerCase();
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-});
+// --- Group same P/N (or, lacking one, same name) items into one collapsible
+// row -- this is what a bulk multi-serial creation looks like in the table,
+// so instead of N near-identical rows you get one row you expand to see
+// each serial. A lone item never gets a group wrapper. ---
+type Row =
+  | { kind: "single"; key: string; item: Item }
+  | {
+      kind: "group";
+      key: string;
+      pn: string;
+      items: Item[];
+      totalQuantity: number;
+      locationsLabel: string;
+    };
 
-function otherShelvesForPn(item: Item) {
-  if (!item.pn) return [];
-  const key = item.pn.toLowerCase();
-  return props.items
-    .filter((it) => it.pn && it.pn.toLowerCase() === key && it.id !== item.id)
-    .map((it) => it.shelf_position);
+function groupKey(item: Item): string {
+  return (item.pn || item.name).trim().toLowerCase();
 }
+
+function locationLabel(item: Item): string {
+  if (item.shelf_position) return item.shelf_position;
+  if (item.zone_id) return `zone:${item.zone_id}`;
+  return "—";
+}
+
+const expandedGroups = ref<Set<string>>(new Set());
+function toggleGroup(key: string) {
+  const next = new Set(expandedGroups.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  expandedGroups.value = next;
+}
+
+const displayRows = computed<Row[]>(() => {
+  const buckets = new Map<string, Item[]>();
+  for (const item of props.items) {
+    const key = groupKey(item);
+    const list = buckets.get(key);
+    if (list) list.push(item);
+    else buckets.set(key, [item]);
+  }
+
+  const rows: Row[] = [];
+  for (const item of props.items) {
+    const key = groupKey(item);
+    const bucket = buckets.get(key)!;
+    if (bucket.length <= 1) {
+      rows.push({ kind: "single", key: `i${item.id}`, item });
+      continue;
+    }
+    // Only emit the group header once, at the position of its first item.
+    if (bucket[0].id !== item.id) continue;
+    const locations = new Set(bucket.map(locationLabel));
+    rows.push({
+      kind: "group",
+      key: `g${key}`,
+      pn: bucket[0].pn,
+      items: bucket,
+      totalQuantity: bucket.reduce((sum, i) => sum + i.quantity, 0),
+      locationsLabel:
+        locations.size === 1
+          ? [...locations][0] === "—"
+            ? "—"
+            : bucket[0].shelf_position
+              ? bucket[0].shelf_position
+              : `📍 ${zoneName(bucket[0].zone_id!)}`
+          : `${locations.size} locations`,
+    });
+  }
+  return rows;
+});
 
 function sizeLabel(size: string) {
   return { small: "S", big: "B", xl: "XL" }[size] || size;

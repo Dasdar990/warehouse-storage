@@ -13,7 +13,13 @@
     >
       <div class="flex min-w-0 flex-col gap-1.5">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="badge badge--shelf">📍 Shelf {{ loc.shelf_position }}</span>
+          <span v-if="loc.shelf_position" class="badge badge--shelf"
+            >📍 Shelf {{ loc.shelf_position }}</span
+          >
+          <span v-else-if="loc.zone_id" class="badge badge--shelf"
+            >📍 {{ zoneName(loc.zone_id) }}</span
+          >
+          <span v-else class="badge badge--shelf text-muted">📍 No location</span>
           <span
             class="rounded-full px-2.5 py-1 text-[0.75rem] font-bold"
             :class="loc.quantity > 0 ? 'bg-good/15 text-green-300' : 'bg-bad/15 text-red-300'"
@@ -29,6 +35,7 @@
       <button
         type="button"
         class="btn btn--confirm btn--small shrink-0 whitespace-nowrap"
+        :disabled="!loc.shelf_position && !loc.zone_id"
         @click="emit('locate', loc)"
       >
         📍 Locate
@@ -38,13 +45,35 @@
 </template>
 
 <script setup lang="ts">
-import type { Item } from "~/composables/useWarehouseApi";
+import type { Item, Zone } from "~/composables/useWarehouseApi";
 
-defineProps<{
+const props = defineProps<{
   name: string;
   pn?: string;
   locations: Item[];
 }>();
 
 const emit = defineEmits<{ locate: [item: Item] }>();
+
+const { getZones } = useWarehouseApi();
+
+// Fetched lazily, only if a location actually needs a zone name (most
+// multi-location picks are all-shelves and never touch this).
+const zoneCache = ref<Zone[]>([]);
+watch(
+  () => props.locations,
+  (locations) => {
+    if (!zoneCache.value.length && locations.some((l) => l.zone_id)) {
+      getZones()
+        .then((z) => (zoneCache.value = z))
+        .catch(() => {});
+    }
+  },
+  { immediate: true },
+);
+function zoneName(zoneId: number): string {
+  return (
+    zoneCache.value.find((z) => z.id === zoneId)?.name ?? `Zone #${zoneId}`
+  );
+}
 </script>

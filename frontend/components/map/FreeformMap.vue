@@ -61,6 +61,9 @@ import type {
 const props = defineProps<{
   layout: WarehouseLayout;
   selectedRack: string | null;
+  /** Highlights a direct-storage zone the same way selectedRack highlights a
+   *  rack -- needed for items placed straight into a zone, with no shelf. */
+  selectedZoneId?: number | null;
 }>();
 
 const emit = defineEmits<{ select: [string]; "select-zone": [number] }>();
@@ -101,6 +104,17 @@ type RackEntry = {
   height: number; // world-space physical height
 };
 
+type ZoneEntry = {
+  group: any; // THREE.Group
+  zone: Zone;
+  outline: any; // THREE.LineSegments
+  glowLight: any; // THREE.PointLight
+  labelEl: HTMLDivElement;
+  center: any; // THREE.Vector3 (world center, for camera fly-to)
+  width: number;
+  depth: number;
+};
+
 let shadowTexture: any = null; // shared soft contact-shadow blob, cached lazily
 
 let THREE: typeof import("three");
@@ -119,6 +133,7 @@ let pointerVec: any = null;
 const rackMeshes: any[] = []; // flat list of meshes -> raycast targets
 const zoneMeshes: any[] = []; // direct-storage zones are clickable too, just like racks
 const rackByCode = new Map<string, RackEntry>();
+const zoneById = new Map<number, ZoneEntry>();
 
 let defaultCamPos: any = null;
 let defaultTarget: any = null;
@@ -438,14 +453,54 @@ function buildZone(zone: Zone) {
 
   const label = document.createElement("div");
   label.style.cssText =
-    "pointer-events:none;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap;background:rgba(15,18,24,0.6);";
+    "pointer-events:none;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap;transition:background .15s ease, border-color .15s ease;border-width:1px;border-style:solid;border-color:transparent;";
+  label.style.background = "rgba(15,18,24,0.6)";
   label.style.color = zone.color || "#2f9d63";
   label.textContent = (isDirectStorage ? "📦 " : "") + zone.name;
   const labelObj = new CSS2DObjectCtor(label);
   labelObj.position.set(w / 2, 0.02, d / 2);
   group.add(labelObj);
 
+  // Selection outline + glow, same idea as a rack -- only direct-storage
+  // zones are selectable/locatable (a shelf_group zone is just a visual
+  // grouping, items never live directly on it).
+  let outline: any = null;
+  let glowLight: any = null;
+  if (isDirectStorage) {
+    const outlineGeo = new THREE.PlaneGeometry(w + 0.08, d + 0.08);
+    const outlineMat = new THREE.LineBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.9,
+    });
+    outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(outlineGeo),
+      outlineMat,
+    );
+    outline.rotation.x = -Math.PI / 2;
+    outline.position.set(w / 2, 0.015, d / 2);
+    outline.visible = false;
+    group.add(outline);
+
+    glowLight = new THREE.PointLight(0x22c55e, 0, 2.2);
+    glowLight.position.set(w / 2, 0.4, d / 2);
+    group.add(glowLight);
+  }
+
   contentGroup.add(group);
+
+  if (isDirectStorage) {
+    zoneById.set(zone.id, {
+      group,
+      zone,
+      outline,
+      glowLight,
+      labelEl: label,
+      center: new THREE.Vector3(toX(zone.x) + w / 2, 0.3, toZ(zone.y) + d / 2),
+      width: w,
+      depth: d,
+    });
+  }
 }
 
 function buildRack(node: ShelfMapNode) {
@@ -657,6 +712,7 @@ function buildContent() {
   rackMeshes.length = 0;
   zoneMeshes.length = 0;
   rackByCode.clear();
+  zoneById.clear();
 
   const bounds = layoutBounds();
   buildFloorAndGrid(bounds);
@@ -713,15 +769,35 @@ function applySelectionVisuals() {
       : "rgba(15, 18, 24, 0.82)";
     if (!isSelected) entry.glowLight.intensity = 0;
   }
+  for (const [id, entry] of zoneById) {
+    const isSelected = id === props.selectedZoneId;
+    entry.outline.visible = isSelected;
+    entry.labelEl.style.borderColor = isSelected
+      ? "#22c55e"
+      : "transparent";
+    entry.labelEl.style.background = isSelected
+      ? "rgba(15, 40, 28, 0.9)"
+      : "rgba(15,18,24,0.6)";
+    if (!isSelected) entry.glowLight.intensity = 0;
+  }
 }
 
 function pulseSelection(now: number) {
-  const entry = props.selectedRack ? rackByCode.get(props.selectedRack) : null;
-  if (!entry) return;
   const t = now / 300;
   const wave = 0.55 + Math.sin(t) * 0.35;
-  (entry.outline.material as any).opacity = wave;
-  entry.glowLight.intensity = 0.6 + Math.sin(t) * 0.4;
+
+  const rackEntry = props.selectedRack ? rackByCode.get(props.selectedRack) : null;
+  if (rackEntry) {
+    (rackEntry.outline.material as any).opacity = wave;
+    rackEntry.glowLight.intensity = 0.6 + Math.sin(t) * 0.4;
+  }
+
+  const zoneEntry =
+    props.selectedZoneId != null ? zoneById.get(props.selectedZoneId) : null;
+  if (zoneEntry) {
+    (zoneEntry.outline.material as any).opacity = wave;
+    zoneEntry.glowLight.intensity = 0.6 + Math.sin(t) * 0.4;
+  }
 }
 
 // --- camera fly-to (selection + "locate" search both drive this via the
@@ -766,22 +842,45 @@ function flyToRack(code: string) {
   animateCamera(camPos, entry.center.clone(), FLY_MS);
 }
 
+function flyToZone(id: number) {
+  const entry = zoneById.get(id);
+  if (!entry || !camera || !controls) return;
+  const footprint = Math.max(entry.width, entry.depth, 0.6);
+  const viewDist = footprint * 0.9 + 1.2;
+  const camPos = entry.center
+    .clone()
+    .add(new THREE.Vector3(0, viewDist, viewDist * 0.55));
+  animateCamera(camPos, entry.center.clone(), FLY_MS);
+}
+
 function resetView() {
   if (!defaultCamPos || !defaultTarget) return;
   animateCamera(defaultCamPos.clone(), defaultTarget.clone(), RESET_MS);
 }
 
+// Rack selection and zone selection share one fly-in/reset behaviour, and
+// neither should reset the view out from under the other -- e.g. clearing
+// the rack while a zone is still highlighted (or vice versa) should just
+// leave the camera where it is, not snap back to the overview.
 watch(
   () => props.selectedRack,
   (code) => {
     applySelectionVisuals();
-    // Selecting (map click or search "locate") flies in for a clear look;
-    // clearing the selection (closing the modal / search result) flies back
-    // out to the fixed overview instead of leaving the camera stranded on
-    // whatever rack was last inspected.
     if (code && rackByCode.has(code)) {
       flyToRack(code);
-    } else {
+    } else if (!props.selectedZoneId) {
+      resetView();
+    }
+  },
+);
+
+watch(
+  () => props.selectedZoneId,
+  (id) => {
+    applySelectionVisuals();
+    if (id != null && zoneById.has(id)) {
+      flyToZone(id);
+    } else if (!props.selectedRack) {
       resetView();
     }
   },

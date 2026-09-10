@@ -140,56 +140,52 @@
         </div>
       </div>
       <NuxtLink
-        v-if="item.shelf_position"
+        v-if="item.shelf_position || item.zone_id"
         class="flex flex-column btn btn--ghost cursor-pointer items-center gap-2"
         :to="{ path: '/', query: { locate: item.barcode } }"
         title="Locate on the map"
         aria-label="Locate on the map"
       >
-        <div
-          class="shrink-0 rounded-xl px-4 py-2.5 text-center"
-          :class="item.shelf_position ? 'bg-accent/16' : 'bg-surface-2'"
-        >
+        <div class="shrink-0 rounded-xl bg-accent/16 px-4 py-2.5 text-center">
           <div
-            class="text-[0.72rem] font-bold uppercase tracking-[0.12em]"
-            :class="item.shelf_position ? 'text-accent' : 'text-muted'"
+            class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-accent"
           >
             📍 Location
           </div>
-          <div
-            v-if="item.shelf_position"
-            class="mt-1 text-[2rem] font-extrabold leading-none text-ink"
-          >
-            {{ item.shelf_position }}
-          </div>
-          <div
-            v-else
-            class="mt-1 text-[1.22rem] font-bold leading-none text-muted"
-          >
-            Not shelved
-          </div>
-          <div
-            v-if="zoneLabel"
-            class="mt-1 text-[0.82rem] font-medium text-muted"
-          >
-            Zone {{ zoneLabel }}
-          </div>
+          <template v-if="item.shelf_position">
+            <div class="mt-1 text-[2rem] font-extrabold leading-none text-ink">
+              {{ item.shelf_position }}
+            </div>
+            <div
+              v-if="zoneLabel"
+              class="mt-1 text-[0.82rem] font-medium text-muted"
+            >
+              Zone {{ zoneLabel }}
+            </div>
+          </template>
+          <template v-else>
+            <div class="mt-1 text-[1.22rem] font-bold leading-none text-ink">
+              {{ directZoneName ?? "Zone" }}
+            </div>
+            <div class="mt-1 text-[0.82rem] font-medium text-muted">
+              Whole zone
+            </div>
+          </template>
         </div>
       </NuxtLink>
       <div
-        v-else-if="directZoneName"
-        class="shrink-0 rounded-xl bg-accent/16 px-4 py-2.5 text-center"
-        title="Placed at zone-level, no specific shelf"
+        v-else
+        class="shrink-0 rounded-xl bg-surface-2 px-4 py-2.5 text-center"
+        title="Fully withdrawn -- no location assigned"
       >
         <div
-          class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-accent"
+          class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-muted"
         >
           📍 Location
         </div>
-        <div class="mt-1 text-[1.22rem] font-bold leading-none text-ink">
-          {{ directZoneName }}
+        <div class="mt-1 text-[1.22rem] font-bold leading-none text-muted">
+          Not shelved
         </div>
-        <div class="mt-1 text-[0.82rem] font-medium text-muted">Whole zone</div>
       </div>
     </div>
 
@@ -804,7 +800,7 @@
         <span>View in Dashboard</span>
       </NuxtLink>
       <NuxtLink
-        v-if="item.shelf_position"
+        v-if="item.shelf_position || item.zone_id"
         class="btn btn--ghost inline-flex cursor-pointer items-center gap-2"
         :to="{ path: '/', query: { locate: item.barcode } }"
         title="Locate on the map"

@@ -232,7 +232,9 @@
           <strong>{{ dup.name }}</strong>
           <span v-if="dup.pn" class="text-muted"> · P/N {{ dup.pn }}</span>
           <span class="text-muted">
-            · {{ dup.quantity }} in stock · Shelf {{ dup.shelf_position }}</span
+            · {{ dup.quantity }} in stock<template v-if="dup.shelf_position">
+              · Shelf {{ dup.shelf_position }}</template
+            ><template v-else-if="dup.zone_id"> · in a zone</template></span
           >
         </span>
         <button
