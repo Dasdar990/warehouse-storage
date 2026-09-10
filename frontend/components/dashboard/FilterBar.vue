@@ -67,6 +67,24 @@
       </option>
     </select>
 
+    <select
+      class="field-input w-35 max-[640px]:w-full"
+      :value="modelValue.zone_id ?? ''"
+      @change="
+        update(
+          'zone_id',
+          ($event.target as HTMLSelectElement).value === ''
+            ? undefined
+            : Number(($event.target as HTMLSelectElement).value),
+        )
+      "
+    >
+      <option value="">All zones</option>
+      <option v-for="zone in zones" :key="zone.id" :value="zone.id">
+        {{ zone.name }}
+      </option>
+    </select>
+
     <div class="flex items-center gap-1.5">
       <input
         class="field-input no-spinner w-30"
@@ -106,13 +124,14 @@
 </template>
 
 <script setup lang="ts">
-import type { ItemFilters } from "~/composables/useWarehouseApi";
+import type { ItemFilters, Zone } from "~/composables/useWarehouseApi";
 
 const props = defineProps<{
   modelValue: ItemFilters;
   categories: string[];
   programs: string[];
   shelves: string[];
+  zones: Zone[];
   tags: string[];
 }>();
 

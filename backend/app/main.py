@@ -26,7 +26,20 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db import Base, SessionLocal, engine
-from app.routers import auth, categories, health, items, labels, map_transfer, movements, programs, room, shelves, users, zones
+from app.routers import (
+    auth,
+    categories,
+    health,
+    items,
+    labels,
+    map_transfer,
+    movements,
+    programs,
+    room,
+    shelves,
+    users,
+    zones,
+)
 from app.services.user_service import seed_default_admin
 
 settings = get_settings()
@@ -138,6 +151,27 @@ def _add_missing_columns() -> None:
             conn.commit()
         if item_columns and "notes" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN notes VARCHAR"))
+            conn.commit()
+
+        # Items can now be placed in a general map zone instead of a
+        # specific shelf -- add the column in place so existing rows keep
+        # their shelf_position untouched.
+        item_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(items)"))}
+        if item_columns and "zone_id" not in item_columns:
+            conn.execute(
+                text("ALTER TABLE items ADD COLUMN zone_id INTEGER REFERENCES zones(id)"))
+            conn.commit()
+
+        # Movements mirror an item's zone placement (see items.zone_id
+        # above) -- add both columns in place so existing rows are kept.
+        movement_columns = {row[1] for row in conn.execute(
+            text("PRAGMA table_info(movements)"))}
+        if movement_columns and "zone_id" not in movement_columns:
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN zone_id INTEGER REFERENCES zones(id)"))
+            conn.execute(
+                text("ALTER TABLE movements ADD COLUMN from_zone_id INTEGER REFERENCES zones(id)"))
             conn.commit()
 
         # EDIT movements need to remember what actually changed (old/new

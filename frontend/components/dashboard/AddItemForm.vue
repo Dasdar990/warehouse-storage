@@ -1,6 +1,6 @@
 <template>
   <form
-    class="grid grid-cols-2 gap-3.5 max-[640px]:grid-cols-1"
+    class="grid grid-cols-4 gap-3.5 max-[900px]:grid-cols-2 max-[640px]:grid-cols-1"
     @submit.prevent="submit"
   >
     <div class="flex flex-col gap-1.5 col-span-full">
@@ -26,20 +26,50 @@
       />
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label class="text-[0.8rem] text-muted"
-        >Serial Number
-        <span class="text-[0.72rem] text-muted">(optional)</span></label
-      >
+    <div class="flex flex-col gap-1.5 col-span-3 max-[900px]:col-span-1">
+      <label class="flex items-center justify-between text-[0.8rem] text-muted">
+        <span v-if="!bulkMode"
+          >Serial Number
+          <span class="text-[0.72rem] text-muted">(optional)</span></span
+        >
+        <span v-else
+          >Serial Numbers
+          <span class="text-[0.72rem] text-muted">(one per line)</span></span
+        >
+        <button
+          type="button"
+          class="text-[0.95rem] text-accent underline-offset-2 hover:underline"
+          @click="bulkMode = !bulkMode"
+        >
+          {{ bulkMode ? "Single item" : "Multiple serials…" }}
+        </button>
+      </label>
       <input
+        v-if="!bulkMode"
         v-model="form.serial"
         type="text"
         placeholder="SN-00123"
-        class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+        class="field-input disabled:cursor-not-allowed disabled:opacity-60 w-full"
       />
+      <TagsInput
+        v-else
+        v-model="bulkSerials"
+        placeholder="Type a serial, press Enter…"
+        class="font-mono w-full"
+      />
+      <p v-if="bulkMode" class="m-0 text-[0.75rem] text-muted">
+        {{ bulkSerials.length }} item{{ bulkSerials.length === 1 ? "" : "s" }}
+        will be created, one per serial, all with these same details.
+      </p>
     </div>
 
-    <div class="flex flex-col gap-1.5 col-span-full">
+    <div
+      v-if="bulkMode"
+      class="col-span-full m-0 rounded-[10px] border border-white/10 bg-surface px-4 py-2.5 text-[0.8rem] text-muted"
+    >
+      A unique barcode is auto-generated for each item -- one per serial.
+    </div>
+    <div v-else class="flex flex-col gap-1.5 col-span-2 max-[900px]:col-span-1">
       <label class="text-[0.8rem] text-muted">Barcode</label>
       <div class="flex gap-2">
         <input
@@ -126,6 +156,16 @@
       </select>
     </div>
 
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[0.8rem] text-muted">Initial Quantity</label>
+      <input
+        v-model.number="form.quantity"
+        type="number"
+        min="0"
+        class="field-input no-spinner disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    </div>
+
     <div class="flex flex-col gap-1.5 col-span-full">
       <label class="text-[0.8rem] text-muted"
         >Shelf
@@ -135,11 +175,13 @@
       >
       <ShelfPicker
         v-model="form.shelf_position"
+        v-model:zone-id="form.zone_id"
         :options="shelfOptions"
+        :zones="zones"
         :loading="loadingOptions"
       />
       <p
-        v-if="!loadingOptions && !shelfOptions.length"
+        v-if="!loadingOptions && !shelfOptions.length && !zones.length"
         class="m-0 text-[0.75rem] text-muted"
       >
         No shelves configured yet —
@@ -147,16 +189,6 @@
           >set up the warehouse map first</NuxtLink
         >.
       </p>
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-[0.8rem] text-muted">Initial Quantity</label>
-      <input
-        v-model.number="form.quantity"
-        type="number"
-        min="0"
-        class="field-input no-spinner disabled:cursor-not-allowed disabled:opacity-60"
-      />
     </div>
 
     <div class="flex flex-col gap-1.5 col-span-full">
@@ -171,8 +203,7 @@
 
     <div class="flex flex-col gap-1.5 col-span-full">
       <label class="text-[0.8rem] text-muted"
-        >Notes
-        <span class="text-[0.72rem] text-muted">(optional)</span></label
+        >Notes <span class="text-[0.72rem] text-muted">(optional)</span></label
       >
       <textarea
         v-model="form.notes"
@@ -246,20 +277,61 @@
       leave-to-class="opacity-0 -translate-y-1.5"
     >
       <div
-        v-if="lastCreated"
-        class="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-good bg-good-dim px-4 py-3 text-green-200"
+        v-if="lastCreated || lastCreatedBatch.length"
+        class="col-span-full flex flex-col gap-3"
       >
-        <div>
-          <strong>{{ lastCreated.name }}</strong> saved with barcode
-          <span class="font-mono">{{ lastCreated.barcode }}</span>
-        </div>
-        <button
-          class="btn btn--ghost btn--small"
-          type="button"
-          @click="printLabel"
+        <div
+          v-if="lastCreated"
+          class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-good bg-good-dim px-4 py-3 text-green-200"
         >
-          🖨 Print Label
-        </button>
+          <div>
+            <strong>{{ lastCreated.name }}</strong> saved with barcode
+            <span class="font-mono">{{ lastCreated.barcode }}</span>
+            -- label sent to print.
+          </div>
+          <button
+            class="btn btn--ghost btn--small"
+            type="button"
+            @click="printLabel(lastCreated)"
+          >
+            🖨 Print Again
+          </button>
+        </div>
+        <div
+          v-if="lastCreatedBatch.length"
+          class="flex flex-col gap-2 rounded-[10px] border border-good bg-good-dim px-4 py-3 text-green-200"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <span
+              ><strong>{{ lastCreatedBatch.length }} items</strong> saved --
+              labels sent to print.</span
+            >
+            <button
+              class="btn btn--ghost btn--small"
+              type="button"
+              @click="printLabelBatch(lastCreatedBatch)"
+            >
+              🖨 Print All Again
+            </button>
+          </div>
+          <div
+            v-for="it in lastCreatedBatch"
+            :key="it.id"
+            class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-1.5 text-[0.82rem] text-ink"
+          >
+            <span
+              >{{ it.serial }} ·
+              <span class="font-mono">{{ it.barcode }}</span></span
+            >
+            <button
+              class="btn btn--ghost btn--small"
+              type="button"
+              @click="printLabel(it)"
+            >
+              🖨 Print Again
+            </button>
+          </div>
+        </div>
       </div>
     </transition>
   </form>
@@ -271,19 +343,23 @@ import type {
   Item,
   Program,
   ShelfPositionOption,
+  Zone,
 } from "~/composables/useWarehouseApi";
 
 const emit = defineEmits<{ created: [item: Item] }>();
 
 const {
   createItem,
+  createItemsBulk,
   checkDuplicateItems,
   depositItem,
   generateBarcode,
   listAdminCategories,
   listAdminPrograms,
   getShelfPositions,
+  getZones,
   labelUrl,
+  labelBatchUrl,
 } = useWarehouseApi();
 const { show } = useToast();
 
@@ -296,6 +372,7 @@ const EMPTY_FORM = {
   program: "",
   size: "small" as Item["size"],
   shelf_position: "",
+  zone_id: null as number | null,
   quantity: 0,
   tags: [] as string[],
   notes: "",
@@ -307,9 +384,16 @@ const submitting = ref(false);
 const generatingBarcode = ref(false);
 const loadingOptions = ref(false);
 
+// Multiple-serials mode: same details, one item per serial -- entered as
+// chips via TagsInput, same interaction as the Tags field below.
+const bulkMode = ref(false);
+const bulkSerials = ref<string[]>([]);
+const lastCreatedBatch = ref<Item[]>([]);
+
 const categories = ref<Category[]>([]);
 const programs = ref<Program[]>([]);
 const shelfOptions = ref<ShelfPositionOption[]>([]);
+const zones = ref<Zone[]>([]);
 
 // Shown after a successful save so the barcode can be printed onto the
 // physical item right away, without leaving the form.
@@ -366,14 +450,16 @@ async function addToExisting(dup: Item) {
 async function loadOptions() {
   loadingOptions.value = true;
   try {
-    const [cats, progs, shelves] = await Promise.all([
+    const [cats, progs, shelves, zoneList] = await Promise.all([
       listAdminCategories(),
       listAdminPrograms(),
       getShelfPositions(),
+      getZones(),
     ]);
     categories.value = cats;
     programs.value = progs;
     shelfOptions.value = shelves;
+    zones.value = zoneList;
   } catch (err: any) {
     show("error", err?.data?.detail || "Failed to load categories/shelves");
   } finally {
@@ -396,23 +482,53 @@ async function suggestBarcode() {
 async function submit() {
   error.value = "";
   const quantity = Number(form.value.quantity) || 0;
-  if (quantity > 0 && !form.value.shelf_position) {
-    error.value = "Pick a shelf before saving, or set the quantity to 0 to create it without one for now.";
+  if (quantity > 0 && !form.value.shelf_position && !form.value.zone_id) {
+    error.value =
+      "Pick a shelf or a zone before saving, or set the quantity to 0 to create it without one for now.";
     return;
   }
   submitting.value = true;
   lastCreated.value = null;
+  lastCreatedBatch.value = [];
   try {
-    const item = await createItem({
-      ...form.value,
-      quantity,
-    });
-    lastCreated.value = item;
-    show("success", `Item "${item.name}" created`);
-    form.value = { ...EMPTY_FORM };
-    duplicates.value = [];
-    await suggestBarcode();
-    emit("created", item);
+    if (bulkMode.value) {
+      if (!bulkSerials.value.length) {
+        error.value = "Enter at least one serial number.";
+        return;
+      }
+      const items = await createItemsBulk({
+        name: form.value.name,
+        pn: form.value.pn,
+        category: form.value.category,
+        program: form.value.program,
+        size: form.value.size,
+        shelf_position: form.value.shelf_position,
+        zone_id: form.value.zone_id,
+        quantity,
+        tags: form.value.tags,
+        notes: form.value.notes,
+        serials: bulkSerials.value,
+      });
+      lastCreatedBatch.value = items;
+      show("success", `${items.length} items created`);
+      // One tab, one print dialog for the whole batch instead of a popup
+      // per item.
+      printLabelBatch(items);
+      form.value = { ...EMPTY_FORM };
+      bulkSerials.value = [];
+      duplicates.value = [];
+      await suggestBarcode();
+      items.forEach((item) => emit("created", item));
+    } else {
+      const item = await createItem({ ...form.value, quantity });
+      lastCreated.value = item;
+      show("success", `Item "${item.name}" created`);
+      printLabel(item);
+      form.value = { ...EMPTY_FORM };
+      duplicates.value = [];
+      await suggestBarcode();
+      emit("created", item);
+    }
   } catch (err: any) {
     error.value = err?.data?.detail || "Failed to create item";
   } finally {
@@ -420,11 +536,18 @@ async function submit() {
   }
 }
 
-function printLabel() {
-  if (!lastCreated.value) return;
+function printLabel(item: Item | null) {
+  if (!item) return;
   // labelUrl() points at a small self-contained page that regenerates the
   // label, auto-prints, and closes itself -- no extra JS needed here.
-  window.open(labelUrl(lastCreated.value.id), "_blank");
+  window.open(labelUrl(item.id), "_blank");
+}
+
+function printLabelBatch(items: Item[]) {
+  if (!items.length) return;
+  // labelBatchUrl() opens one tab with all labels, one page each, printed
+  // in a single dialog -- avoids a popup-per-item (and popup blockers).
+  window.open(labelBatchUrl(items.map((it) => it.id)), "_blank");
 }
 
 onMounted(async () => {

@@ -1,7 +1,8 @@
 """SQLAlchemy ORM models for the Warehouse Storage backend."""
 import enum
 
-from sqlalchemy import Column, Enum as SAEnum, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Enum as SAEnum
 
 from app.db import Base
 
@@ -22,22 +23,15 @@ class Item(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     pn = Column(String, index=True, nullable=False, default="")
-    # Optional manufacturer/unit serial number -- unlike `pn` (which identifies
-    # the part type), this identifies one specific physical unit.
     serial = Column(String, index=True, nullable=True)
     barcode = Column(String, unique=True, index=True, nullable=False)
     category = Column(String, index=True, nullable=False)
-    # Optional, free-text like `category` -- populated from the admin-managed
-    # Program catalog, but never invalidated if that catalog entry is deleted.
     program = Column(String, index=True, nullable=True)
     size = Column(SAEnum(ItemSize, native_enum=False,
                   length=16), nullable=False)
     quantity = Column(Integer, default=0, nullable=False)
-    # Alphanumeric shelf position, e.g. "12B" or "3A" (shelf number + level letter)
     shelf_position = Column(String, index=True, nullable=False)
-    # Free-form search helpers -- neither drives any business logic, they
-    # just make an item easier to find later. Stored as a comma-separated
-    # string (same pattern as Shelf.levels) rather than a second table,
-    # since tags are cheap, unordered, and never need their own identity.
+    zone_id = Column(Integer, ForeignKey(
+        "zones.id", ondelete="SET NULL"), nullable=True)
     tags = Column(String, nullable=True)
     notes = Column(String, nullable=True)

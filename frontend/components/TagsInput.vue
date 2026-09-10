@@ -4,7 +4,7 @@
       <span
         v-for="(tag, i) in modelValue"
         :key="tag"
-        class="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 py-1 pl-2.5 pr-1.5 text-[0.78rem] font-semibold text-emerald-200"
+        class="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 py-1.5 pl-3 pr-2 text-[0.92rem] font-semibold text-emerald-200"
       >
         {{ tag }}
         <button
@@ -22,7 +22,7 @@
       type="text"
       :disabled="disabled"
       :placeholder="placeholder"
-      class="field-input disabled:cursor-not-allowed disabled:opacity-60"
+      class="field-input text-[0.95rem] disabled:cursor-not-allowed disabled:opacity-60 w-full"
       @keydown.enter.prevent="commit"
       @keydown="handleKeydown"
       @blur="commit"
@@ -48,7 +48,8 @@ function commit() {
   const tag = draft.value.trim().replace(/,/g, "");
   draft.value = "";
   if (!tag) return;
-  if (props.modelValue.some((t) => t.toLowerCase() === tag.toLowerCase())) return;
+  if (props.modelValue.some((t) => t.toLowerCase() === tag.toLowerCase()))
+    return;
   emit("update:modelValue", [...props.modelValue, tag]);
 }
 

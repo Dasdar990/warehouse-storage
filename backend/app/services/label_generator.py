@@ -115,7 +115,8 @@ def _draw_logo(canvas: Image.Image, x: int, y: int, max_w: int, max_h: int):
 
 
 def generate_label_image(
-    item_id: int, name: str, pn: str, shelf_position: str, barcode_value: str
+    item_id: int, name: str, pn: str, shelf_position: str, barcode_value: str,
+    serial: str | None = None,
 ) -> Path:
     """Build the 808x432 1-bit PNG label for 101x54mm thermal paper."""
     settings.labels_dir.mkdir(parents=True, exist_ok=True)
@@ -164,7 +165,13 @@ def generate_label_image(
     y += 38
 
     draw.text((padding, y), f"P/N: {pn}", fill=0, font=pn_font)
-    y += 32
+    y += 30
+
+    if serial:
+        draw.text((padding, y), f"S/N: {serial}", fill=0, font=pn_font)
+        y += 30
+
+    y += 2
 
     barcode_img = _generate_barcode_image(barcode_value)
 

@@ -144,6 +144,10 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
 
     by_shelf: dict[str, list[Item]] = {}
     for item in items:
+        # Items with no shelf_position (not yet shelved, or intentionally
+        # placed at zone-level only) don't belong on the shelf grid.
+        if not item.shelf_position:
+            continue
         by_shelf.setdefault(item.shelf_position, []).append(item)
 
     # The fallback grid always includes the configured default size, but

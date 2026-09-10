@@ -1,6 +1,9 @@
 <template>
   <div class="flex flex-col gap-1.5">
-    <div v-if="recentShelves.length" class="flex flex-wrap items-center gap-1.5">
+    <div
+      v-if="recentShelves.length"
+      class="flex flex-wrap items-center gap-1.5"
+    >
       <span class="text-[0.72rem] text-muted">Recent:</span>
       <button
         v-for="code in recentShelves"
@@ -12,7 +15,7 @@
             ? 'border-accent/60 bg-accent/15 text-ink'
             : 'border-edge/70 text-muted hover:border-accent/40 hover:text-ink'
         "
-        @click="pick(code)"
+        @click="pickRecent(code)"
       >
         {{ code }}
       </button>
@@ -43,12 +46,24 @@
           v-for="(opt, i) in filteredOptions"
           :key="opt.value"
           class="cursor-pointer px-3 py-1.5 text-[0.85rem]"
-          :class="i === highlighted ? 'bg-accent/20 text-ink' : 'text-ink hover:bg-surface'"
-          @mousedown.prevent="pick(opt.value)"
+          :class="
+            i === highlighted
+              ? 'bg-accent/20 text-ink'
+              : 'text-ink hover:bg-surface'
+          "
+          @mousedown.prevent="pick(opt)"
           @mouseenter="highlighted = i"
         >
-          <span class="font-semibold">{{ opt.value }}</span>
-          <span class="text-muted"> — {{ opt.rack_label }}, Level {{ opt.level }}</span>
+          <template v-if="opt.isZone">
+            <span class="font-semibold">{{ opt.name }}</span>
+            <span class="text-muted"> — whole zone, no specific shelf</span>
+          </template>
+          <template v-else>
+            <span class="font-semibold">{{ opt.value }}</span>
+            <span class="text-muted">
+              — {{ opt.rack_label }}, Level {{ opt.level }}</span
+            >
+          </template>
         </li>
       </ul>
       <p
@@ -62,46 +77,78 @@
 </template>
 
 <script setup lang="ts">
-import type { ShelfPositionOption } from "~/composables/useWarehouseApi";
+import type { ShelfPositionOption, Zone } from "~/composables/useWarehouseApi";
+
+type Option =
+  | (ShelfPositionOption & { isZone?: false })
+  | { value: string; isZone: true; id: number; name: string };
 
 const props = withDefaults(
   defineProps<{
     modelValue: string;
+    zoneId?: number | null;
     options: ShelfPositionOption[];
+    /** Optional: when provided, zones are offered at the top of the list as
+     * a "whole zone, no specific shelf" alternative to picking a shelf. */
+    zones?: Zone[];
     loading?: boolean;
     disabled?: boolean;
     placeholder?: string;
   }>(),
   {
+    zoneId: null,
+    zones: () => [],
     loading: false,
     disabled: false,
-    placeholder: "Type a shelf or rack, e.g. 12B…",
+    placeholder: "Type a shelf, rack or zone…",
   },
 );
 
-const emit = defineEmits<{ "update:modelValue": [string] }>();
+const emit = defineEmits<{
+  "update:modelValue": [string];
+  "update:zoneId": [number | null];
+}>();
 
-const query = ref(props.modelValue || "");
+function initialQuery(): string {
+  if (props.zoneId) {
+    const z = props.zones.find((z) => z.id === props.zoneId);
+    if (z) return `${z.name}`;
+  }
+  return props.modelValue || "";
+}
+
+const query = ref(initialQuery());
 const open = ref(false);
 const highlighted = ref(0);
 
 // Keep the visible text in sync whenever the parent resets/changes the value
 // from outside (e.g. a "Use this shelf instead" toggle, or clearing the form).
-watch(
-  () => props.modelValue,
-  (v) => {
-    if (v !== query.value) query.value = v || "";
-  },
+watch([() => props.modelValue, () => props.zoneId], () => {
+  query.value = initialQuery();
+});
+
+const zoneOptions = computed<Option[]>(() =>
+  props.zones.map((z) => ({
+    value: `zone:${z.id}`,
+    isZone: true,
+    id: z.id,
+    name: z.name,
+  })),
 );
 
-const filteredOptions = computed(() => {
+const filteredOptions = computed<Option[]>(() => {
   const q = query.value.trim().toLowerCase();
-  const list = !q
+  const zoneMatches = !q
+    ? zoneOptions.value
+    : zoneOptions.value.filter((o) => o.name.toLowerCase().includes(q));
+  const shelfMatches = !q
     ? props.options
     : props.options.filter(
-        (o) => o.value.toLowerCase().includes(q) || o.rack_label.toLowerCase().includes(q),
+        (o) =>
+          o.value.toLowerCase().includes(q) ||
+          o.rack_label.toLowerCase().includes(q),
       );
-  return list.slice(0, 8);
+  return [...zoneMatches, ...(shelfMatches as Option[])].slice(0, 8);
 });
 
 watch(filteredOptions, () => {
@@ -111,8 +158,11 @@ watch(filteredOptions, () => {
 function handleInput() {
   open.value = true;
   // Typing something that no longer matches the committed value clears the
-  // selection, so a stale shelf can't silently stay "selected" underneath.
-  if (query.value !== props.modelValue) emit("update:modelValue", "");
+  // selection, so a stale shelf/zone can't silently stay "selected" underneath.
+  if (query.value !== initialQuery()) {
+    emit("update:modelValue", "");
+    emit("update:zoneId", null);
+  }
 }
 
 function moveHighlight(delta: number) {
@@ -124,14 +174,30 @@ function moveHighlight(delta: number) {
 
 function selectHighlighted() {
   const opt = filteredOptions.value[highlighted.value];
-  if (opt) pick(opt.value);
+  if (opt) pick(opt);
 }
 
-function pick(value: string) {
-  query.value = value;
+function pick(opt: Option) {
+  if (opt.isZone) {
+    query.value = `${opt.name}`;
+    open.value = false;
+    emit("update:modelValue", "");
+    emit("update:zoneId", opt.id);
+    return;
+  }
+  query.value = opt.value;
   open.value = false;
-  emit("update:modelValue", value);
-  rememberRecent(value);
+  emit("update:modelValue", opt.value);
+  emit("update:zoneId", null);
+  rememberRecent(opt.value);
+}
+
+function pickRecent(code: string) {
+  query.value = code;
+  open.value = false;
+  emit("update:modelValue", code);
+  emit("update:zoneId", null);
+  rememberRecent(code);
 }
 
 function handleBlur() {
@@ -155,7 +221,9 @@ function loadRecent() {
     const raw = window.localStorage.getItem(RECENT_KEY);
     const parsed: string[] = raw ? JSON.parse(raw) : [];
     const known = new Set(props.options.map((o) => o.value));
-    recentShelves.value = parsed.filter((v) => known.has(v)).slice(0, MAX_RECENT);
+    recentShelves.value = parsed
+      .filter((v) => known.has(v))
+      .slice(0, MAX_RECENT);
   } catch {
     recentShelves.value = [];
   }
@@ -166,7 +234,10 @@ function rememberRecent(value: string) {
   try {
     const raw = window.localStorage.getItem(RECENT_KEY);
     const parsed: string[] = raw ? JSON.parse(raw) : [];
-    const next = [value, ...parsed.filter((v) => v !== value)].slice(0, MAX_RECENT);
+    const next = [value, ...parsed.filter((v) => v !== value)].slice(
+      0,
+      MAX_RECENT,
+    );
     window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
   } catch {
     // Non-critical: worst case, no quick chips next time.

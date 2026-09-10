@@ -120,6 +120,12 @@
               item.shelf_position
             }}</span>
             <span
+              v-else-if="item.zone_id"
+              class="badge badge--shelf"
+              title="Placed at zone-level, no specific shelf"
+              >{{ zoneName(item.zone_id) }}</span
+            >
+            <span
               v-else
               class="text-[0.82rem] text-muted"
               title="Fully withdrawn -- no shelf assigned"
@@ -234,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Item } from "~/composables/useWarehouseApi";
+import type { Item, Zone } from "~/composables/useWarehouseApi";
 
 const props = withDefaults(
   defineProps<{
@@ -250,7 +256,27 @@ const props = withDefaults(
   { showShelf: true, selectable: false, showLocate: true },
 );
 
-const { labelUrl } = useWarehouseApi();
+const { labelUrl, getZones } = useWarehouseApi();
+
+// Fetched lazily (only if the table actually has to render a zone-only
+// item) so pages that never deal with zones don't pay for the request.
+const zoneCache = ref<Zone[]>([]);
+watch(
+  () => props.items,
+  (items) => {
+    if (!zoneCache.value.length && items.some((i) => i.zone_id)) {
+      getZones()
+        .then((z) => (zoneCache.value = z))
+        .catch(() => {});
+    }
+  },
+  { immediate: true },
+);
+function zoneName(zoneId: number): string {
+  return (
+    zoneCache.value.find((z) => z.id === zoneId)?.name ?? `Zone #${zoneId}`
+  );
+}
 
 const emit = defineEmits<{
   move: [item: Item, action: "deposit" | "withdraw"];

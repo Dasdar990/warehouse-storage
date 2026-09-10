@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.movement import MovementAction, MovementSource
 from app.schemas.item import ItemOut
@@ -20,8 +20,13 @@ class StockMoveRequest(BaseModel):
             "Deposit only: destination shelf, if different from the item's current one. "
             "Lands on an existing item there if one already exists for the same part "
             "number, otherwise a brand-new item row is created at that shelf. "
-            "Ignored for withdrawals."
+            "Mutually exclusive with zone_id. Ignored for withdrawals."
         ),
+    )
+    zone_id: int | None = Field(
+        default=None,
+        description="Deposit only: destination zone, alternative to shelf_position. "
+                     "Ignored for withdrawals.",
     )
     source: MovementSource = Field(
         default=MovementSource.MANUAL,
@@ -29,6 +34,14 @@ class StockMoveRequest(BaseModel):
     )
     # No `operator` field here on purpose: it's derived server-side from the
     # authenticated user (see routers/items.py), so a client can't spoof it.
+
+    @field_validator("shelf_position")
+    @classmethod
+    def normalize_shelf_position(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip().upper()
+        return value or None
 
 
 class StockMoveResponse(BaseModel):
@@ -39,10 +52,15 @@ class StockMoveResponse(BaseModel):
 
 
 class RelocateItemRequest(BaseModel):
-    """Shape for POST /items/move: relocate an item to a different shelf."""
+    """Shape for POST /items/move: relocate an item to a different shelf or zone."""
 
     barcode: str = Field(..., min_length=1)
-    shelf_position: str = Field(..., min_length=1, description="Destination shelf, e.g. '12B'")
+    shelf_position: str | None = Field(
+        default=None, description="Destination shelf, e.g. '12B'. Mutually exclusive with zone_id."
+    )
+    zone_id: int | None = Field(
+        default=None, description="Destination zone, alternative to shelf_position."
+    )
     quantity: int | None = Field(
         default=None,
         gt=0,
@@ -58,11 +76,29 @@ class RelocateItemRequest(BaseModel):
         description="'barcode' if triggered by a scanner read, 'manual' if typed/clicked in the UI",
     )
 
+    @field_validator("shelf_position")
+    @classmethod
+    def normalize_shelf_position(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip().upper()
+        return value or None
+
+    @model_validator(mode="after")
+    def require_one_destination(self):
+        if self.shelf_position and self.zone_id:
+            raise ValueError("Pick either a destination shelf or a zone, not both")
+        if not self.shelf_position and not self.zone_id:
+            raise ValueError("A destination shelf or zone is required")
+        return self
+
 
 class RelocateItemResponse(BaseModel):
     item: ItemOut
     from_shelf_position: str
     to_shelf_position: str
+    from_zone_id: int | None = None
+    to_zone_id: int | None = None
     message: str
     # Only meaningfully different from `item` on a *partial* move: whichever
     # item the moved quantity actually landed on, and whether that item was
@@ -115,6 +151,8 @@ class MovementOut(BaseModel):
     pn: str
     shelf_position: str
     from_shelf_position: str | None
+    zone_id: int | None = None
+    from_zone_id: int | None = None
     action: MovementAction
     quantity: int
     balance_after: int

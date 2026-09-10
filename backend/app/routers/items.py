@@ -1,5 +1,4 @@
 """Item CRUD, scanning, and withdrawal endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
@@ -10,7 +9,14 @@ from app.core.deps import get_current_user, require_admin
 from app.db import get_db
 from app.models.item import Item, ItemSize
 from app.models.user import User
-from app.schemas.item import BarcodeSuggestion, ItemCreate, ItemOut, ItemUpdate
+from app.models.zone import Zone
+from app.schemas.item import (
+    BarcodeSuggestion,
+    ItemBulkCreate,
+    ItemCreate,
+    ItemOut,
+    ItemUpdate,
+)
 from app.schemas.movement import (
     BulkMoveRequest,
     BulkMoveResponse,
@@ -20,7 +26,13 @@ from app.schemas.movement import (
     StockMoveResponse,
 )
 from app.services.barcode_generator import generate_unique_barcode
-from app.services.movement_service import bulk_move, deposit_stock, log_edit_item, move_item, withdraw_stock
+from app.services.movement_service import (
+    bulk_move,
+    deposit_stock,
+    log_edit_item,
+    move_item,
+    withdraw_stock,
+)
 
 router = APIRouter(
     prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
@@ -30,26 +42,30 @@ settings = get_settings()
 @router.get("", response_model=list[ItemOut])
 def list_items(
     db: Session = Depends(get_db),
-    search: Optional[str] = Query(
+    search: str | None = Query(
         default=None, description="Case-insensitive match against name, P/N, or barcode"
     ),
-    category: Optional[str] = Query(
+    category: str | None = Query(
         default=None, description="Exact category match"),
-    program: Optional[str] = Query(
+    program: str | None = Query(
         default=None, description="Exact program match"),
-    size: Optional[ItemSize] = Query(
+    size: ItemSize | None = Query(
         default=None, description="Exact size match"),
-    shelf_position: Optional[str] = Query(
+    shelf_position: str | None = Query(
         default=None, description="Exact shelf match"),
-    pn: Optional[str] = Query(
+    zone_id: int | None = Query(
+        default=None, description="Only items placed directly in this zone (zone-level, no specific shelf)"),
+    unassigned: bool = Query(
+        default=False, description="Only items with neither a shelf nor a zone"),
+    pn: str | None = Query(
         default=None, description="Exact P/N match -- finds every shelf location for one part"
     ),
-    tag: Optional[str] = Query(
+    tag: str | None = Query(
         default=None, description="Exact tag match (one of the item's tags, not a substring)"
     ),
-    min_qty: Optional[int] = Query(
+    min_qty: int | None = Query(
         default=None, ge=0, description="Only items with quantity >= this value"),
-    max_qty: Optional[int] = Query(
+    max_qty: int | None = Query(
         default=None, ge=0, description="Only items with quantity <= this value"),
     low_stock: bool = Query(
         default=False, description=f"Only items with quantity <= {settings.low_stock_threshold}"
@@ -81,6 +97,10 @@ def list_items(
         stmt = stmt.where(Item.size == size)
     if shelf_position:
         stmt = stmt.where(Item.shelf_position == shelf_position.upper())
+    if zone_id:
+        stmt = stmt.where(Item.zone_id == zone_id)
+    if unassigned:
+        stmt = stmt.where(Item.shelf_position == "", Item.zone_id.is_(None))
     if pn:
         stmt = stmt.where(Item.pn.ilike(pn.strip()))
     if tag:
@@ -168,9 +188,9 @@ def get_next_barcode(db: Session = Depends(get_db)):
 
 @router.get("/check-duplicate", response_model=list[ItemOut])
 def check_duplicate_item(
-    name: Optional[str] = Query(
+    name: str | None = Query(
         default=None, description="Candidate item name"),
-    pn: Optional[str] = Query(
+    pn: str | None = Query(
         default=None, description="Candidate part number"),
     db: Session = Depends(get_db),
 ):
@@ -209,11 +229,46 @@ def create_item(payload: ItemCreate, db: Session = Depends(get_db)):
 
     data = payload.model_dump()
     tags = data.pop("tags", [])
+    data["shelf_position"] = data.get("shelf_position") or ""
+    if data.get("zone_id") and not db.get(Zone, data["zone_id"]):
+        raise HTTPException(status_code=404, detail="Zone not found")
     item = Item(**data, tags=",".join(tags) if tags else None)
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.post("/bulk-serials", response_model=list[ItemOut], status_code=201)
+def create_items_bulk_by_serial(payload: ItemBulkCreate, db: Session = Depends(get_db)):
+    """
+    Create one item per serial number, all sharing the same descriptive
+    fields (name, P/N, category, ...). Each gets its own auto-generated
+    barcode. Fails atomically (nothing is created) if the same serial is
+    repeated within this request -- consistent with single-item creation,
+    a serial isn't required to be unique across different items/parts.
+    """
+    base = payload.model_dump(exclude={"serials"})
+    tags = base.pop("tags", [])
+    tags_str = ",".join(tags) if tags else None
+    base["shelf_position"] = base.get("shelf_position") or ""
+    if base.get("zone_id") and not db.get(Zone, base["zone_id"]):
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    created: list[Item] = []
+    for serial in payload.serials:
+        item = Item(**base, serial=serial, tags=tags_str,
+                    barcode=generate_unique_barcode(db))
+        db.add(item)
+        # Flush so the next generate_unique_barcode() call sees this item's
+        # id and doesn't hand out the same barcode twice in this batch.
+        db.flush()
+        created.append(item)
+
+    db.commit()
+    for item in created:
+        db.refresh(item)
+    return created
 
 
 @router.patch("/{item_id}", response_model=ItemOut)
@@ -346,12 +401,15 @@ def deposit_item(
     is created) -- the original item is untouched in that case. Also writes
     a matching audit-log row with `operator` derived from the logged-in user.
     """
+    if payload.zone_id and not db.get(Zone, payload.zone_id):
+        raise HTTPException(status_code=404, detail="Zone not found")
     item, movement, redirected = deposit_stock(
         db, payload, operator=current_user.full_name)
     if redirected:
+        where = f"shelf {item.shelf_position}" if item.shelf_position else "the zone"
         message = (
-            f"Deposited {payload.quantity} unit(s) of '{item.name}' onto shelf "
-            f"{item.shelf_position}. {item.quantity} there now."
+            f"Deposited {payload.quantity} unit(s) of '{item.name}' onto {where}. "
+            f"{item.quantity} there now."
         )
     else:
         message = f"Deposited {payload.quantity} unit(s) of '{item.name}'. {item.quantity} total."
@@ -380,19 +438,24 @@ def move_item_endpoint(
     recording both the origin and destination shelf, with `operator`
     derived from the logged-in user.
     """
+    if payload.zone_id and not db.get(Zone, payload.zone_id):
+        raise HTTPException(status_code=404, detail="Zone not found")
     item, movement, full, destination_item, destination_is_new = move_item(
         db, payload, operator=current_user.full_name)
+    dest_label = f"shelf {movement.shelf_position}" if movement.shelf_position else "the zone"
     if full:
-        message = f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {movement.shelf_position}."
+        message = f"Moved '{item.name}' from shelf {movement.from_shelf_position} to {dest_label}."
     else:
         message = (
-            f"Moved {movement.quantity} unit(s) of '{item.name}' to shelf {movement.shelf_position}. "
+            f"Moved {movement.quantity} unit(s) of '{item.name}' to {dest_label}. "
             f"{item.quantity} unit(s) remain on shelf {item.shelf_position}."
         )
     return RelocateItemResponse(
         item=item,
         from_shelf_position=movement.from_shelf_position or "",
         to_shelf_position=movement.shelf_position,
+        from_zone_id=movement.from_zone_id,
+        to_zone_id=movement.zone_id,
         message=message,
         destination_item=destination_item,
         destination_is_new=destination_is_new,

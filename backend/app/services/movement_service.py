@@ -3,8 +3,8 @@ Stock movement logic: mutates an item's quantity and writes a matching
 `Movement` audit-log row in the same transaction, so the two can never
 drift apart.
 """
-from datetime import date, datetime, time
 import json
+from datetime import date, datetime, time
 
 from fastapi import HTTPException
 from sqlalchemy import or_, select
@@ -14,8 +14,8 @@ from app.core.timezone import APP_TZ
 from app.models.item import Item, ItemSize
 from app.models.movement import Movement, MovementAction, MovementSource
 from app.schemas.movement import BulkMoveRequest, RelocateItemRequest, StockMoveRequest
-from app.services.shelf_service import get_shelf_node
 from app.services.barcode_generator import generate_unique_barcode
+from app.services.shelf_service import get_shelf_node
 
 
 def _get_item_by_barcode(db: Session, barcode: str) -> Item:
@@ -27,29 +27,33 @@ def _get_item_by_barcode(db: Session, barcode: str) -> Item:
     return item
 
 
-def _find_or_create_destination(db: Session, source: Item, destination: str) -> tuple[Item, bool]:
+def _find_or_create_destination(
+    db: Session, source: Item, *, shelf_position: str = "", zone_id: int | None = None
+) -> tuple[Item, bool]:
     """
-    Find the item that a cross-shelf deposit or partial move should land on
-    at `destination`: an existing row for the same part number if one is
-    already there, otherwise a freshly-created item (starting at quantity 0,
-    topped up by the caller) so the stock has somewhere to go. Returns
+    Find the item that a redirected deposit or partial move should land on
+    at `shelf_position` (a specific shelf) or `zone_id` (zone-level, no
+    specific shelf) -- exactly one of the two is expected to be set.
+    Returns an existing row for the same part number if one is already
+    there, otherwise a freshly-created item (starting at quantity 0, topped
+    up by the caller) so the stock has somewhere to go. Returns
     `(item, created)` -- callers use `created` to tell the operator whether
     that destination needs a brand-new label printed (new item) or already
     has one (existing item, nothing to print).
 
     Items with no P/N can't be reliably matched to "the same part" on
-    another shelf, so those always get a brand-new row rather than risking
-    a merge into an unrelated item that just happens to share a shelf.
+    another shelf/zone, so those always get a brand-new row rather than
+    risking a merge into an unrelated item that just happens to be there.
     """
     target = None
     if source.pn:
-        target = db.execute(
-            select(Item).where(
-                Item.shelf_position == destination,
-                Item.pn == source.pn,
-                Item.id != source.id,
-            )
-        ).scalar_one_or_none()
+        if zone_id:
+            where = (Item.zone_id == zone_id, Item.pn ==
+                     source.pn, Item.id != source.id)
+        else:
+            where = (Item.shelf_position == shelf_position,
+                     Item.pn == source.pn, Item.id != source.id)
+        target = db.execute(select(Item).where(*where)).scalar_one_or_none()
 
     created = target is None
     if target is None:
@@ -63,7 +67,8 @@ def _find_or_create_destination(db: Session, source: Item, destination: str) -> 
             category=source.category,
             program=source.program,
             size=source.size,
-            shelf_position=destination,
+            shelf_position=shelf_position,
+            zone_id=zone_id,
             quantity=0,
         )
         db.add(target)
@@ -110,20 +115,24 @@ def deposit_stock(db: Session, payload: StockMoveRequest, *, operator: str) -> t
     """
     Increase stock (restock / put-away confirmation).
 
-    By default deposits onto the scanned/selected item's own shelf. If
-    `payload.shelf_position` names a *different* shelf, the deposit is
-    redirected there instead -- topping up a matching item if one already
-    exists on that shelf, or creating a new one -- while the original item
-    is left completely untouched. Returns whether the deposit was redirected
-    like this, so the caller can word its response accordingly.
+    By default deposits onto the scanned/selected item's own shelf/zone. If
+    `payload.shelf_position` or `payload.zone_id` names a *different*
+    location, the deposit is redirected there instead -- topping up a
+    matching item if one already exists there, or creating a new one --
+    while the original item is left completely untouched. Returns whether
+    the deposit was redirected like this, so the caller can word its
+    response accordingly.
     """
     item = _get_item_by_barcode(db, payload.barcode)
 
-    destination = (payload.shelf_position or "").strip().upper()
-    redirected = bool(destination) and destination != item.shelf_position
+    dest_shelf = (payload.shelf_position or "").strip().upper()
+    dest_zone = payload.zone_id
+    redirected = (bool(dest_shelf) and dest_shelf != item.shelf_position) or (
+        bool(dest_zone) and dest_zone != item.zone_id)
     target = item
     if redirected:
-        target, _created = _find_or_create_destination(db, item, destination)
+        target, _created = _find_or_create_destination(
+            db, item, shelf_position=dest_shelf, zone_id=dest_zone)
 
     target.quantity += payload.quantity
     movement = _log_movement(
@@ -153,6 +162,7 @@ def log_edit_item(
         item_name=item.name,
         pn=item.pn,
         shelf_position=item.shelf_position,
+        zone_id=item.zone_id,
         action=MovementAction.EDIT,
         quantity=item.quantity,
         balance_after=item.quantity,
@@ -168,34 +178,35 @@ def move_item(
     db: Session, payload: RelocateItemRequest, *, operator: str
 ) -> tuple[Item, Movement, bool, Item, bool]:
     """
-    Relocate stock to a different shelf.
+    Relocate stock to a different shelf or zone.
 
     Moving the item's *entire* current quantity (the default, if
     `payload.quantity` is omitted) behaves exactly as before: the same item
-    row just gets a new `shelf_position`, quantity untouched.
+    row just gets a new `shelf_position`/`zone_id`, quantity untouched.
 
     Moving a smaller quantity splits the stock instead: the source keeps
-    the remainder on its current shelf, and the moved quantity either tops
-    up a matching item already on the destination shelf or creates a new
+    the remainder on its current shelf/zone, and the moved quantity either
+    tops up a matching item already at the destination or creates a new
     one there.
 
     Returns `(item, movement, full, destination_item, destination_is_new)`:
     `full` says whether this was a full relocation (vs. a split); for a
     full move `destination_item` is just `item` itself (same barcode, new
-    shelf) and `destination_is_new` is always False. For a split,
+    location) and `destination_is_new` is always False. For a split,
     `destination_item`/`destination_is_new` describe wherever the moved
     quantity actually landed -- the caller uses this to tell the operator
     whether that shelf needs a brand-new label printed.
     """
     item = _get_item_by_barcode(db, payload.barcode)
-    destination = payload.shelf_position.strip().upper()
+    dest_shelf = (payload.shelf_position or "").strip().upper()
+    dest_zone = payload.zone_id
 
-    if not destination:
+    already_there = (dest_shelf and dest_shelf == item.shelf_position) or (
+        dest_zone and dest_zone == item.zone_id and not item.shelf_position)
+    if already_there:
+        where = f"shelf {dest_shelf}" if dest_shelf else "that zone"
         raise HTTPException(
-            status_code=400, detail="Destination shelf can't be empty")
-    if destination == item.shelf_position:
-        raise HTTPException(
-            status_code=400, detail=f"'{item.name}' is already on shelf {destination}")
+            status_code=400, detail=f"'{item.name}' is already on {where}")
 
     move_qty = payload.quantity if payload.quantity is not None else item.quantity
     if move_qty > item.quantity:
@@ -204,20 +215,24 @@ def move_item(
             detail=f"Only {item.quantity} unit(s) of '{item.name}' available to move",
         )
 
-    origin = item.shelf_position
+    origin_shelf = item.shelf_position
+    origin_zone = item.zone_id
     source = payload.source if isinstance(
         payload.source, MovementSource) else MovementSource(payload.source)
     clean_operator = operator.strip() or "Operator"
 
     if move_qty == item.quantity:
-        # Full relocation: same row, just a new shelf.
-        item.shelf_position = destination
+        # Full relocation: same row, just a new shelf/zone.
+        item.shelf_position = dest_shelf
+        item.zone_id = dest_zone
         movement = Movement(
             item_id=item.id,
             item_name=item.name,
             pn=item.pn,
-            shelf_position=destination,
-            from_shelf_position=origin,
+            shelf_position=dest_shelf,
+            from_shelf_position=origin_shelf,
+            zone_id=dest_zone,
+            from_zone_id=origin_zone,
             action=MovementAction.MOVE,
             quantity=item.quantity,
             balance_after=item.quantity,
@@ -232,14 +247,17 @@ def move_item(
 
     # Partial move: shrink the source, grow (or create) the destination.
     item.quantity -= move_qty
-    target, target_is_new = _find_or_create_destination(db, item, destination)
+    target, target_is_new = _find_or_create_destination(
+        db, item, shelf_position=dest_shelf, zone_id=dest_zone)
     target.quantity += move_qty
     movement = Movement(
         item_id=target.id,
         item_name=target.name,
         pn=target.pn,
-        shelf_position=destination,
-        from_shelf_position=origin,
+        shelf_position=dest_shelf,
+        from_shelf_position=origin_shelf,
+        zone_id=dest_zone,
+        from_zone_id=origin_zone,
         action=MovementAction.MOVE,
         quantity=move_qty,
         balance_after=target.quantity,
@@ -263,6 +281,7 @@ def _log_movement(
         item_name=item.name,
         pn=item.pn,
         shelf_position=item.shelf_position,
+        zone_id=item.zone_id,
         action=action,
         quantity=payload.quantity,
         balance_after=item.quantity,
@@ -374,6 +393,8 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
             pn=origin_item.pn,
             shelf_position=origin_item.shelf_position,
             from_shelf_position=item.shelf_position,
+            zone_id=origin_item.zone_id,
+            from_zone_id=item.zone_id,
             action=MovementAction.MOVE,
             quantity=original.quantity,
             balance_after=origin_item.quantity,
@@ -407,6 +428,7 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
             item_name=item.name,
             pn=item.pn,
             shelf_position=item.shelf_position,
+            zone_id=item.zone_id,
             action=MovementAction.EDIT,
             quantity=item.quantity,
             balance_after=item.quantity,
@@ -425,13 +447,17 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
     elif original.action == MovementAction.MOVE:
         reverse_action = MovementAction.MOVE
         origin = item.shelf_position
+        origin_zone = item.zone_id
         item.shelf_position = original.from_shelf_position or origin
+        item.zone_id = original.from_zone_id
         reversal = Movement(
             item_id=item.id,
             item_name=item.name,
             pn=item.pn,
             shelf_position=item.shelf_position,
             from_shelf_position=origin,
+            zone_id=item.zone_id,
+            from_zone_id=origin_zone,
             action=reverse_action,
             quantity=item.quantity,
             balance_after=item.quantity,
@@ -460,6 +486,7 @@ def rollback_movement(db: Session, movement_id: int, *, operator: str) -> tuple[
             item_name=item.name,
             pn=item.pn,
             shelf_position=item.shelf_position,
+            zone_id=item.zone_id,
             action=reverse_action,
             quantity=original.quantity,
             balance_after=item.quantity,

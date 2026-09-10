@@ -77,6 +77,7 @@
         :categories="categories"
         :programs="programs"
         :shelves="shelves"
+        :zones="zones"
         :tags="tags"
       />
     </section>
@@ -156,12 +157,18 @@
 </template>
 
 <script setup lang="ts">
-import type { Item, ItemFilters } from "~/composables/useWarehouseApi";
+import type { Item, ItemFilters, Zone } from "~/composables/useWarehouseApi";
 
 const { isAdmin } = useAuth();
 const route = useRoute();
-const { listItems, listCategories, listItemPrograms, listItemShelves, listItemTags } =
-  useWarehouseApi();
+const {
+  listItems,
+  listCategories,
+  listItemPrograms,
+  listItemShelves,
+  listItemTags,
+  getZones,
+} = useWarehouseApi();
 
 const filters = ref<ItemFilters>({
   shelf_position:
@@ -173,6 +180,7 @@ const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);
 const programs = ref<string[]>([]);
 const shelves = ref<string[]>([]);
+const zones = ref<Zone[]>([]);
 const tags = ref<string[]>([]);
 const loading = ref(false);
 const showAddForm = ref(false);
@@ -301,6 +309,10 @@ async function fetchShelves() {
   shelves.value = await listItemShelves();
 }
 
+async function fetchZones() {
+  zones.value = await getZones();
+}
+
 async function fetchTags() {
   tags.value = await listItemTags();
 }
@@ -321,6 +333,7 @@ async function onItemCreated() {
     fetchCategories(),
     fetchPrograms(),
     fetchShelves(),
+    fetchZones(),
     fetchTags(),
   ]);
 }
@@ -330,6 +343,7 @@ onMounted(() => {
   fetchCategories();
   fetchPrograms();
   fetchShelves();
+  fetchZones();
   fetchTags();
 });
 </script>

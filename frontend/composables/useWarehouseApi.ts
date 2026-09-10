@@ -10,6 +10,8 @@ export interface Item {
   program?: string | null;
   size: ItemSize;
   shelf_position: string;
+  /** Set instead of shelf_position when the item is placed at zone-level granularity only. */
+  zone_id?: number | null;
   quantity: number;
   /** Free-form tags to help find this item later, e.g. ['spare', 'critical']. */
   tags: string[];
@@ -90,11 +92,11 @@ export interface RoomLayoutInput {
  * backend recreates everything with new database ids on import.
  */
 export interface MapBundle {
-  version: number
-  zones: Zone[]
-  nodes: ShelfNodeOut[]
-  walls: Wall[]
-  doors: Door[]
+  version: number;
+  zones: Zone[];
+  nodes: ShelfNodeOut[];
+  walls: Wall[];
+  doors: Door[];
 }
 
 export interface ShelfNode {
@@ -180,6 +182,10 @@ export interface ItemFilters {
   program?: string;
   size?: ItemSize | "";
   shelf_position?: string;
+  /** Only items placed directly in this zone (zone-level, no specific shelf). */
+  zone_id?: number;
+  /** Only items with neither a shelf nor a zone. */
+  unassigned?: boolean;
   /** Exact P/N match -- finds every shelf location for one part. */
   pn?: string;
   /** Exact tag match (one of the item's tags, not a substring). */
@@ -202,14 +208,19 @@ export interface StockMoveResult {
 export interface StockMoveInput {
   barcode: string;
   quantity: number;
-  /** Deposit only: destination shelf if different from the item's own. */
+  /** Deposit only: destination shelf if different from the item's own. Mutually exclusive with zone_id. */
   shelf_position?: string;
+  /** Deposit only: destination zone, alternative to shelf_position. */
+  zone_id?: number | null;
   source: MovementSource;
 }
 
 export interface RelocateItemInput {
   barcode: string;
-  shelf_position: string;
+  /** Destination shelf. Mutually exclusive with zone_id. */
+  shelf_position?: string;
+  /** Destination zone, alternative to shelf_position. */
+  zone_id?: number | null;
   /** Omit to move the item's entire current quantity (full relocation). */
   quantity?: number;
   source?: MovementSource;
@@ -219,6 +230,8 @@ export interface RelocateItemResult {
   item: Item;
   from_shelf_position: string;
   to_shelf_position: string;
+  from_zone_id?: number | null;
+  to_zone_id?: number | null;
   message: string;
   /** Only meaningful on a *partial* move: whichever item the moved quantity landed on. */
   destination_item?: Item | null;
@@ -261,13 +274,13 @@ export interface Movement {
 export type UserRole = "admin" | "operator";
 
 export interface AppUser {
-  id: number
-  username: string
-  full_name: string
-  role: UserRole
-  is_active: boolean
-  created_at: string
-  badge_uid?: string | null
+  id: number;
+  username: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  badge_uid?: string | null;
 }
 
 export interface UserCreateInput {
@@ -278,11 +291,11 @@ export interface UserCreateInput {
 }
 
 export interface UserUpdateInput {
-  full_name?: string
-  password?: string
-  role?: UserRole
-  is_active?: boolean
-  badge_uid?: string
+  full_name?: string;
+  password?: string;
+  role?: UserRole;
+  is_active?: boolean;
+  badge_uid?: string;
 }
 
 /**
@@ -325,6 +338,8 @@ export function useWarehouseApi() {
     if (filters.program) params.program = filters.program;
     if (filters.size) params.size = filters.size;
     if (filters.shelf_position) params.shelf_position = filters.shelf_position;
+    if (filters.zone_id) params.zone_id = filters.zone_id;
+    if (filters.unassigned) params.unassigned = true;
     if (filters.pn) params.pn = filters.pn;
     if (filters.tag) params.tag = filters.tag;
     if (filters.min_qty !== undefined && filters.min_qty !== null)
@@ -359,6 +374,26 @@ export function useWarehouseApi() {
 
   function createItem(payload: Omit<Item, "id">) {
     return apiFetch<Item>("/items", { method: "POST", body: payload });
+  }
+
+  /** Create one item per serial, sharing the same descriptive fields (see AddItemForm bulk mode). */
+  function createItemsBulk(payload: {
+    name: string;
+    pn: string;
+    category: string;
+    program: string;
+    size: Item["size"];
+    shelf_position: string;
+    zone_id: number | null;
+    quantity: number;
+    tags: string[];
+    notes: string;
+    serials: string[];
+  }) {
+    return apiFetch<Item[]>("/items/bulk-serials", {
+      method: "POST",
+      body: payload,
+    });
   }
 
   /** Edit descriptive fields (name/P·N/serial/category/program/size). Quantity, shelf, and barcode aren't editable this way. */
@@ -481,6 +516,14 @@ export function useWarehouseApi() {
     return `${apiBase}/items/${id}/label${qs}`;
   }
 
+  function labelBatchUrl(ids: number[]) {
+    // One tab, one print dialog for several labels (e.g. after a
+    // multi-serial creation) instead of a popup per item.
+    const params = new URLSearchParams({ ids: ids.join(",") });
+    if (token.value) params.set("token", token.value);
+    return `${apiBase}/items/label/batch?${params.toString()}`;
+  }
+
   function getWarehouseLayout() {
     return apiFetch<WarehouseLayout>("/shelves");
   }
@@ -529,12 +572,12 @@ export function useWarehouseApi() {
 
   /** Admin-only: everything on the map (zones, racks, walls, doors) as one JSON bundle. */
   function exportMap() {
-    return apiFetch<MapBundle>('/map/export')
+    return apiFetch<MapBundle>("/map/export");
   }
 
   /** Admin-only: replaces the entire map with the contents of an exported bundle. */
   function importMap(bundle: MapBundle) {
-    return apiFetch<MapBundle>('/map/import', { method: 'POST', body: bundle })
+    return apiFetch<MapBundle>("/map/import", { method: "POST", body: bundle });
   }
 
   /** Admin-only: user management (login accounts + audit-log attribution). */
@@ -566,6 +609,7 @@ export function useWarehouseApi() {
     listItemTags,
     scanItem,
     createItem,
+    createItemsBulk,
     updateItem,
     deleteItem,
     checkDuplicateItems,
@@ -584,6 +628,7 @@ export function useWarehouseApi() {
     listMovements,
     rollbackMovement,
     labelUrl,
+    labelBatchUrl,
     getWarehouseLayout,
     getRackLevels,
     getShelfItems,

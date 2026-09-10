@@ -54,7 +54,10 @@
               #{{ tag }}
             </span>
           </div>
-          <p v-if="item.notes" class="m-0 mt-2 text-[0.85rem] italic text-muted">
+          <p
+            v-if="item.notes"
+            class="m-0 mt-2 text-[0.85rem] italic text-muted"
+          >
             {{ item.notes }}
           </p>
         </template>
@@ -103,7 +106,10 @@
               <option value="xl">XL</option>
             </select>
           </div>
-          <TagsInput v-model="editForm.tags" placeholder="e.g. spare, critical…" />
+          <TagsInput
+            v-model="editForm.tags"
+            placeholder="e.g. spare, critical…"
+          />
           <textarea
             v-model="editForm.notes"
             rows="2"
@@ -170,6 +176,21 @@
           </div>
         </div>
       </NuxtLink>
+      <div
+        v-else-if="directZoneName"
+        class="shrink-0 rounded-xl bg-accent/16 px-4 py-2.5 text-center"
+        title="Placed at zone-level, no specific shelf"
+      >
+        <div
+          class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-accent"
+        >
+          📍 Location
+        </div>
+        <div class="mt-1 text-[1.22rem] font-bold leading-none text-ink">
+          {{ directZoneName }}
+        </div>
+        <div class="mt-1 text-[0.82rem] font-medium text-muted">Whole zone</div>
+      </div>
     </div>
 
     <p v-if="otherShelves.length" class="m-0 mt-2.5 text-[0.88rem] text-muted">
@@ -347,30 +368,45 @@
             >Deposit onto</span
           >
           <button
-            v-if="item.shelf_position && !depositElsewhere"
+            v-if="(item.shelf_position || item.zone_id) && !depositElsewhere"
             type="button"
             class="text-sm font-extrabold text-accent underline-offset-2 hover:underline"
             @click="openDepositElsewhere"
           >
-            Choose a different shelf
+            Choose a different shelf/zone
           </button>
           <button
-            v-else-if="item.shelf_position && depositElsewhere"
+            v-else-if="
+              (item.shelf_position || item.zone_id) && depositElsewhere
+            "
             type="button"
             class="text-sm text-accent underline-offset-2 hover:underline"
             @click="resetDepositShelf"
           >
-            Use this shelf instead
+            Use this location instead
           </button>
         </div>
 
-        <p v-if="!depositElsewhere" class="m-0 text-[0.92rem] text-ink">
+        <p
+          v-if="!depositElsewhere && item.shelf_position"
+          class="m-0 text-[0.92rem] text-ink"
+        >
           Shelf {{ item.shelf_position }}
           <span class="text-muted">(current)</span>
         </p>
-        <template v-else>
-          <p v-if="!item.shelf_position" class="m-0 text-[0.85rem] text-muted">
-            This item isn't on a shelf yet -- pick where to deposit it.
+        <p
+          v-else-if="!depositElsewhere && item.zone_id"
+          class="m-0 text-[0.92rem] text-ink"
+        >
+          {{ directZoneName ?? "Zone" }}
+          <span class="text-muted">(current)</span>
+        </p>
+        <template v-else-if="depositElsewhere">
+          <p
+            v-if="!item.shelf_position && !item.zone_id"
+            class="m-0 text-[0.85rem] text-muted"
+          >
+            This item isn't placed anywhere yet -- pick where to deposit it.
           </p>
           <div
             v-if="otherShelves.length"
@@ -395,10 +431,14 @@
             </button>
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-[0.85rem] text-muted">Destination shelf</label>
+            <label class="text-[0.85rem] text-muted"
+              >Destination shelf or zone</label
+            >
             <ShelfPicker
               v-model="depositShelfPosition"
+              v-model:zone-id="depositZoneId"
               :options="shelfOptions"
+              :zones="zones"
               :loading="loadingShelves"
             />
           </div>
@@ -416,11 +456,15 @@
             v-if="
               pendingAction === 'deposit' &&
               depositElsewhere &&
-              depositShelfPosition
+              (depositShelfPosition || depositZoneId)
             "
           >
             onto
-            <strong class="text-ink">shelf {{ depositShelfPosition }}</strong>
+            <strong class="text-ink">{{
+              depositShelfPosition
+                ? `shelf ${depositShelfPosition}`
+                : zones.find((z) => z.id === depositZoneId)?.name
+            }}</strong>
           </template>
         </span>
         <span
@@ -428,7 +472,7 @@
             !(
               pendingAction === 'deposit' &&
               depositElsewhere &&
-              depositShelfPosition
+              (depositShelfPosition || depositZoneId)
             )
           "
           class="whitespace-nowrap text-muted"
@@ -449,7 +493,8 @@
           !!qtyError ||
           (pendingAction === 'deposit' &&
             depositElsewhere &&
-            !depositShelfPosition)
+            !depositShelfPosition &&
+            !depositZoneId)
         "
         @click="confirmAction"
       >
@@ -458,8 +503,8 @@
             ? "Saving…"
             : pendingAction === "deposit" &&
                 depositElsewhere &&
-                depositShelfPosition
-              ? `Confirm deposit onto shelf ${depositShelfPosition}`
+                (depositShelfPosition || depositZoneId)
+              ? `Confirm deposit onto ${depositShelfPosition ? `shelf ${depositShelfPosition}` : zones.find((z) => z.id === depositZoneId)?.name}`
               : `Confirm ${pendingAction === "withdraw" ? "removal" : "addition"}`
         }}
       </button>
@@ -491,8 +536,12 @@
           Currently on
           <strong class="text-ink">Shelf {{ item.shelf_position }}</strong>
         </template>
+        <template v-else-if="item.zone_id">
+          Currently in
+          <strong class="text-ink">{{ directZoneName ?? "a zone" }}</strong>
+        </template>
         <template v-else>
-          Not currently on a shelf -- pick where to put it.
+          Not currently placed anywhere -- pick where to put it.
         </template>
       </p>
 
@@ -566,10 +615,14 @@
       </div>
 
       <div class="flex flex-col gap-1.5">
-        <label class="text-[0.85rem] text-muted">Destination shelf</label>
+        <label class="text-[0.85rem] text-muted"
+          >Destination shelf or zone</label
+        >
         <ShelfPicker
           v-model="moveShelfPosition"
+          v-model:zone-id="moveZoneId"
           :options="shelfOptions"
+          :zones="zones"
           :loading="loadingShelves"
         />
       </div>
@@ -586,8 +639,8 @@
         class="btn btn--confirm cursor-pointer py-2.5 text-[1.02rem] font-semibold"
         :disabled="
           busy ||
-          !moveShelfPosition ||
-          moveShelfPosition === item.shelf_position ||
+          (!moveShelfPosition && !moveZoneId) ||
+          !!moveError ||
           !!moveQtyError
         "
         @click="confirmMove"
@@ -595,7 +648,7 @@
         {{
           busy
             ? "Moving…"
-            : `Confirm move of ${moveQty} to ${moveShelfPosition || "…"}`
+            : `Confirm move of ${moveQty} to ${moveShelfPosition || (moveZoneId ? zones.find((z) => z.id === moveZoneId)?.name : "…") || "…"}`
         }}
       </button>
     </div>
@@ -631,20 +684,25 @@
               >
             </template>
             <template v-else-if="h.action === 'edit'">
-              <strong class="text-ink">{{ getMovementActionLabel(h.action) }}</strong>
+              <strong class="text-ink">{{
+                getMovementActionLabel(h.action)
+              }}</strong>
               <span v-if="h.field_changes" class="text-muted">
                 ·
                 <span
                   v-for="(pair, field) in h.field_changes"
                   :key="field"
                   class="mr-1.5"
-                  >{{ field }}: {{ pair[0] || "—" }} → {{ pair[1] || "—" }}</span
+                  >{{ field }}: {{ pair[0] || "—" }} →
+                  {{ pair[1] || "—" }}</span
                 >
               </span>
             </template>
             <template v-else>
               <strong
-                :class="h.action === 'deposit' ? 'text-green-300' : 'text-red-300'"
+                :class="
+                  h.action === 'deposit' ? 'text-green-300' : 'text-red-300'
+                "
               >
                 {{ h.action === "deposit" ? "+" : "−" }}{{ h.quantity }}
               </strong>
@@ -665,8 +723,8 @@
     >
       <span class="flex-1 text-[0.85rem] text-amber-200">
         ⚠️ This item's shelf changed -- the printed label still shows the old
-        one. Barcode and name are unchanged, only the "Shelf:" line at the
-        top needs a reprint.
+        one. Barcode and name are unchanged, only the "Shelf:" line at the top
+        needs a reprint.
       </span>
       <a
         :href="labelUrl(item.id)"
@@ -693,7 +751,11 @@
         target="_blank"
         rel="noopener"
         class="btn inline-flex cursor-pointer items-center gap-2"
-        :class="needsReprint ? 'border border-warn/50 bg-warn/15 text-amber-200 hover:bg-warn/25' : 'btn--ghost'"
+        :class="
+          needsReprint
+            ? 'border border-warn/50 bg-warn/15 text-amber-200 hover:bg-warn/25'
+            : 'btn--ghost'
+        "
         title="Print label"
         aria-label="Print label"
         @click="needsReprint = false"
@@ -820,17 +882,22 @@
     </div>
   </section>
 
-  <BaseModal v-model="showNewLabelModal" title="New location, new label" size="md">
+  <BaseModal
+    v-model="showNewLabelModal"
+    title="New location, new label"
+    size="md"
+  >
     <div v-if="newLabelItem" class="flex flex-col gap-3">
       <p class="m-0 text-[0.9rem] text-ink">
-        📦 There was no <strong>{{ newLabelItem.pn || newLabelItem.name }}</strong>
-        already on shelf <strong>{{ newLabelItem.shelf_position }}</strong>, so
-        {{ newLabelItem.quantity }} unit(s) landed there as a brand-new item
-        with its own barcode.
+        📦 There was no
+        <strong>{{ newLabelItem.pn || newLabelItem.name }}</strong> already on
+        shelf <strong>{{ newLabelItem.shelf_position }}</strong
+        >, so {{ newLabelItem.quantity }} unit(s) landed there as a brand-new
+        item with its own barcode.
       </p>
       <p class="m-0 text-[0.85rem] text-muted">
-        This location has never had a label printed -- print one now so it
-        can be found and scanned later.
+        This location has never had a label printed -- print one now so it can
+        be found and scanned later.
       </p>
       <div class="flex flex-wrap gap-2">
         <a
@@ -860,6 +927,7 @@ import type {
   Movement,
   MovementSource,
   ShelfPositionOption,
+  Zone,
 } from "~/composables/useWarehouseApi";
 import { getMovementActionLabel } from "~/utils/movementActions";
 
@@ -883,16 +951,38 @@ const {
   updateItem,
   deleteItem,
   getShelfPositions,
+  getZones,
   labelUrl,
   listMovements,
   listItems,
-  listCategories,
+  listAdminCategories,
   listItemPrograms,
 } = useWarehouseApi();
 
 const { show } = useToast();
 const { isAdmin } = useAuth();
 const qty = ref(1);
+const zones = ref<Zone[]>([]);
+
+// Name of the zone this item is placed in directly (zone-level granularity,
+// no specific shelf) -- distinct from `zoneLabel` prop, which is the zone a
+// *shelf* belongs to.
+const directZoneName = computed(
+  () => zones.value.find((z) => z.id === props.item.zone_id)?.name ?? null,
+);
+// Zones are also used by the move/deposit-elsewhere pickers below, so make
+// sure they're loaded even if this card is opened without ever touching
+// those actions (e.g. just to view a zone-only item).
+watch(
+  () => props.item.zone_id,
+  (zoneId) => {
+    if (zoneId && !zones.value.length)
+      getZones()
+        .then((z) => (zones.value = z))
+        .catch(() => {});
+  },
+  { immediate: true },
+);
 const busy = ref(false);
 
 // -- Form Types & State ----------------------------------------------
@@ -999,6 +1089,7 @@ function sizeLabel(size: string) {
 const shelfOptions = ref<ShelfPositionOption[]>([]);
 const loadingShelves = ref(false);
 const moveShelfPosition = ref("");
+const moveZoneId = ref<number | null>(null);
 const moveQty = ref(1);
 const otherShelves = ref<Item[]>([]);
 
@@ -1018,6 +1109,7 @@ async function loadOtherShelves() {
 // -- Deposit Logic -----------------------------------------------------
 const depositElsewhere = ref(false);
 const depositShelfPosition = ref("");
+const depositZoneId = ref<number | null>(null);
 
 // -- Delete Logic -----------------------------------------------------
 const confirmingDelete = ref(false);
@@ -1038,9 +1130,11 @@ watch(
     pendingAction.value = null;
     qty.value = 1;
     moveShelfPosition.value = "";
+    moveZoneId.value = null;
     moveQty.value = props.item.quantity || 1;
     depositElsewhere.value = false;
     depositShelfPosition.value = "";
+    depositZoneId.value = null;
     editing.value = false;
     confirmingDelete.value = false;
     needsReprint.value = false;
@@ -1056,7 +1150,12 @@ watch(
 async function loadShelfOptions() {
   loadingShelves.value = true;
   try {
-    shelfOptions.value = await getShelfPositions();
+    const [shelves, zoneList] = await Promise.all([
+      getShelfPositions(),
+      getZones(),
+    ]);
+    shelfOptions.value = shelves;
+    zones.value = zoneList;
   } catch {
     // Non-critical
   } finally {
@@ -1071,6 +1170,13 @@ const moveError = computed(() => {
     moveShelfPosition.value === props.item.shelf_position
   ) {
     return "This item is already on that shelf.";
+  }
+  if (
+    moveZoneId.value &&
+    moveZoneId.value === props.item.zone_id &&
+    !props.item.shelf_position
+  ) {
+    return "This item is already in that zone.";
   }
   return "";
 });
@@ -1096,6 +1202,7 @@ const moveQtyError = computed(() => {
 
 function pickMoveSuggestion(o: Item) {
   moveShelfPosition.value = o.shelf_position;
+  moveZoneId.value = null;
   if (!shelfOptions.value.length) loadShelfOptions();
 }
 
@@ -1107,11 +1214,13 @@ function openDepositElsewhere() {
 function resetDepositShelf() {
   depositElsewhere.value = false;
   depositShelfPosition.value = "";
+  depositZoneId.value = null;
 }
 
 function pickDepositSuggestion(o: Item) {
   depositElsewhere.value = true;
   depositShelfPosition.value = o.shelf_position;
+  depositZoneId.value = null;
   if (!shelfOptions.value.length) loadShelfOptions();
 }
 
@@ -1121,11 +1230,13 @@ function startAction(action: "withdraw" | "deposit" | "move") {
   if (action === "move") {
     moveQty.value = props.item.quantity || 1;
     moveShelfPosition.value = "";
+    moveZoneId.value = null;
     if (!shelfOptions.value.length) loadShelfOptions();
   }
   if (action === "deposit") {
-    depositElsewhere.value = !props.item.shelf_position;
+    depositElsewhere.value = !props.item.shelf_position && !props.item.zone_id;
     depositShelfPosition.value = "";
+    depositZoneId.value = null;
     if (depositElsewhere.value && !shelfOptions.value.length)
       loadShelfOptions();
   }
@@ -1135,26 +1246,35 @@ function cancelAction() {
   pendingAction.value = null;
   qty.value = 1;
   moveShelfPosition.value = "";
+  moveZoneId.value = null;
   depositElsewhere.value = false;
   depositShelfPosition.value = "";
+  depositZoneId.value = null;
 }
 
 async function confirmMove() {
-  if (!moveShelfPosition.value || moveError.value || moveQtyError.value) return;
+  if (
+    (!moveShelfPosition.value && !moveZoneId.value) ||
+    moveError.value ||
+    moveQtyError.value
+  )
+    return;
   busy.value = true;
   try {
-    const destination = moveShelfPosition.value;
     const res = await moveItem({
       barcode: props.item.barcode,
-      shelf_position: destination,
+      shelf_position: moveShelfPosition.value || undefined,
+      zone_id: moveZoneId.value || undefined,
       quantity: moveQty.value,
       source: (props.defaultSource ?? "manual") as MovementSource,
     });
     show("success", res.message);
     // A *full* move relocates this same item/barcode -- its label now shows
-    // the wrong shelf. A *partial* move leaves this item right where it
-    // was (see move_item on the backend), so nothing on its label changed.
-    needsReprint.value = res.item.shelf_position === destination;
+    // the wrong shelf/zone. A *partial* move leaves this item right where
+    // it was (see move_item on the backend), so nothing on its label changed.
+    needsReprint.value =
+      res.item.shelf_position === moveShelfPosition.value ||
+      res.item.zone_id === moveZoneId.value;
     // A *partial* move that had to create a brand-new item at the
     // destination (no existing stock of this part there) needs a proper
     // heads-up: that new item has never had a label printed at all.
@@ -1179,7 +1299,8 @@ async function confirmAction() {
   if (
     action === "deposit" &&
     depositElsewhere.value &&
-    !depositShelfPosition.value
+    !depositShelfPosition.value &&
+    !depositZoneId.value
   )
     return;
   busy.value = true;
@@ -1188,18 +1309,17 @@ async function confirmAction() {
       barcode: string;
       quantity: number;
       shelf_position?: string;
+      zone_id?: number;
       source: MovementSource;
     } = {
       barcode: props.item.barcode,
       quantity: qty.value,
       source: (props.defaultSource ?? "manual") as MovementSource,
     };
-    if (
-      action === "deposit" &&
-      depositElsewhere.value &&
-      depositShelfPosition.value
-    ) {
-      payload.shelf_position = depositShelfPosition.value;
+    if (action === "deposit" && depositElsewhere.value) {
+      if (depositShelfPosition.value)
+        payload.shelf_position = depositShelfPosition.value;
+      if (depositZoneId.value) payload.zone_id = depositZoneId.value;
     }
     const res =
       action === "withdraw"
@@ -1219,18 +1339,29 @@ async function confirmAction() {
 
 // -- Edit Handlers ----------------------------------------------------
 async function startEdit() {
-  // Pre-fetch options if they haven't been loaded yet
+  // Pre-fetch options if they haven't been loaded yet. Use the full admin
+  // catalog here (not listCategories(), which only returns categories
+  // already in use by some item) so a category with zero items so far --
+  // or the one this very item is about to switch away from -- still shows.
   if (!editCategories.value.length || !editPrograms.value.length) {
     try {
       const [cats, progs] = await Promise.all([
-        listCategories(),
+        listAdminCategories(),
         listItemPrograms(),
       ]);
-      editCategories.value = cats;
+      editCategories.value = cats.map((c) => c.name);
       editPrograms.value = progs;
     } catch {
       // Non-critical: select elements will fallback gracefully
     }
+  }
+  // Guard against the item's own current category having been deleted
+  // from the catalog since it was set -- keep it selectable either way.
+  if (
+    props.item.category &&
+    !editCategories.value.includes(props.item.category)
+  ) {
+    editCategories.value = [...editCategories.value, props.item.category];
   }
 
   // Initialize form strictly after options are available

@@ -1,7 +1,8 @@
 """SQLAlchemy ORM model for the live inventory movement / audit log."""
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
 from app.core.timezone import now_rome
@@ -48,6 +49,14 @@ class Movement(Base):
     # `shelf_position` above holds the destination shelf, consistent with
     # how it always reflects the item's shelf at the time of the entry.
     from_shelf_position = Column(String, nullable=True)
+    # Mirrors Item.zone_id: set when the item was placed/moved into a zone
+    # rather than a specific shelf. `zone_id` is the destination (mirrors
+    # `shelf_position`'s role), `from_zone_id` is only set on MOVE rows for
+    # the zone the item was in *before* the move (mirrors `from_shelf_position`).
+    zone_id = Column(Integer, ForeignKey(
+        "zones.id", ondelete="SET NULL"), nullable=True)
+    from_zone_id = Column(Integer, ForeignKey(
+        "zones.id", ondelete="SET NULL"), nullable=True)
     # Only set on *partial* MOVE rows (see move_item): `item_id` above is the
     # destination item that received the moved quantity, while this points
     # back at the source item it was split off from -- both are needed to

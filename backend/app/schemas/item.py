@@ -75,6 +75,12 @@ class ItemBase(BaseModel):
         value = value.strip()
         return value or None
 
+    zone_id: int | None = Field(
+        default=None,
+        description="Optional map zone id, for items placed at zone-level "
+                     "granularity instead of a specific shelf",
+    )
+
     @field_validator("category")
     @classmethod
     def normalize_category(cls, value: str) -> str:
@@ -136,9 +142,12 @@ class ItemCreate(ItemBase):
 
     @model_validator(mode="after")
     def require_shelf_if_stocked(self):
-        if self.quantity > 0 and not self.shelf_position:
+        if self.shelf_position and self.zone_id:
             raise ValueError(
-                "A shelf is required when the initial quantity is greater than zero -- "
+                "Pick either a shelf or a zone, not both")
+        if self.quantity > 0 and not self.shelf_position and not self.zone_id:
+            raise ValueError(
+                "A shelf or a zone is required when the initial quantity is greater than zero -- "
                 "only items starting at zero stock can be created without one"
             )
         return self
@@ -189,6 +198,86 @@ class ItemUpdate(BaseModel):
         value = value.strip()
         return value or None
 
+
+class ItemBulkCreate(BaseModel):
+    """
+    Create N items sharing the same descriptive fields, one per serial
+    number -- e.g. receiving a batch of units of the same part, each with
+    its own serial. Each resulting item gets its own auto-generated barcode.
+    """
+
+    name: str = Field(..., min_length=1)
+    pn: str = Field(default="")
+    category: str = Field(..., min_length=1)
+    program: str | None = None
+    size: ItemSize
+    shelf_position: str | None = None
+    zone_id: int | None = Field(
+        default=None,
+        description="Optional map zone id, alternative to shelf_position",
+    )
+    quantity: int = Field(
+        default=1, ge=0, description="Quantity to set on each created item")
+    tags: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    serials: list[str] = Field(...,
+                               min_length=1, description="One entry per unit")
+
+    @field_validator("category")
+    @classmethod
+    def normalize_category(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("program")
+    @classmethod
+    def normalize_program(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    @field_validator("pn")
+    @classmethod
+    def normalize_pn(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("shelf_position")
+    @classmethod
+    def normalize_shelf_position(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        if not SHELF_POSITION_PATTERN.match(value):
+            raise ValueError(
+                'shelf_position must be alphanumeric like "12B" or "3A"')
+        return value.upper()
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value) -> list[str]:
+        return _normalize_tags(value)
+
+    @field_validator("serials")
+    @classmethod
+    def normalize_serials(cls, value: list[str]) -> list[str]:
+        cleaned = [str(s).strip() for s in value if str(s).strip()]
+        if not cleaned:
+            raise ValueError("Provide at least one serial number")
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("Duplicate serials in the list")
+        return cleaned
+
+    @model_validator(mode="after")
+    def require_shelf_if_stocked(self):
+        if self.shelf_position and self.zone_id:
+            raise ValueError("Pick either a shelf or a zone, not both")
+        if self.quantity > 0 and not self.shelf_position and not self.zone_id:
+            raise ValueError(
+                "A shelf or a zone is required when the initial quantity is greater than zero"
+            )
+        return self
 
 class BarcodeSuggestion(BaseModel):
     """A freshly generated, currently-unused barcode value the form can prefill."""
