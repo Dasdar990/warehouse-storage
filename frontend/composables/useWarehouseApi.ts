@@ -41,6 +41,8 @@ export interface ShelfSummary {
   has_low_stock: boolean;
 }
 
+export type ZoneKind = "shelf_group" | "direct_storage";
+
 export interface Zone {
   id: number;
   name: string;
@@ -49,6 +51,8 @@ export interface Zone {
   y: number;
   width: number;
   height: number;
+  /** shelf_group: groups racks, items go on a shelf inside it. direct_storage: no racks, items sit directly on the zone. */
+  kind: ZoneKind;
 }
 
 export type ZoneInput = Omit<Zone, "id">;

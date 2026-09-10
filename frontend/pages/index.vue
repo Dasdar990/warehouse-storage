@@ -203,6 +203,7 @@
         :layout="layout"
         :selected-rack="highlightRackCode"
         @select="selectRack"
+        @select-zone="selectZone"
       />
       <MapWarehouseMap
         v-else-if="layout"
@@ -256,6 +257,21 @@
             :show-header="false"
             @close="closeDrilldown"
             @back="backToRack"
+            @select-item="handleSelectItemFromShelf"
+            @info="openInfoModal"
+          />
+
+          <MapShelfDetailPanel
+            v-if="selectedZone"
+            :shelf-position="selectedZone.name"
+            :title="selectedZone.name"
+            empty-label="This zone is empty"
+            empty-hint="Items deposited straight into this zone will show up here."
+            :dashboard-query="{ zone_id: String(selectedZone.id) }"
+            :items="zoneItems"
+            :loading="loadingZoneItems"
+            :show-header="false"
+            @close="closeDrilldown"
             @select-item="handleSelectItemFromShelf"
             @info="openInfoModal"
           />
@@ -322,8 +338,14 @@ import type {
   WarehouseLayout,
 } from "~/composables/useWarehouseApi";
 
-const { getWarehouseLayout, getRackLevels, getShelfItems, getZones, scanItem } =
-  useWarehouseApi();
+const {
+  getWarehouseLayout,
+  getRackLevels,
+  getShelfItems,
+  getZones,
+  listItems,
+  scanItem,
+} = useWarehouseApi();
 const { show } = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -401,6 +423,12 @@ const loadingRack = ref(false);
 const selectedLevel = ref<string | null>(null);
 const levelItems = ref<Item[]>([]);
 const loadingLevelItems = ref(false);
+
+// Direct map-click on a direct-storage zone -- same idea as a shelf level,
+// but the items sit straight on the zone (no rack drill-down first).
+const selectedZone = ref<{ id: number; name: string } | null>(null);
+const zoneItems = ref<Item[]>([]);
+const loadingZoneItems = ref(false);
 
 // "Locate" from the dashboard: highlights the item's shelf/rack on the map
 // only -- no modal. Kept separate from `selectedItem` (which opens the
@@ -523,6 +551,21 @@ async function selectFlatShelf(shelfPosition: string) {
   await selectLevel(shelfPosition);
 }
 
+async function selectZone(zoneId: number) {
+  selectedItem.value = null;
+  closeDrilldown();
+  selectedZone.value = {
+    id: zoneId,
+    name: zoneNameById.value.get(zoneId) || `Zone ${zoneId}`,
+  };
+  loadingZoneItems.value = true;
+  try {
+    zoneItems.value = await listItems({ zone_id: zoneId });
+  } finally {
+    loadingZoneItems.value = false;
+  }
+}
+
 function backToRack() {
   selectedLevel.value = null;
   levelItems.value = [];
@@ -533,12 +576,18 @@ function closeDrilldown() {
   rackLevels.value = null;
   selectedLevel.value = null;
   levelItems.value = [];
+  selectedZone.value = null;
+  zoneItems.value = [];
   locatedItem.value = null;
 }
 
 // --- Results modal: shows the searched/scanned item or the map drill-down ---
 const showDetailModal = computed(
-  () => !!selectedItem.value || !!selectedRack.value || !!selectedLevel.value,
+  () =>
+    !!selectedItem.value ||
+    !!selectedRack.value ||
+    !!selectedLevel.value ||
+    !!selectedZone.value,
 );
 
 const detailModalTitle = computed(() => {
@@ -547,6 +596,7 @@ const detailModalTitle = computed(() => {
   if (selectedRack.value) {
     return `Rack ${rackLevels.value?.label || selectedRack.value}`;
   }
+  if (selectedZone.value) return selectedZone.value.name;
   return "";
 });
 

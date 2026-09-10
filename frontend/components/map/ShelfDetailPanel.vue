@@ -2,10 +2,15 @@
   <section :class="showHeader ? 'card' : ''">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <button v-if="showBack" class="btn btn--ghost btn--small mb-2" type="button" @click="emit('back')">
+        <button
+          v-if="showBack"
+          class="btn btn--ghost btn--small mb-2"
+          type="button"
+          @click="emit('back')"
+        >
           ← Back to rack
         </button>
-        <h2 v-if="showHeader">Level {{ shelfPosition }}</h2>
+        <h2 v-if="showHeader">{{ title || `Level ${shelfPosition}` }}</h2>
         <p class="mt-1 mb-0 text-[0.85rem] text-muted">
           {{ items.length }} item type(s) · {{ totalQuantity }} unit(s) total
         </p>
@@ -13,11 +18,21 @@
       <div class="flex items-center gap-2">
         <NuxtLink
           class="inline-block rounded-lg border border-edge px-3.5 py-2 text-[0.8rem] font-semibold text-ink no-underline"
-          :to="{ path: '/dashboard', query: { shelf_position: shelfPosition } }"
+          :to="{
+            path: '/dashboard',
+            query: dashboardQuery || { shelf_position: shelfPosition },
+          }"
         >
           Open in Dashboard
         </NuxtLink>
-        <button v-if="showHeader" class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink" title="Close" @click="emit('close')">✕</button>
+        <button
+          v-if="showHeader"
+          class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted transition-colors hover:text-ink"
+          title="Close"
+          @click="emit('close')"
+        >
+          ✕
+        </button>
       </div>
     </div>
 
@@ -43,7 +58,10 @@
           class="field-input h-9.5 w-full py-2 pl-9 text-[0.85rem]"
         />
       </div>
-      <p v-if="query && !filteredItems.length" class="py-5 text-center text-muted">
+      <p
+        v-if="query && !filteredItems.length"
+        class="py-5 text-center text-muted"
+      >
         No item on this shelf matches "{{ query }}".
       </p>
       <div
@@ -51,8 +69,12 @@
         class="mt-3.5 flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-sky-400/40 bg-sky-500/[0.07] px-4 py-6 text-center"
       >
         <span class="text-[1.5rem]">＋</span>
-        <span class="text-[0.95rem] font-bold text-sky-300">This shelf is empty</span>
-        <span class="text-[0.8rem] text-muted">Plenty of room here for new stock.</span>
+        <span class="text-[0.95rem] font-bold text-sky-300">{{
+          emptyLabel || "This shelf is empty"
+        }}</span>
+        <span class="text-[0.8rem] text-muted">{{
+          emptyHint || "Plenty of room here for new stock."
+        }}</span>
       </div>
       <DashboardItemTable
         v-else
@@ -70,46 +92,53 @@
 </template>
 
 <script setup lang="ts">
-import type { Item } from '~/composables/useWarehouseApi'
+import type { Item } from "~/composables/useWarehouseApi";
 
 const props = withDefaults(
   defineProps<{
-    shelfPosition: string
-    items: Item[]
-    loading: boolean
-    showBack?: boolean
-    showHeader?: boolean
+    shelfPosition: string;
+    items: Item[];
+    loading: boolean;
+    showBack?: boolean;
+    showHeader?: boolean;
+    /** Overrides for reuse outside the "shelf" context (e.g. a direct-storage zone). */
+    title?: string;
+    emptyLabel?: string;
+    emptyHint?: string;
+    dashboardQuery?: Record<string, string>;
   }>(),
   { showHeader: true },
-)
+);
 
 const emit = defineEmits<{
-  close: []
-  back: []
-  'select-item': [item: Item, action?: 'deposit' | 'withdraw' | 'move']
-  info: [item: Item]
-}>()
+  close: [];
+  back: [];
+  "select-item": [item: Item, action?: "deposit" | "withdraw" | "move"];
+  info: [item: Item];
+}>();
 
-const query = ref('')
+const query = ref("");
 
 // Reset the local search whenever a different shelf is opened, so a stale
 // filter from the previous shelf doesn't silently hide everything here.
 watch(
   () => props.shelfPosition,
   () => {
-    query.value = ''
+    query.value = "";
   },
-)
+);
 
 const filteredItems = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return props.items
+  const q = query.value.trim().toLowerCase();
+  if (!q) return props.items;
   return props.items.filter((item) =>
     [item.name, item.pn, item.serial, item.barcode]
       .filter(Boolean)
       .some((field) => field!.toLowerCase().includes(q)),
-  )
-})
+  );
+});
 
-const totalQuantity = computed(() => props.items.reduce((sum, i) => sum + i.quantity, 0))
+const totalQuantity = computed(() =>
+  props.items.reduce((sum, i) => sum + i.quantity, 0),
+);
 </script>

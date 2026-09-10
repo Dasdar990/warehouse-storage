@@ -13,6 +13,7 @@ items. Levels are not a DB table: they're derived by combining a rack's
 `rack_code` with each letter in its `levels` column, and matched against
 `Item.shelf_position` (free text, e.g. "12B").
 """
+
 import re
 
 from sqlalchemy import delete, select
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.item import Item
 from app.models.shelf import Shelf
+from app.models.zone import ZoneKind
 from app.schemas.shelf import (
     LevelSummary,
     RackLevelsResponse,
@@ -100,10 +102,17 @@ def replace_shelf_layout(db: Session, nodes: list[ShelfNodeBase]) -> list[ShelfN
     if len(codes) != len(set(codes)):
         raise ValueError("Duplicate rack codes are not allowed on the map")
 
-    zone_ids = {z.id for z in list_zones(db)}
+    zones_by_id = {z.id: z for z in list_zones(db)}
     for node in nodes:
-        if node.zone_id is not None and node.zone_id not in zone_ids:
-            raise ValueError(f'Rack "{node.rack_code}" references an unknown zone')
+        if node.zone_id is not None:
+            zone = zones_by_id.get(node.zone_id)
+            if zone is None:
+                raise ValueError(f'Rack "{node.rack_code}" references an unknown zone')
+            if zone.kind == ZoneKind.DIRECT_STORAGE:
+                raise ValueError(
+                    f'Rack "{node.rack_code}" can\'t be placed in zone "{zone.name}": '
+                    "it's a direct-storage zone (no racks allowed inside)."
+                )
 
     db.execute(delete(Shelf))
     db.flush()
@@ -282,7 +291,9 @@ def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
     for level in rack_levels:
         shelf_position = f"{shelf.rack_code}{level}"
         shelf_items = list(
-            db.execute(select(Item).where(Item.shelf_position == shelf_position)).scalars().all()
+            db.execute(select(Item).where(Item.shelf_position == shelf_position))
+            .scalars()
+            .all()
         )
         agg = _aggregate(shelf_items)
         result.append(
@@ -296,4 +307,6 @@ def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
             )
         )
 
-    return RackLevelsResponse(rack_code=shelf.rack_code, label=shelf.label, levels=result)
+    return RackLevelsResponse(
+        rack_code=shelf.rack_code, label=shelf.label, levels=result
+    )

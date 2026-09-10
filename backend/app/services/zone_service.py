@@ -1,4 +1,5 @@
 """Manages the user-drawn warehouse map zones (delimited areas on the canvas)."""
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,7 @@ def replace_zones(db: Session, zones: list[ZoneBase]) -> list[Zone]:
             y=zone.y,
             width=zone.width,
             height=zone.height,
+            kind=zone.kind,
         )
         db.add(row)
         created.append(row)

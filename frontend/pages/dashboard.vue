@@ -175,6 +175,10 @@ const filters = ref<ItemFilters>({
     typeof route.query.shelf_position === "string"
       ? route.query.shelf_position
       : undefined,
+  zone_id:
+    typeof route.query.zone_id === "string"
+      ? Number(route.query.zone_id)
+      : undefined,
 });
 const items = ref<Item[]>([]);
 const categories = ref<string[]>([]);

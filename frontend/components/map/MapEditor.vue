@@ -100,12 +100,14 @@
                   :config="{
                     width: zone.width,
                     height: zone.height,
-                    fill: zone.color + '18',
+                    fill:
+                      zone.color +
+                      (zone.kind === 'direct_storage' ? '30' : '18'),
                     stroke: isSelected('zone', zone._key)
                       ? '#60a5fa'
                       : zone.color + '88',
                     strokeWidth: isSelected('zone', zone._key) ? 2.5 : 1.5,
-                    dash: [6, 4],
+                    dash: zone.kind === 'direct_storage' ? undefined : [6, 4],
                     cornerRadius: 6,
                   }"
                 />
@@ -113,7 +115,9 @@
                   :config="{
                     x: 8,
                     y: 6,
-                    text: zone.name || '(unnamed zone)',
+                    text:
+                      (zone.kind === 'direct_storage' ? '📦 ' : '') +
+                      (zone.name || '(unnamed zone)'),
                     fontSize: 12,
                     fontStyle: 'bold',
                     fill: zone.color,
@@ -330,6 +334,25 @@
               @change="commit('zone')"
             />
           </label>
+          <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
+            <span>Kind</span>
+            <select
+              v-model="selectedZone.kind"
+              class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
+              @change="onZoneKindChange(selectedZone, selectedZoneIndex)"
+            >
+              <option value="shelf_group">Shelf group (groups racks)</option>
+              <option value="direct_storage">
+                Direct storage (no racks, items go here)
+              </option>
+            </select>
+            <span
+              v-if="selectedZone.kind === 'direct_storage'"
+              class="text-[0.72rem]"
+            >
+              Any rack currently in this zone will be unassigned.
+            </span>
+          </label>
           <button class="btn btn--danger" type="button" @click="deleteSelected">
             Delete zone
           </button>
@@ -482,7 +505,7 @@
               @change="commit('rack')"
             >
               <option :value="null">No zone</option>
-              <option v-for="z in zoneRefs" :key="z.id" :value="z.id">
+              <option v-for="z in rackZoneRefs" :key="z.id" :value="z.id">
                 {{ z.name || "(unnamed)" }}
               </option>
             </select>
@@ -531,6 +554,7 @@ import type {
 
 interface EditorZone extends ZoneInput {
   _key: string;
+  kind?: "shelf_group" | "direct_storage";
 }
 interface EditorWall extends WallInput {
   _key: string;
@@ -680,6 +704,11 @@ const selectedZone = computed(() =>
     ? zones.value.find((z) => z._key === selected.value!.key) || null
     : null,
 );
+const selectedZoneIndex = computed(() =>
+  selected.value?.kind === "zone"
+    ? zones.value.findIndex((z) => z._key === selected.value!.key)
+    : -1,
+);
 const selectedWall = computed(() =>
   selected.value?.kind === "wall"
     ? walls.value.find((w) => w._key === selected.value!.key) || null
@@ -703,11 +732,37 @@ const zoneRefs = computed(() =>
     id: props.zoneIds[i] ?? -(i + 1),
     name: z.name,
     color: z.color,
+    kind: z.kind ?? "shelf_group",
   })),
+);
+// Only shelf_group zones can hold racks -- a direct_storage zone has no
+// shelves inside it, so it's not offered in the rack's zone dropdown.
+const rackZoneRefs = computed(() =>
+  zoneRefs.value.filter((z) => z.kind === "shelf_group"),
 );
 function zoneColor(zoneId: number | null) {
   if (zoneId == null) return null;
   return zoneRefs.value.find((z) => z.id === zoneId)?.color || null;
+}
+
+// Switching a zone to direct_storage means no rack can sit inside it
+// anymore -- unlink any rack currently pointing there so the layout stays
+// valid (mirrors the backend rejection, but fixes it instead of erroring).
+function onZoneKindChange(zone: EditorZone, index: number) {
+  if (zone.kind !== "direct_storage") {
+    commit("zone");
+    return;
+  }
+  const id = props.zoneIds[index] ?? -(index + 1);
+  let touched = false;
+  racks.value.forEach((r) => {
+    if (r.zone_id === id) {
+      r.zone_id = null;
+      touched = true;
+    }
+  });
+  commit("zone");
+  if (touched) commit("rack");
 }
 
 function snap(value: number) {
@@ -731,6 +786,7 @@ function addZone() {
     y: 24 + cascade,
     width: 280,
     height: 180,
+    kind: "shelf_group",
   };
   zones.value.push(zone);
   select("zone", zone._key);

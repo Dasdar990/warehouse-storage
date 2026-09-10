@@ -128,12 +128,17 @@ watch([() => props.modelValue, () => props.zoneId], () => {
 });
 
 const zoneOptions = computed<Option[]>(() =>
-  props.zones.map((z) => ({
-    value: `zone:${z.id}`,
-    isZone: true,
-    id: z.id,
-    name: z.name,
-  })),
+  // Only direct_storage zones can be a destination on their own -- a
+  // shelf_group zone is just a grouping of racks, so it never appears here;
+  // pick one of its shelves instead.
+  props.zones
+    .filter((z) => z.kind === "direct_storage")
+    .map((z) => ({
+      value: `zone:${z.id}`,
+      isZone: true,
+      id: z.id,
+      name: z.name,
+    })),
 );
 
 const filteredOptions = computed<Option[]>(() => {

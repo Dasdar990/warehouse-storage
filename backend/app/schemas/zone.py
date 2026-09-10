@@ -1,7 +1,10 @@
 """Pydantic schemas for warehouse map zones."""
+
 import re
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.models.zone import ZoneKind
 
 _HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -9,12 +12,21 @@ _HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 class ZoneBase(BaseModel):
     """A named, colored area drawn on the map canvas to delimit a zone."""
 
-    name: str = Field(..., min_length=1, max_length=60, description='e.g. "Engine parts zone"')
+    name: str = Field(
+        ..., min_length=1, max_length=60, description='e.g. "Engine parts zone"'
+    )
     color: str = Field(default="#3b82f6", description="Hex color, e.g. #3b82f6")
     x: float = Field(..., description="Top-left X on the canvas, in pixels")
     y: float = Field(..., description="Top-left Y on the canvas, in pixels")
     width: float = Field(default=200, gt=0)
     height: float = Field(default=150, gt=0)
+    kind: ZoneKind = Field(
+        default=ZoneKind.SHELF_GROUP,
+        description=(
+            "shelf_group: purely groups racks, items must go on a shelf inside it. "
+            "direct_storage: no racks inside, items are placed directly on the zone."
+        ),
+    )
 
     @field_validator("name")
     @classmethod

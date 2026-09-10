@@ -63,7 +63,7 @@ const props = defineProps<{
   selectedRack: string | null;
 }>();
 
-const emit = defineEmits<{ select: [string] }>();
+const emit = defineEmits<{ select: [string]; "select-zone": [number] }>();
 
 const wrapperRef = ref<HTMLElement | null>(null);
 const canvasHost = ref<HTMLElement | null>(null);
@@ -117,6 +117,7 @@ let raycaster: any = null;
 let pointerVec: any = null;
 
 const rackMeshes: any[] = []; // flat list of meshes -> raycast targets
+const zoneMeshes: any[] = []; // direct-storage zones are clickable too, just like racks
 const rackByCode = new Map<string, RackEntry>();
 
 let defaultCamPos: any = null;
@@ -402,6 +403,7 @@ function buildZone(zone: Zone) {
   const group = new THREE.Group();
   group.position.set(toX(zone.x), 0.01, toZ(zone.y));
 
+  const isDirectStorage = zone.kind === "direct_storage";
   const w = toX(zone.width);
   const d = toZ(zone.height);
   const geo = new THREE.PlaneGeometry(w, d);
@@ -409,17 +411,25 @@ function buildZone(zone: Zone) {
   const mat = new THREE.MeshBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.08,
+    // Direct-storage zones hold items directly, so they read a bit more
+    // "solid"/clickable than a shelf_group zone, which is just a grouping.
+    opacity: isDirectStorage ? 0.16 : 0.08,
     side: THREE.DoubleSide,
   });
   const plane = new THREE.Mesh(geo, mat);
   plane.rotation.x = -Math.PI / 2;
   plane.position.set(w / 2, 0, d / 2);
+  if (isDirectStorage) {
+    plane.userData.zoneId = zone.id;
+    zoneMeshes.push(plane);
+  }
   group.add(plane);
 
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(geo),
-    new THREE.LineDashedMaterial({ color, dashSize: 0.15, gapSize: 0.1 }),
+    isDirectStorage
+      ? new THREE.LineBasicMaterial({ color })
+      : new THREE.LineDashedMaterial({ color, dashSize: 0.15, gapSize: 0.1 }),
   );
   edges.rotation.x = -Math.PI / 2;
   edges.position.set(w / 2, 0, d / 2);
@@ -430,7 +440,7 @@ function buildZone(zone: Zone) {
   label.style.cssText =
     "pointer-events:none;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap;background:rgba(15,18,24,0.6);";
   label.style.color = zone.color || "#2f9d63";
-  label.textContent = zone.name;
+  label.textContent = (isDirectStorage ? "📦 " : "") + zone.name;
   const labelObj = new CSS2DObjectCtor(label);
   labelObj.position.set(w / 2, 0.02, d / 2);
   group.add(labelObj);
@@ -645,6 +655,7 @@ function buildContent() {
   contentGroup = new THREE.Group();
   scene.add(contentGroup);
   rackMeshes.length = 0;
+  zoneMeshes.length = 0;
   rackByCode.clear();
 
   const bounds = layoutBounds();
@@ -805,9 +816,15 @@ function onPointerUp(e: PointerEvent) {
   pointerVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerVec, camera);
-  const hits = raycaster.intersectObjects(rackMeshes, false);
-  if (hits.length && hits[0].object.userData.rackCode) {
-    emit("select", hits[0].object.userData.rackCode);
+  const hits = raycaster.intersectObjects(
+    [...rackMeshes, ...zoneMeshes],
+    false,
+  );
+  const hit = hits[0]?.object;
+  if (hit?.userData.rackCode) {
+    emit("select", hit.userData.rackCode);
+  } else if (hit?.userData.zoneId != null) {
+    emit("select-zone", hit.userData.zoneId);
   }
 }
 
