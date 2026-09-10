@@ -23,7 +23,6 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Risoluzione nativa a 203 DPI per 101mm x 54mm (808x432 pixel)
 LABEL_WIDTH = 808
 LABEL_HEIGHT = 432
 
@@ -41,7 +40,7 @@ LABEL_HEIGHT = 432
 # is an exact integer number of pixels at that DPI.
 BARCODE_DPI = 203
 MODULE_PX = 3  # 3px/module @ 203 DPI is a good robustness/space compromise
-MODULE_WIDTH_MM = MODULE_PX * 25.4 / BARCODE_DPI  # == 0.375mm, exact at 203 DPI
+MODULE_WIDTH_MM = MODULE_PX * 25.4 / BARCODE_DPI
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -63,6 +62,22 @@ def _load_font(size: int, mono: bool = False, bold: bool = True) -> ImageFont.Fr
         if os.path.exists(candidate):
             return ImageFont.truetype(candidate, size)
     return ImageFont.load_default()
+
+
+def _fit_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> str:
+    """Truncate `text` (appending '...') so its rendered width at `font`
+    fits within `max_width` pixels. Truncating by character count doesn't
+    account for font size/weight/character width, so long names or P/N
+    values can render past the canvas edge and get clipped in print.
+    """
+    if font.getlength(text) <= max_width:
+        return text
+
+    ellipsis = "..."
+    while text and font.getlength(text + ellipsis) > max_width:
+        text = text[:-1]
+
+    return (text + ellipsis) if text else ellipsis
 
 
 def _generate_barcode_image(value: str) -> Image.Image:
@@ -115,7 +130,11 @@ def _draw_logo(canvas: Image.Image, x: int, y: int, max_w: int, max_h: int):
 
 
 def generate_label_image(
-    item_id: int, name: str, pn: str, shelf_position: str, barcode_value: str,
+    item_id: int,
+    name: str,
+    pn: str,
+    shelf_position: str,
+    barcode_value: str,
     serial: str | None = None,
 ) -> Path:
     """Build the 808x432 1-bit PNG label for 101x54mm thermal paper."""
@@ -127,6 +146,7 @@ def generate_label_image(
 
     padding = 24
     y = padding
+    max_text_width = LABEL_WIDTH - 2 * padding
 
     # -------------------------------------------------------------
     # 1. TOP ROW: Logo (Left) + I.E. NERVIANO & Shelf (Right)
@@ -142,7 +162,7 @@ def generate_label_image(
     draw.text((LABEL_WIDTH - padding - tag_w, y + 4),
               tag_text, fill=0, font=top_right_font)
 
-    shelf_text = f"Shelf: {shelf_position}"
+    shelf_text = _fit_text(f"Shelf: {shelf_position}", meta_font, LABEL_WIDTH - padding - (padding + 260))
     shelf_bbox = meta_font.getbbox(shelf_text)
     shelf_w = shelf_bbox[2] - shelf_bbox[0]
     draw.text((LABEL_WIDTH - padding - shelf_w, y + 40),
@@ -155,24 +175,29 @@ def generate_label_image(
     y += 12
 
     # -------------------------------------------------------------
-    # 2. MIDDLE BAND: Nome Prodotto & P/N
+    # 2. MIDDLE BAND: Nome Prodotto, P/N & Eventuale S/N
     # -------------------------------------------------------------
     title_font = _load_font(30, bold=True)
     pn_font = _load_font(22, bold=True)
 
-    truncated_name = name[:40] + "..." if len(name) > 40 else name
+    truncated_name = _fit_text(name, title_font, max_text_width)
     draw.text((padding, y), truncated_name, fill=0, font=title_font)
     y += 38
 
-    draw.text((padding, y), f"P/N: {pn}", fill=0, font=pn_font)
+    pn_text = _fit_text(f"P/N: {pn}", pn_font, max_text_width)
+    draw.text((padding, y), pn_text, fill=0, font=pn_font)
     y += 30
 
     if serial:
-        draw.text((padding, y), f"S/N: {serial}", fill=0, font=pn_font)
+        sn_text = _fit_text(f"S/N: {serial}", pn_font, max_text_width)
+        draw.text((padding, y), sn_text, fill=0, font=pn_font)
         y += 30
 
     y += 2
 
+    # -------------------------------------------------------------
+    # 3. BOTTOM BAND: Codice a Barre & Valore Testuale
+    # -------------------------------------------------------------
     barcode_img = _generate_barcode_image(barcode_value)
 
     text_font = _load_font(22, mono=True, bold=True)
@@ -187,17 +212,10 @@ def generate_label_image(
     scale_h = available_height / barcode_img.height
     scale = min(scale_w, scale_h)
 
-    # Il trucco per la Netum: forzare un moltiplicatore INTERO se stiamo ingrandendo
-    # (es. 2.7 -> 2.0). Questo evita che i pixel vengano spalmati (jitter).
+    # Forzare un moltiplicatore intero se si ingrandisce per evitare aliasing/jitter
     if scale >= 1.0:
         scale = float(int(scale))
     else:
-        # Downscaling a 1-bit con NEAREST campiona singoli pixel: può far
-        # sparire o fondere barre sottili e sballare i rapporti tra moduli
-        # senza che si veda a occhio -- causa tipica di scansioni lente o
-        # intermittenti solo su alcuni barcode/nomi più lunghi del solito.
-        # Con BARCODE_DPI/MODULE_WIDTH_MM allineati questo caso dovrebbe
-        # essere ormai raro; se capita, meglio saperlo dai log.
         logger.warning(
             "Barcode '%s' più largo dello spazio disponibile (scale=%.2f); "
             "qualità di stampa a rischio, considera un barcode_value più corto.",
@@ -207,7 +225,7 @@ def generate_label_image(
     new_w = max(1, int(barcode_img.width * scale))
     new_h = max(1, int(barcode_img.height * scale))
 
-    # NEAREST mantiene i bordi dei pixel netti come lame
+    # Resampling NEAREST per mantenere i bordi monocromatici netti
     barcode_img = barcode_img.resize((new_w, new_h), Image.Resampling.NEAREST)
 
     # Centra il barcode nell'area disponibile
@@ -222,5 +240,7 @@ def generate_label_image(
     draw.text((text_x, y), barcode_value, fill=0, font=text_font)
 
     output_path = settings.labels_dir / f"{item_id}.png"
-    canvas.save(output_path, format="PNG")
+
+    # Salva includendo la risoluzione DPI corretta per il layout 101x54mm
+    canvas.save(output_path, format="PNG", dpi=(BARCODE_DPI, BARCODE_DPI))
     return output_path

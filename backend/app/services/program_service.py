@@ -10,6 +10,7 @@ def list_programs(db: Session) -> list[Program]:
     return list(db.execute(select(Program).order_by(Program.name)).scalars().all())
 
 
+
 def get_program_by_name(db: Session, name: str) -> Program | None:
     return db.execute(select(Program).where(Program.name == name)).scalar_one_or_none()
 

@@ -1,23 +1,15 @@
 <template>
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-3.5">
-      <button
-        class="btn btn--confirm text-[#06280f]"
-        type="button"
-        @click="addZone"
-      >
+      <button class="btn btn--confirm text-[#06280f]" type="button" @click="addZone">
         + Add zone
       </button>
       <label class="flex items-center gap-1.5 text-[0.85rem] text-muted">
         <input v-model="snapToGrid" type="checkbox" />
         Snap to grid
       </label>
-      <button
-        class="btn btn--ghost disabled:cursor-not-allowed disabled:opacity-50"
-        type="button"
-        :disabled="!hasAnything"
-        @click="clearAll"
-      >
+      <button class="btn btn--ghost disabled:cursor-not-allowed disabled:opacity-50" type="button"
+        :disabled="!hasAnything" @click="clearAll">
         Clear canvas
       </button>
       <span class="ml-auto text-[0.8rem] text-muted">
@@ -26,35 +18,19 @@
       </span>
     </div>
 
-    <div
-      class="flex flex-wrap items-center gap-2.5 rounded-card border border-edge bg-surface-2 px-3.5 py-2.5"
-    >
-      <span class="mr-1 text-[0.8rem] text-muted"
-        >Drag onto the map to place it:</span
-      >
-      <div
-        v-for="preset in PALETTE_ITEMS"
-        :key="preset.id"
+    <div class="flex flex-wrap items-center gap-2.5 rounded-card border border-edge bg-surface-2 px-3.5 py-2.5">
+      <span class="mr-1 text-[0.8rem] text-muted">Drag onto the map to place it:</span>
+      <div v-for="preset in PALETTE_ITEMS" :key="preset.id"
         class="flex cursor-grab select-none items-center gap-2 rounded-lg border border-edge bg-surface px-3 py-2 text-[0.82rem] active:cursor-grabbing"
-        draggable="true"
-        @dragstart="onPaletteDragStart($event, preset)"
-      >
-        <span
-          v-if="preset.kind === 'rack'"
-          class="inline-block shrink-0 rounded-sm border-[1.5px] border-accent/80 bg-accent/45"
-          :style="{
+        draggable="true" @dragstart="onPaletteDragStart($event, preset)">
+        <span v-if="preset.kind === 'rack'"
+          class="inline-block shrink-0 rounded-sm border-[1.5px] border-accent/80 bg-accent/45" :style="{
             width: preset.width / 5 + 'px',
             height: preset.height / 5 + 'px',
-          }"
-        ></span>
-        <span
-          v-else-if="preset.kind === 'wall'"
-          class="inline-block h-1.5 w-8 shrink-0 rounded-sm bg-[#94a3b8]"
-        ></span>
-        <span
-          v-else
-          class="inline-block h-5 w-5 shrink-0 rounded-tr-full border-t-2 border-r-2 border-[#facc15]"
-        ></span>
+          }"></span>
+        <span v-else-if="preset.kind === 'wall'" class="inline-block h-1.5 w-8 shrink-0 rounded-sm bg-[#94a3b8]"></span>
+        <span v-else
+          class="inline-block h-5 w-5 shrink-0 rounded-tr-full border-t-2 border-r-2 border-[#facc15]"></span>
         {{ preset.label }}
       </div>
     </div>
@@ -62,22 +38,14 @@
     <div class="flex items-start gap-4">
       <div
         class="scrollbar-slim max-h-[65vh] flex-1 overflow-auto rounded-card border border-edge bg-input bg-[radial-gradient(#2a313c_1px,transparent_1px)] bg-size-[20px_20px]"
-        @dragover="onCanvasDragOver"
-        @drop="onCanvasDrop"
-      >
+        @dragover="onCanvasDragOver" @drop="onCanvasDrop">
         <ClientOnly fallback="Loading map…">
-          <v-stage
-            ref="stageRef"
-            :config="{
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
-              scaleX: 0.7,
-              scaleY: 0.7,
-            }"
-            class="block"
-            @mousedown="handleStageMouseDown"
-            @touchstart="handleStageMouseDown"
-          >
+          <v-stage ref="stageRef" :config="{
+            width: CANVAS_WIDTH,
+            height: CANVAS_HEIGHT,
+            scaleX: 0.7,
+            scaleY: 0.7,
+          }" class="block" @mousedown="handleStageMouseDown" @touchstart="handleStageMouseDown">
             <v-layer>
               <!-- Zones: background/organizational rectangles -->
               <v-group
@@ -129,23 +97,17 @@
               <!-- Walls: solid partitions with end-caps, same drag/rotate model as racks
                    but resized via dedicated length/thickness handles (see transformerConfig)
                    since corner-only anchors are unusable on a shape this thin. -->
-              <v-group
-                v-for="wall in walls"
-                :key="wall._key"
-                :config="{
-                  id: wall._key,
-                  x: wall.x,
-                  y: wall.y,
-                  width: wall.width,
-                  height: wall.height,
-                  rotation: wall.rotation,
-                  draggable: true,
-                }"
-                @dragend="handleTransformEnd($event, wall, 'wall')"
-                @transformend="handleTransformEnd($event, wall, 'wall')"
-                @click="select('wall', wall._key)"
-                @tap="select('wall', wall._key)"
-              >
+              <v-group v-for="wall in walls" :key="wall._key" :config="{
+                id: wall._key,
+                x: wall.x,
+                y: wall.y,
+                width: wall.width,
+                height: wall.height,
+                rotation: wall.rotation,
+                draggable: true,
+              }" @dragend="handleTransformEnd($event, wall, 'wall')"
+                @transformend="handleTransformEnd($event, wall, 'wall')" @click="select('wall', wall._key)"
+                @tap="select('wall', wall._key)">
                 <!-- Invisible padded hit target: real wall thickness can be
                      just a few px (default 3, further scaled 0.7x by the
                      stage), leaving an on-screen clickable band under ~2px --
@@ -153,155 +115,123 @@
                      1px pointer offset from the centerline already misses).
                      This keeps the thin visual but makes the wall reliably
                      selectable/draggable regardless of how thin it's set. -->
-                <v-rect
-                  :config="{
-                    x: 0,
-                    y: -Math.max(0, (16 - wall.height) / 2),
-                    width: wall.width,
-                    height: Math.max(wall.height, 16),
-                    fill: 'rgba(0,0,0,0.001)',
-                  }"
-                />
+                <v-rect :config="{
+                  x: 0,
+                  y: -Math.max(0, (16 - wall.height) / 2),
+                  width: wall.width,
+                  height: Math.max(wall.height, 16),
+                  fill: 'rgba(0,0,0,0.001)',
+                }" />
                 <!-- End-caps: small perpendicular nubs hinting at a joint/corner -->
-                <v-rect
-                  :config="{
-                    x: -wall.height * 0.35,
-                    y: -wall.height * 0.35,
-                    width: wall.height * 0.7,
-                    height: wall.height * 1.7,
-                    fill: isSelected('wall', wall._key) ? '#60a5fa' : '#64748b',
-                    cornerRadius: 1,
-                  }"
-                />
-                <v-rect
-                  :config="{
-                    x: wall.width - wall.height * 0.35,
-                    y: -wall.height * 0.35,
-                    width: wall.height * 0.7,
-                    height: wall.height * 1.7,
-                    fill: isSelected('wall', wall._key) ? '#60a5fa' : '#64748b',
-                    cornerRadius: 1,
-                  }"
-                />
+                <v-rect :config="{
+                  x: -wall.height * 0.35,
+                  y: -wall.height * 0.35,
+                  width: wall.height * 0.7,
+                  height: wall.height * 1.7,
+                  fill: isSelected('wall', wall._key) ? '#60a5fa' : '#64748b',
+                  cornerRadius: 1,
+                }" />
+                <v-rect :config="{
+                  x: wall.width - wall.height * 0.35,
+                  y: -wall.height * 0.35,
+                  width: wall.height * 0.7,
+                  height: wall.height * 1.7,
+                  fill: isSelected('wall', wall._key) ? '#60a5fa' : '#64748b',
+                  cornerRadius: 1,
+                }" />
                 <!-- Main body: beveled fill (light top edge, darker body) for a solid, wall-like read -->
-                <v-rect
-                  :config="{
-                    width: wall.width,
-                    height: wall.height,
-                    fillLinearGradientStartPoint: { x: 0, y: 0 },
-                    fillLinearGradientEndPoint: { x: 0, y: wall.height },
-                    fillLinearGradientColorStops: isSelected('wall', wall._key)
-                      ? [0, '#bfdbfe', 1, '#60a5fa']
-                      : [0, '#e2e8f0', 1, '#94a3b8'],
-                    stroke: isSelected('wall', wall._key)
-                      ? '#3b82f6'
-                      : '#475569',
-                    strokeWidth: 1,
-                    cornerRadius: 1,
-                  }"
-                />
+                <v-rect :config="{
+                  width: wall.width,
+                  height: wall.height,
+                  fillLinearGradientStartPoint: { x: 0, y: 0 },
+                  fillLinearGradientEndPoint: { x: 0, y: wall.height },
+                  fillLinearGradientColorStops: isSelected('wall', wall._key)
+                    ? [0, '#bfdbfe', 1, '#60a5fa']
+                    : [0, '#e2e8f0', 1, '#94a3b8'],
+                  stroke: isSelected('wall', wall._key)
+                    ? '#3b82f6'
+                    : '#475569',
+                  strokeWidth: 1,
+                  cornerRadius: 1,
+                }" />
                 <!-- Center hairline: classic architectural double-line wall symbol -->
-                <v-line
-                  :config="{
-                    points: [0, wall.height / 2, wall.width, wall.height / 2],
-                    stroke: isSelected('wall', wall._key)
-                      ? '#2563eb'
-                      : '#334155',
-                    strokeWidth: 1,
-                    opacity: 0.5,
-                    listening: false,
-                  }"
-                />
+                <v-line :config="{
+                  points: [0, wall.height / 2, wall.width, wall.height / 2],
+                  stroke: isSelected('wall', wall._key)
+                    ? '#2563eb'
+                    : '#334155',
+                  strokeWidth: 1,
+                  opacity: 0.5,
+                  listening: false,
+                }" />
               </v-group>
 
               <!-- Doors: hinge + swing-arc symbol -->
-              <v-group
-                v-for="door in doors"
-                :key="door._key"
-                :config="{
-                  id: door._key,
-                  x: door.x,
-                  y: door.y,
-                  width: door.width,
-                  height: door.width,
-                  rotation: door.rotation,
-                  draggable: true,
-                }"
-                @dragend="handleTransformEnd($event, door, 'door')"
-                @transformend="handleTransformEnd($event, door, 'door')"
-                @click="select('door', door._key)"
-                @tap="select('door', door._key)"
-              >
-                <v-arc
-                  :config="{
-                    innerRadius: 0,
-                    outerRadius: door.width,
-                    angle: 90,
-                    stroke: isSelected('door', door._key)
-                      ? '#60a5fa'
-                      : '#facc15',
-                    strokeWidth: 2,
-                    dash: [5, 4],
-                  }"
-                />
-                <v-circle
-                  :config="{
-                    x: 0,
-                    y: 0,
-                    radius: 4,
-                    fill: isSelected('door', door._key) ? '#60a5fa' : '#facc15',
-                  }"
-                />
+              <v-group v-for="door in doors" :key="door._key" :config="{
+                id: door._key,
+                x: door.x,
+                y: door.y,
+                width: door.width,
+                height: door.width,
+                rotation: door.rotation,
+                draggable: true,
+              }" @dragend="handleTransformEnd($event, door, 'door')"
+                @transformend="handleTransformEnd($event, door, 'door')" @click="select('door', door._key)"
+                @tap="select('door', door._key)">
+                <v-arc :config="{
+                  innerRadius: 0,
+                  outerRadius: door.width,
+                  angle: 90, // <-- Modifica questo valore
+                  stroke: isSelected('door', door._key) ? '#60a5fa' : '#facc15',
+                  strokeWidth: 2,
+                  dash: [5, 4],
+                }" />
+                <v-circle :config="{
+                  x: 0,
+                  y: 0,
+                  radius: 4,
+                  fill: isSelected('door', door._key) ? '#60a5fa' : '#facc15',
+                }" />
               </v-group>
 
               <!-- Racks -->
-              <v-group
-                v-for="rack in racks"
-                :key="rack._key"
-                :config="{
-                  id: rack._key,
-                  x: rack.x,
-                  y: rack.y,
+              <v-group v-for="rack in racks" :key="rack._key" :config="{
+                id: rack._key,
+                x: rack.x,
+                y: rack.y,
+                width: rack.width,
+                height: rack.height,
+                rotation: rack.rotation,
+                draggable: true,
+              }" @dragend="handleTransformEnd($event, rack, 'rack')"
+                @transformend="handleTransformEnd($event, rack, 'rack')" @click="select('rack', rack._key)"
+                @tap="select('rack', rack._key)">
+                <v-rect :config="{
                   width: rack.width,
                   height: rack.height,
-                  rotation: rack.rotation,
-                  draggable: true,
-                }"
-                @dragend="handleTransformEnd($event, rack, 'rack')"
-                @transformend="handleTransformEnd($event, rack, 'rack')"
-                @click="select('rack', rack._key)"
-                @tap="select('rack', rack._key)"
-              >
-                <v-rect
-                  :config="{
-                    width: rack.width,
-                    height: rack.height,
-                    fill: isSelected('rack', rack._key)
-                      ? 'rgba(59,130,246,0.65)'
-                      : 'rgba(75,85,99,0.75)',
-                    stroke:
-                      zoneColor(rack.zone_id) ||
-                      (isSelected('rack', rack._key) ? '#60a5fa' : '#9ca3af'),
-                    strokeWidth: isSelected('rack', rack._key) ? 3 : 2,
-                    cornerRadius: 4,
-                  }"
-                />
-                <v-text
-                  :config="{
-                    text:
-                      (rack.label || rack.rack_code) +
-                      '\n' +
-                      rack.levels.join(','),
-                    fontSize: 12,
-                    fontFamily: 'Segoe UI, Arial',
-                    fill: '#ffffff',
-                    width: rack.width,
-                    height: rack.height,
-                    align: 'center',
-                    verticalAlign: 'middle',
-                    listening: false,
-                  }"
-                />
+                  fill: isSelected('rack', rack._key)
+                    ? 'rgba(59,130,246,0.65)'
+                    : 'rgba(75,85,99,0.75)',
+                  stroke:
+                    zoneColor(rack.zone_id) ||
+                    (isSelected('rack', rack._key) ? '#60a5fa' : '#9ca3af'),
+                  strokeWidth: isSelected('rack', rack._key) ? 3 : 2,
+                  cornerRadius: 4,
+                }" />
+                <v-text :config="{
+                  text:
+                    (rack.label || rack.rack_code) +
+                    '\n' +
+                    rack.levels.join(','),
+                  fontSize: 12,
+                  fontFamily: 'Segoe UI, Arial',
+                  fill: '#ffffff',
+                  width: rack.width,
+                  height: rack.height,
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  listening: false,
+                }" />
               </v-group>
 
               <v-transformer ref="transformerRef" :config="transformerConfig" />
@@ -310,20 +240,14 @@
         </ClientOnly>
       </div>
 
-      <aside
-        class="flex w-70 shrink-0 flex-col gap-3 rounded-card border border-edge bg-surface-2 p-4"
-      >
+      <aside class="flex w-70 shrink-0 flex-col gap-3 rounded-card border border-edge bg-surface-2 p-4">
         <template v-if="selectedZone">
           <h3 class="m-0 border-b border-edge pb-2 text-[0.95rem]">Zone</h3>
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Name</span>
-            <input
-              v-model="selectedZone.name"
-              type="text"
-              placeholder="e.g. Spare parts zone"
+            <input v-model="selectedZone.name" type="text" placeholder="e.g. Spare parts zone"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('zone')"
-            />
+              @change="commit('zone')" />
           </label>
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Color</span>
@@ -367,54 +291,30 @@
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Length (px)</span>
-            <input
-              v-model.number="selectedWall.width"
-              type="number"
-              min="10"
-              step="10"
+            <input v-model.number="selectedWall.width" type="number" min="10" step="10"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commitWall"
-            />
+              @change="commitWall" />
           </label>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Thickness (px)</span>
-            <input
-              v-model.number="selectedWall.height"
-              type="number"
-              min="4"
-              step="2"
+            <input v-model.number="selectedWall.height" type="number" min="4" step="2"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commitWall"
-            />
+              @change="commitWall" />
           </label>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Rotation (°)</span>
-            <input
-              v-model.number="selectedWall.rotation"
-              type="number"
-              min="0"
-              max="359"
-              step="15"
+            <input v-model.number="selectedWall.rotation" type="number" min="0" max="359" step="15"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commitWall"
-            />
+              @change="commitWall" />
           </label>
 
           <div class="flex gap-2">
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateWallBy(-90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateWallBy(-90)">
               ⟲ -90°
             </button>
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateWallBy(90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateWallBy(90)">
               ⟳ +90°
             </button>
           </div>
@@ -429,28 +329,16 @@
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Width (px)</span>
-            <input
-              v-model.number="selectedDoor.width"
-              type="number"
-              min="10"
+            <input v-model.number="selectedDoor.width" type="number" min="10"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('door')"
-            />
+              @change="commit('door')" />
           </label>
 
           <div class="flex gap-2">
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateDoorBy(-90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateDoorBy(-90)">
               ⟲ -90°
             </button>
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateDoorBy(90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateDoorBy(90)">
               ⟳ +90°
             </button>
           </div>
@@ -467,43 +355,30 @@
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Code (numeric, e.g. 12)</span>
-            <input
-              v-model="selectedRack.rack_code"
-              type="text"
+            <input v-model="selectedRack.rack_code" type="text"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('rack')"
-            />
+              @change="commit('rack')" />
           </label>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Label (optional)</span>
-            <input
-              v-model="selectedRack.label"
-              type="text"
-              placeholder="e.g. Parts rack"
+            <input v-model="selectedRack.label" type="text" placeholder="e.g. Parts rack"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('rack')"
-            />
+              @change="commit('rack')" />
           </label>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Levels (comma-separated letters)</span>
-            <input
-              v-model="levelsText"
-              type="text"
-              placeholder="A,B,C"
+            <input v-model="levelsText" type="text" placeholder="A,B,C"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('rack')"
-            />
+              @change="commit('rack')" />
           </label>
 
           <label class="flex flex-col gap-1 text-[0.8rem] text-muted">
             <span>Zone</span>
-            <select
-              v-model="selectedRack.zone_id"
+            <select v-model="selectedRack.zone_id"
               class="rounded-lg border border-edge bg-surface px-2.5 py-1.5 font-sans text-[0.85rem] text-ink"
-              @change="commit('rack')"
-            >
+              @change="commit('rack')">
               <option :value="null">No zone</option>
               <option v-for="z in rackZoneRefs" :key="z.id" :value="z.id">
                 {{ z.name || "(unnamed)" }}
@@ -512,18 +387,10 @@
           </label>
 
           <div class="flex gap-2">
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateRackBy(-90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateRackBy(-90)">
               ⟲ -90°
             </button>
-            <button
-              class="btn btn--ghost btn--small flex-1"
-              type="button"
-              @click="rotateRackBy(90)"
-            >
+            <button class="btn btn--ghost btn--small flex-1" type="button" @click="rotateRackBy(90)">
               ⟳ +90°
             </button>
           </div>

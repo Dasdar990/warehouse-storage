@@ -28,7 +28,7 @@
     >
       <option value="">All programs</option>
       <option v-for="prog in programs" :key="prog" :value="prog">
-        {{ prog }}
+        {{ prog.name }}
       </option>
     </select>
 

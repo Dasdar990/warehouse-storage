@@ -129,7 +129,11 @@ class ItemCreate(ItemBase):
 
     @field_validator("shelf_position")
     @classmethod
-    def validate_shelf_position(cls, value: str) -> str:
+    def validate_shelf_position(cls, value: str | None) -> str:
+        # ItemBase.normalize_shelf_position runs first and already turns
+        # "" into None -- handle that here instead of assuming a str.
+        if value is None:
+            return ""
         value = value.strip()
         if not value:
             return ""

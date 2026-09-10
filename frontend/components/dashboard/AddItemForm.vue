@@ -162,8 +162,12 @@
         v-model.number="form.quantity"
         type="number"
         min="0"
+        :disabled="hasSerial"
         class="field-input no-spinner disabled:cursor-not-allowed disabled:opacity-60"
       />
+      <p v-if="hasSerial" class="m-0 text-[0.75rem] text-muted">
+        Locked to 1 -- a serial number identifies a single physical unit.
+      </p>
     </div>
 
     <div class="flex flex-col gap-1.5 col-span-full">
@@ -407,6 +411,17 @@ const lastCreated = ref<Item | null>(null);
 const duplicates = ref<Item[]>([]);
 const addingToExisting = ref<number | null>(null);
 let duplicateCheckTimer: ReturnType<typeof setTimeout> | undefined;
+
+// A serial number identifies one specific physical unit, so quantity
+// doesn't make sense as anything but 1 -- both for a single serialized
+// item and for bulk mode, where every row created carries its own serial.
+const hasSerial = computed(
+  () => bulkMode.value || form.value.serial.trim().length > 0,
+);
+
+watch(hasSerial, (locked) => {
+  if (locked) form.value.quantity = 1;
+});
 
 watch(
   () => [form.value.name, form.value.pn],

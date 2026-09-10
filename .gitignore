@@ -20,3 +20,5 @@ frontend/package-lock.json
 .vscode/
 .idea/
 
+*/.venv
+frontend/bun.lock

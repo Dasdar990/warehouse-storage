@@ -97,7 +97,7 @@
             >
               <option value="">— No program —</option>
               <option v-for="p in editPrograms" :key="p" :value="p">
-                {{ p }}
+                {{ p.name }}
               </option>
             </select>
             <select v-model="editForm.size" class="field-input text-[0.92rem]">
