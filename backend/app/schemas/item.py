@@ -159,6 +159,11 @@ class ItemCreate(ItemBase):
 
 class ItemOut(ItemBase):
     id: int
+    box_id: int | None = Field(
+        default=None,
+        description="Set when this item is stored inside a Box rather than "
+                     "loose on the shelf -- see GET /boxes for box details",
+    )
 
     class Config:
         from_attributes = True

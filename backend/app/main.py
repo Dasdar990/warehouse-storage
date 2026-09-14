@@ -7,6 +7,8 @@ Route modules live in app/routers/:
                       GET  /items/scan, GET /items/barcode/next,
                       POST /items, POST /items/withdraw
     labels.py      -> POST /items/label/{id} (raw PNG), GET /items/{id}/label (auto-print HTML)
+    boxes.py       -> CRUD /boxes, POST/DELETE /boxes/{id}/items/{item_id},
+                      GET /boxes/{id}/label, POST /boxes/label/{id}
     shelves.py     -> GET  /shelves, GET /shelves/positions,
                       GET  /shelves/{rack_code}/levels,
                       GET  /shelves/{shelf_position}/items, /shelves/config CRUD
@@ -29,6 +31,7 @@ from app.core.config import get_settings
 from app.db import Base, SessionLocal, engine
 from app.routers import (
     auth,
+    boxes,
     categories,
     health,
     items,
@@ -227,6 +230,22 @@ def _add_missing_columns() -> None:
             conn.execute(text("ALTER TABLE movements ADD COLUMN field_changes TEXT"))
             conn.commit()
 
+        # Items can now be stored inside a Box instead of loose on a shelf
+        # (generic parts with no room for their own label, e.g. cables) --
+        # add the column in place so existing rows keep their shelf_position
+        # untouched. The `boxes` table itself is brand new, so `create_all`
+        # above already created it -- nothing to migrate there.
+        item_columns = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(items)"))
+        }
+        if item_columns and "box_id" not in item_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE items ADD COLUMN box_id INTEGER REFERENCES boxes(id)"
+                )
+            )
+            conn.commit()
+
 
 _add_missing_columns()
 
@@ -274,6 +293,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(items.router)
 app.include_router(labels.router)
+app.include_router(boxes.router)
 app.include_router(shelves.router)
 app.include_router(zones.router)
 app.include_router(room.router)

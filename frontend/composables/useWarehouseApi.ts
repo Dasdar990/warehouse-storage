@@ -12,6 +12,8 @@ export interface Item {
   shelf_position: string;
   /** Set instead of shelf_position when the item is placed at zone-level granularity only. */
   zone_id?: number | null;
+  /** Set when this item is stored inside a Box rather than loose on the shelf -- see Box. */
+  box_id?: number | null;
   quantity: number;
   /** Free-form tags to help find this item later, e.g. ['spare', 'critical']. */
   tags: string[];
@@ -39,6 +41,28 @@ export interface ShelfSummary {
   total_quantity: number;
   categories: string[];
   has_low_stock: boolean;
+  /** Number of boxes sitting on this shelf level. */
+  box_count: number;
+}
+
+/** A labeled container holding generic items on a shelf level (e.g. loose cables). */
+export interface Box {
+  id: number;
+  code: string;
+  name?: string | null;
+  shelf_position: string;
+  item_count: number;
+  total_quantity: number;
+}
+
+export interface BoxInput {
+  name?: string | null;
+  shelf_position: string;
+}
+
+export interface BoxUpdateInput {
+  name?: string | null;
+  shelf_position?: string;
 }
 
 export type ZoneKind = "shelf_group" | "direct_storage";
@@ -125,6 +149,8 @@ export interface ShelfMapNode extends ShelfNode {
   total_quantity: number;
   categories: string[];
   has_low_stock: boolean;
+  /** Number of boxes sitting on any level of this rack. */
+  box_count: number;
 }
 
 export interface WarehouseLayout {
@@ -150,6 +176,8 @@ export interface LevelSummary {
   item_count: number;
   total_quantity: number;
   categories: string[];
+  /** Number of boxes sitting on this level. */
+  box_count: number;
 }
 
 export interface RackLevelsResponse {
@@ -410,6 +438,14 @@ export function useWarehouseApi() {
     return apiFetch<void>(`/items/${id}`, { method: "DELETE" });
   }
 
+  /** Admin-only: permanently delete several items at once (e.g. a whole P/N group's serials). */
+  function deleteItemsBulk(ids: number[]) {
+    return apiFetch<{ deleted: number }>("/items/bulk", {
+      method: "DELETE",
+      params: { ids: ids.join(",") },
+    });
+  }
+
   /** Existing items that look like duplicates of a candidate name/PN (used by the New Item form). */
   function checkDuplicateItems(candidate: { name?: string; pn?: string }) {
     const params: Record<string, string> = {};
@@ -434,6 +470,13 @@ export function useWarehouseApi() {
     });
   }
 
+  function updateCategory(id: number, name: string) {
+    return apiFetch<Category>(`/categories/${id}`, {
+      method: "PATCH",
+      body: { name },
+    });
+  }
+
   function deleteCategory(id: number) {
     return apiFetch<void>(`/categories/${id}`, { method: "DELETE" });
   }
@@ -445,6 +488,13 @@ export function useWarehouseApi() {
 
   function createProgram(name: string) {
     return apiFetch<Program>("/programs", { method: "POST", body: { name } });
+  }
+
+  function updateProgram(id: number, name: string) {
+    return apiFetch<Program>(`/programs/${id}`, {
+      method: "PATCH",
+      body: { name },
+    });
   }
 
   function deleteProgram(id: number) {
@@ -497,9 +547,10 @@ export function useWarehouseApi() {
       date_from?: string;
       date_to?: string;
     } = {},
+    offset = 0,
   ) {
     return apiFetch<Movement[]>("/movements", {
-      params: { limit, ...filters },
+      params: { limit, offset, ...filters },
     });
   }
 
@@ -526,6 +577,53 @@ export function useWarehouseApi() {
     const params = new URLSearchParams({ ids: ids.join(",") });
     if (token.value) params.set("token", token.value);
     return `${apiBase}/items/label/batch?${params.toString()}`;
+  }
+
+  // --- Boxes ---------------------------------------------------------
+  // Containers for generic items with no room for their own printed
+  // label (e.g. loose cables). A box lives on one shelf level; items
+  // inside it inherit that shelf_position (see Box.id on Item).
+
+  function listBoxes(shelfPosition?: string) {
+    const params: Record<string, string> = {};
+    if (shelfPosition) params.shelf_position = shelfPosition;
+    return apiFetch<Box[]>("/boxes", { params });
+  }
+
+  function getBox(boxId: number) {
+    return apiFetch<Box>(`/boxes/${boxId}`);
+  }
+
+  function listBoxItems(boxId: number) {
+    return apiFetch<Item[]>(`/boxes/${boxId}/items`);
+  }
+
+  function createBox(payload: BoxInput) {
+    return apiFetch<Box>("/boxes", { method: "POST", body: payload });
+  }
+
+  function updateBox(boxId: number, payload: BoxUpdateInput) {
+    return apiFetch<Box>(`/boxes/${boxId}`, { method: "PATCH", body: payload });
+  }
+
+  /** Fails with 400 if the box still has items inside -- remove them first. */
+  function deleteBox(boxId: number) {
+    return apiFetch<void>(`/boxes/${boxId}`, { method: "DELETE" });
+  }
+
+  /** Puts an existing item inside a box: its shelf_position becomes the box's, any zone placement is dropped. */
+  function addItemToBox(boxId: number, itemId: number) {
+    return apiFetch<Item>(`/boxes/${boxId}/items/${itemId}`, { method: "POST" });
+  }
+
+  /** Takes an item out of whichever box it's in -- it stays on that box's shelf, just loose. */
+  function removeItemFromBox(itemId: number) {
+    return apiFetch<Item>(`/boxes/items/${itemId}`, { method: "DELETE" });
+  }
+
+  function boxLabelUrl(boxId: number) {
+    const qs = token.value ? `?token=${encodeURIComponent(token.value)}` : "";
+    return `${apiBase}/boxes/${boxId}/label${qs}`;
   }
 
   function getWarehouseLayout() {
@@ -616,13 +714,16 @@ export function useWarehouseApi() {
     createItemsBulk,
     updateItem,
     deleteItem,
+    deleteItemsBulk,
     checkDuplicateItems,
     generateBarcode,
     listAdminCategories,
     createCategory,
+    updateCategory,
     deleteCategory,
     listAdminPrograms,
     createProgram,
+    updateProgram,
     deleteProgram,
     getShelfPositions,
     withdrawItem,
@@ -633,6 +734,15 @@ export function useWarehouseApi() {
     rollbackMovement,
     labelUrl,
     labelBatchUrl,
+    listBoxes,
+    getBox,
+    listBoxItems,
+    createBox,
+    updateBox,
+    deleteBox,
+    addItemToBox,
+    removeItemFromBox,
+    boxLabelUrl,
     getWarehouseLayout,
     getRackLevels,
     getShelfItems,

@@ -12,6 +12,30 @@
       <div class="flex items-center gap-2.5">
         <button
           type="button"
+          class="flex items-center btn btn--small text-[0.9rem]"
+          :class="
+            labelSelectMode ? 'btn--confirm text-[#06280f]' : 'btn--ghost'
+          "
+          title="Select one or more serials to move, print labels for, or delete together"
+          @click="toggleLabelSelectMode"
+        >
+          <img src="~/assets/icons/list.svg" class="w-6 mr-2 h-auto" />
+          {{ labelSelectMode ? "Cancel selection" : "Select items" }}
+        </button>
+        <button
+          type="button"
+          class="flex items-center btn btn--ghost btn--small text-[0.9rem]"
+          title="Create, rename, move or inspect storage boxes"
+          @click="showBoxManagerModal = true"
+        >
+          <img
+            src="~/assets/icons/package.svg"
+            class="w-5 h-auto inline-block mr-1"
+          />
+          Manage boxes
+        </button>
+        <button
+          type="button"
           class="flex items-center btn btn--ghost btn--small text-[0.9rem]"
           :disabled="!isAdmin"
           :title="
@@ -82,17 +106,92 @@
       />
     </section>
 
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      leave-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1.5"
+      leave-to-class="opacity-0 -translate-y-1.5"
+    >
+      <section
+        v-if="labelSelectMode"
+        class="card flex flex-wrap items-center justify-between gap-3 border border-accent/25 py-2.5"
+      >
+        <p class="m-0 text-sm text-muted">
+          {{
+            selectedLabelIds.length
+              ? `${selectedLabelIds.length} serial${selectedLabelIds.length === 1 ? "" : "s"} selected`
+              : "Tick one or more serials in the table to select them"
+          }}
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small text-[0.85rem]"
+            :disabled="!selectedLabelIds.length"
+            @click="selectedLabelIds = []"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--small text-[0.85rem]"
+            :disabled="!selectedLabelIds.length"
+            @click="showBulkMoveModal = true"
+          >
+            📍 Move {{ selectedLabelIds.length || "" }} selected
+          </button>
+          <button
+            v-if="isAdmin"
+            type="button"
+            class="btn btn--small text-[0.85rem] border border-red-400/40 text-red-300 hover:bg-red-400/10"
+            :disabled="!selectedLabelIds.length || deletingSelected"
+            :title="!isAdmin ? 'Admins only' : undefined"
+            @click="deleteSelectedItems"
+          >
+            🗑
+            {{
+              deletingSelected
+                ? "Deleting…"
+                : `Delete ${selectedLabelIds.length || ""}`
+            }}
+          </button>
+          <a
+            :href="
+              selectedLabelIds.length
+                ? labelBatchUrl(selectedLabelIds)
+                : undefined
+            "
+            target="_blank"
+            rel="noopener"
+            class="btn btn--confirm btn--small text-[0.85rem] text-[#06280f]"
+            :class="{
+              'pointer-events-none opacity-50': !selectedLabelIds.length,
+            }"
+            @click="handleLabelsPrinted"
+          >
+            🖨 Print {{ selectedLabelIds.length || "" }} label{{
+              selectedLabelIds.length === 1 ? "" : "s"
+            }}
+          </a>
+        </div>
+      </section>
+    </transition>
+
     <section class="card">
       <p v-if="loading" class="text-muted">Loading…</p>
       <DashboardItemTable
         v-else
         :items="items"
-        selectable
+        :selectable="!labelSelectMode"
+        :label-select-mode="labelSelectMode"
+        :selected-ids="selectedLabelIds"
+        @update:selected-ids="selectedLabelIds = $event"
         @select="openViewModal"
         @move="openMoveModal"
         @relocate="openRelocateModal"
         @locate="handleLocate"
         @info="openInfoModal"
+        @add-serial="openAddSerialModal"
       />
     </section>
 
@@ -153,6 +252,32 @@
     <BaseModal v-model="showSpecialMoveModal" title="Special move" size="md">
       <DashboardSpecialMoveModal @done="handleSpecialMoveDone" />
     </BaseModal>
+
+    <BaseModal v-model="showBoxManagerModal" title="Manage boxes" size="lg">
+      <AdminBoxManager />
+    </BaseModal>
+
+    <BaseModal
+      v-model="showBulkMoveModal"
+      :title="`Move ${selectedLabelIds.length} item${selectedLabelIds.length === 1 ? '' : 's'}`"
+      size="md"
+    >
+      <DashboardBulkMoveModal
+        v-if="showBulkMoveModal"
+        :items="selectedItemsForMove"
+        @done="handleBulkMoveDone"
+      />
+    </BaseModal>
+
+    <BaseModal v-model="showAddSerialModal" title="Add a new serial" size="md">
+      <DashboardAddSerialModal
+        v-if="addSerialBaseItem"
+        :key="addSerialBaseItem.id"
+        :base-item="addSerialBaseItem"
+        @close="showAddSerialModal = false"
+        @created="onSerialsAdded"
+      />
+    </BaseModal>
   </div>
 </template>
 
@@ -160,6 +285,7 @@
 import type { Item, ItemFilters, Zone } from "~/composables/useWarehouseApi";
 
 const { isAdmin } = useAuth();
+const { show } = useToast();
 const route = useRoute();
 const {
   listItems,
@@ -168,6 +294,8 @@ const {
   listItemShelves,
   listItemTags,
   getZones,
+  labelBatchUrl,
+  deleteItemsBulk,
 } = useWarehouseApi();
 
 const filters = ref<ItemFilters>({
@@ -255,13 +383,95 @@ async function goToMap(item: Item) {
   await navigateTo({ path: "/", query: { locate: item.barcode } });
 }
 
+// --- Label select mode: tick one or more serials (across groups, across
+// the whole filtered list) and reprint their labels together in one
+// batch instead of one popup per item. ---
+const labelSelectMode = ref(false);
+const selectedLabelIds = ref<number[]>([]);
+
+function toggleLabelSelectMode() {
+  labelSelectMode.value = !labelSelectMode.value;
+  selectedLabelIds.value = [];
+}
+
+function handleLabelsPrinted() {
+  // Leave the tab to print in the background; reset selection here so a
+  // second batch starts clean instead of re-adding already-printed ids.
+  labelSelectMode.value = false;
+  selectedLabelIds.value = [];
+}
+
+const deletingSelected = ref(false);
+
+async function deleteSelectedItems() {
+  const ids = selectedLabelIds.value;
+  if (!ids.length) return;
+  if (
+    !confirm(
+      `Delete ${ids.length} item${ids.length === 1 ? "" : "s"}? This can't be undone.`,
+    )
+  ) {
+    return;
+  }
+  deletingSelected.value = true;
+  try {
+    await deleteItemsBulk(ids);
+    show("success", `${ids.length} item${ids.length === 1 ? "" : "s"} deleted`);
+    const deleted = new Set(ids);
+    items.value = items.value.filter((i) => !deleted.has(i.id));
+    labelSelectMode.value = false;
+    selectedLabelIds.value = [];
+    await Promise.all([fetchShelves(), fetchTags()]);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to delete the selected items");
+  } finally {
+    deletingSelected.value = false;
+  }
+}
+
+// --- Move selected: relocate every currently-selected item to the same
+// destination (a shelf, a zone, or a box) in one go. Reuses the same
+// selection as the label/delete batch above. ---
+const showBulkMoveModal = ref(false);
+
+const selectedItemsForMove = computed(() =>
+  items.value.filter((i) => selectedLabelIds.value.includes(i.id)),
+);
+
+async function handleBulkMoveDone() {
+  showBulkMoveModal.value = false;
+  labelSelectMode.value = false;
+  selectedLabelIds.value = [];
+  await fetchItems();
+  await fetchShelves();
+}
+
 // --- Special move: admin-only bulk relocation of a whole shelf/rack ---
 const showSpecialMoveModal = ref(false);
+const showBoxManagerModal = ref(false);
 
 async function handleSpecialMoveDone() {
   showSpecialMoveModal.value = false;
   await fetchItems();
   await fetchShelves();
+}
+
+// --- Add serial: create one (or more) new items sharing an existing
+// group's descriptive fields, for when a fresh unit of the same part
+// comes in. Triggered from the "+ Add serial" action on a group/row. ---
+const showAddSerialModal = ref(false);
+const addSerialBaseItem = ref<Item | null>(null);
+
+function openAddSerialModal(groupItems: Item[]) {
+  addSerialBaseItem.value = groupItems[0] ?? null;
+  showAddSerialModal.value = true;
+}
+
+async function onSerialsAdded(_newItems: Item[]) {
+  showAddSerialModal.value = false;
+  // Re-fetch (rather than just appending) so the new serials only show up
+  // if they actually match whatever filters are currently applied.
+  await Promise.all([fetchItems(), fetchShelves(), fetchTags()]);
 }
 
 function syncItemInList(item: Item) {

@@ -19,6 +19,7 @@ router = APIRouter(prefix="/movements", tags=["movements"], dependencies=[Depend
 @router.get("", response_model=list[MovementOut])
 def get_recent_movements(
     limit: int = Query(default=50, ge=1, le=200, description="Max rows to return, most recent first"),
+    offset: int = Query(default=0, ge=0, description="Rows to skip, for paging past the first `limit` results"),
     operator: Optional[str] = Query(default=None, description="Case-insensitive partial match on operator name"),
     item_id: Optional[int] = Query(default=None, description="Only movements for this item (its full history)"),
     item: Optional[str] = Query(default=None, description="Case-insensitive partial match on item name or P/N"),
@@ -32,6 +33,7 @@ def get_recent_movements(
     return list_recent_movements(
         db,
         limit=limit,
+        offset=offset,
         operator=operator,
         item_id=item_id,
         item=item,

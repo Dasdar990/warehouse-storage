@@ -113,12 +113,14 @@
 
       <div
         v-else
-        class="scrollbar-slim max-h-105 overflow-y-auto overflow-x-auto pr-1"
+        class="scrollbar-slim overflow-y-auto overflow-x-auto pr-1"
+        :class="fullPage ? 'max-h-[calc(100vh-260px)]' : 'max-h-105'"
       >
         <table class="w-full min-w-160 border-collapse text-[0.85rem]">
           <thead>
             <tr
-              class="border-b border-edge text-left text-[0.72rem] uppercase tracking-wide text-muted"
+              class="border-b border-edge bg-surface text-left text-[0.72rem] uppercase tracking-wide text-muted"
+              :class="{ 'sticky top-0 z-10': fullPage }"
             >
               <th class="pb-2 pr-3 font-semibold">Date / Time</th>
               <th class="pb-2 pr-3 font-semibold">Operator</th>
@@ -241,6 +243,17 @@
           </transition-group>
         </table>
       </div>
+
+      <div v-if="fullPage && hasMore" class="mt-3 flex justify-center">
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          :disabled="loadingMore"
+          @click="loadMore"
+        >
+          {{ loadingMore ? "Loading…" : "Load more" }}
+        </button>
+      </div>
     </template>
   </section>
 </template>
@@ -259,8 +272,10 @@ const props = withDefaults(
     collapsible?: boolean;
     /** Initial collapsed state when `collapsible` is true. */
     defaultCollapsed?: boolean;
+    /** Dedicated full-page mode: taller table, sticky header, and "Load more" paging instead of a fixed 50-row feed. */
+    fullPage?: boolean;
   }>(),
-  { collapsible: false, defaultCollapsed: false },
+  { collapsible: false, defaultCollapsed: false, fullPage: false },
 );
 
 const { listMovements, rollbackMovement } = useWarehouseApi();
@@ -269,8 +284,14 @@ const { show } = useToast();
 
 const expanded = ref(!(props.collapsible && props.defaultCollapsed));
 
+// Full page pulls bigger, pageable chunks; the compact feed just wants the
+// most recent handful and re-fetches that same window on every filter change.
+const PAGE_SIZE = props.fullPage ? 100 : 50;
+
 const movements = ref<Movement[]>([]);
 const loading = ref(false);
+const loadingMore = ref(false);
+const hasMore = ref(false);
 const rollingBack = ref<number | null>(null);
 const operatorQuery = ref("");
 const itemQuery = ref("");
@@ -291,19 +312,42 @@ const hasActiveFilters = computed(
     !!dateTo.value,
 );
 
+function currentFilters() {
+  return {
+    operator: operatorQuery.value.trim() || undefined,
+    item: itemQuery.value.trim() || undefined,
+    action: actionFilter.value || undefined,
+    source: sourceFilter.value || undefined,
+    date_from: dateFrom.value || undefined,
+    date_to: dateTo.value || undefined,
+  };
+}
+
 async function refresh() {
   loading.value = true;
   try {
-    movements.value = await listMovements(50, {
-      operator: operatorQuery.value.trim() || undefined,
-      item: itemQuery.value.trim() || undefined,
-      action: actionFilter.value || undefined,
-      source: sourceFilter.value || undefined,
-      date_from: dateFrom.value || undefined,
-      date_to: dateTo.value || undefined,
-    });
+    const rows = await listMovements(PAGE_SIZE, currentFilters(), 0);
+    movements.value = rows;
+    hasMore.value = props.fullPage && rows.length === PAGE_SIZE;
   } finally {
     loading.value = false;
+  }
+}
+
+/** Full-page only: fetch the next chunk and append it, so browsing history doesn't reload what's already on screen. */
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    const rows = await listMovements(
+      PAGE_SIZE,
+      currentFilters(),
+      movements.value.length,
+    );
+    movements.value = [...movements.value, ...rows];
+    hasMore.value = rows.length === PAGE_SIZE;
+  } finally {
+    loadingMore.value = false;
   }
 }
 
@@ -370,7 +414,11 @@ onMounted(() => {
   refresh();
   // Light polling as a safety net in case another terminal is also writing
   // movements; explicit refresh() calls after local actions keep it snappy.
-  pollTimer = setInterval(refresh, 15000);
+  // Skipped in full-page mode: a silent 15s refresh would collapse back to
+  // the first page and throw away anything loaded via "Load more".
+  if (!props.fullPage) {
+    pollTimer = setInterval(refresh, 15000);
+  }
 });
 
 onUnmounted(() => {

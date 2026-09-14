@@ -12,16 +12,57 @@
       <li
         v-for="category in categories"
         :key="category.id"
-        class="flex items-center justify-between rounded-lg border border-edge bg-surface-2 px-3.5 py-2.5"
+        class="flex items-center justify-between gap-2 rounded-lg border border-edge bg-surface-2 px-3.5 py-2.5"
       >
-        <span>{{ category.name }}</span>
-        <button
-          class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-red-300"
-          title="Delete category"
-          @click="remove(category)"
-        >
-          ✕
-        </button>
+        <template v-if="editingId === category.id">
+          <input
+            v-model="editName"
+            type="text"
+            maxlength="60"
+            required
+            class="field-input flex-1"
+            :disabled="savingEdit"
+            @keyup.enter="saveEdit(category)"
+            @keyup.esc="cancelEdit"
+          />
+          <div class="flex shrink-0 items-center gap-1">
+            <button
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+              title="Save"
+              :disabled="savingEdit"
+              @click="saveEdit(category)"
+            >
+              ✓
+            </button>
+            <button
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-red-300"
+              title="Cancel"
+              :disabled="savingEdit"
+              @click="cancelEdit"
+            >
+              ✕
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <span>{{ category.name }}</span>
+          <div class="flex shrink-0 items-center gap-1">
+            <button
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-accent"
+              title="Edit category"
+              @click="startEdit(category)"
+            >
+              ✏️
+            </button>
+            <button
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-red-300"
+              title="Delete category"
+              @click="remove(category)"
+            >
+              ✕
+            </button>
+          </div>
+        </template>
       </li>
     </ul>
     <p v-else class="text-muted">No categories yet. Add the first one above.</p>
@@ -31,13 +72,17 @@
 <script setup lang="ts">
 import type { Category } from '~/composables/useWarehouseApi'
 
-const { listAdminCategories, createCategory, deleteCategory } = useWarehouseApi()
+const { listAdminCategories, createCategory, updateCategory, deleteCategory } = useWarehouseApi()
 const { show } = useToast()
 
 const categories = ref<Category[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const newName = ref('')
+
+const editingId = ref<number | null>(null)
+const editName = ref('')
+const savingEdit = ref(false)
 
 async function load() {
   loading.value = true
@@ -63,6 +108,38 @@ async function add() {
     show('error', err?.data?.detail || 'Failed to create category')
   } finally {
     submitting.value = false
+  }
+}
+
+function startEdit(category: Category) {
+  editingId.value = category.id
+  editName.value = category.name
+}
+
+function cancelEdit() {
+  editingId.value = null
+  editName.value = ''
+}
+
+async function saveEdit(category: Category) {
+  const name = editName.value.trim()
+  if (!name) return
+  if (name === category.name) {
+    cancelEdit()
+    return
+  }
+  savingEdit.value = true
+  try {
+    const updated = await updateCategory(category.id, name)
+    categories.value = categories.value
+      .map((c) => (c.id === category.id ? updated : c))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    show('success', `Category renamed to "${updated.name}" -- existing items updated too`)
+    cancelEdit()
+  } catch (err: any) {
+    show('error', err?.data?.detail || 'Failed to rename category')
+  } finally {
+    savingEdit.value = false
   }
 }
 

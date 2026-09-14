@@ -6,14 +6,36 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db import get_db
+from app.models.box import Box
 from app.models.item import Item
 from app.models.user import User
+from app.models.zone import Zone
 from app.services.label_generator import generate_label_image
 
 router = APIRouter(prefix="/items", tags=["labels"])
 
 
-def _regenerate_label(item: Item) -> None:
+def _resolve_zone_name(item: Item, db: Session) -> str | None:
+    """Items placed directly in a zone (no shelf_position) don't carry the
+    zone's name on the row itself, so it's looked up here -- the label can
+    then print the zone instead of an empty "Shelf:" field."""
+    if item.shelf_position or not item.zone_id:
+        return None
+    zone = db.get(Zone, item.zone_id)
+    return zone.name if zone else None
+
+
+def _resolve_box_code(item: Item, db: Session) -> str | None:
+    """Items stored inside a box (generic parts with no label space of
+    their own, e.g. loose cables) print the box's code instead of their
+    own shelf slot -- the box is what's actually labeled on the shelf."""
+    if not item.box_id:
+        return None
+    box = db.get(Box, item.box_id)
+    return box.code if box else None
+
+
+def _regenerate_label(item: Item, db: Session) -> None:
     """(Re)build the PNG for `item` on disk so /labels_static always has a
     fresh file to serve -- callers that only display the PNG (view_label,
     the batch view) never called generate_label_image themselves, so a
@@ -25,6 +47,8 @@ def _regenerate_label(item: Item) -> None:
         shelf_position=item.shelf_position,
         barcode_value=item.barcode,
         serial=item.serial,
+        zone_name=_resolve_zone_name(item, db),
+        box_code=_resolve_box_code(item, db),
     )
 
 
@@ -64,7 +88,7 @@ def view_label(item_id: int, token: str, db: Session = Depends(get_db), current_
 
     # Regenerate on every view so the PNG exists for brand-new items and
     # always reflects the item's current shelf/name/etc.
-    _regenerate_label(item)
+    _regenerate_label(item, db)
 
     png_url = f"/labels_static/{item_id}.png"
     return HTMLResponse(content=_label_page_html(png_url))
@@ -94,7 +118,7 @@ def view_label_batch(
     # Preserve the order the caller asked for, regenerate every PNG.
     ordered_items = [items_by_id[i] for i in item_ids]
     for item in ordered_items:
-        _regenerate_label(item)
+        _regenerate_label(item, db)
 
     images_html = "\n".join(
         f'  <img src="/labels_static/{item.id}.png">' for item in ordered_items
@@ -146,6 +170,8 @@ def generate_label(
         shelf_position=item.shelf_position,
         barcode_value=item.barcode,
         serial=item.serial,
+        zone_name=_resolve_zone_name(item, db),
+        box_code=_resolve_box_code(item, db),
     )
 
     return FileResponse(

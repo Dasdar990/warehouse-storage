@@ -644,6 +644,17 @@ function buildRack(node: ShelfMapNode, acc: InstanceAccumulator) {
   countEl.textContent = `${node.item_count} item(s)`;
   label.appendChild(countEl);
 
+  // Boxes (generic items with no label space of their own, e.g. loose
+  // cables) don't otherwise show up here since they're not "packages"
+  // scattered per-level -- a small line on the rack label is enough to
+  // make them visible without a whole extra 3D pass.
+  if (node.box_count > 0) {
+    const boxEl = document.createElement("div");
+    boxEl.style.cssText = "font-size:10px;font-weight:600;color:#c79a63;";
+    boxEl.textContent = `📦 ${node.box_count} box(es)`;
+    label.appendChild(boxEl);
+  }
+
   const labelObj = new CSS2DObjectCtor(label);
   labelObj.position.set(width / 2, height + 0.22, depth / 2);
   group.add(labelObj);

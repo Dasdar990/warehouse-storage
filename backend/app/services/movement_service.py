@@ -297,6 +297,7 @@ def list_recent_movements(
     db: Session,
     limit: int = 50,
     *,
+    offset: int = 0,
     operator: str | None = None,
     item_id: int | None = None,
     item: str | None = None,
@@ -329,7 +330,7 @@ def list_recent_movements(
     if date_to is not None:
         stmt = stmt.where(Movement.timestamp <= datetime.combine(
             date_to, time.max, tzinfo=APP_TZ))
-    stmt = stmt.limit(limit)
+    stmt = stmt.offset(offset).limit(limit)
     return list(db.execute(stmt).scalars().all())
 
 

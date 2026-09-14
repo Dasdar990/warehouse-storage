@@ -31,7 +31,7 @@
         v-for="lvl in rack.levels"
         :key="lvl.shelf_position"
         class="flex cursor-pointer flex-col gap-1 rounded-[10px] border p-3 text-left text-ink transition duration-80 ease-out hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
-        :class="levelClass(lvl.shelf_position, lvl.item_count > 0)"
+        :class="levelClass(lvl.shelf_position, lvl.item_count > 0 || lvl.box_count > 0)"
         @click="emit('select-level', lvl.shelf_position)"
       >
         <span class="text-[0.85rem] font-bold">Level {{ lvl.level }}</span>
@@ -44,9 +44,12 @@
           >{{ lvl.item_count }} item(s) · {{ lvl.total_quantity }} unit(s)</span
         >
         <span
-          v-else
+          v-else-if="!lvl.box_count"
           class="mt-1 inline-flex items-center gap-1 text-[0.78rem] font-bold text-sky-300"
           >＋ Empty · Available</span
+        >
+        <span v-if="lvl.box_count" class="text-[0.72rem] font-semibold text-[#c79a63]"
+          >📦 {{ lvl.box_count }} box(es)</span
         >
       </button>
     </div>

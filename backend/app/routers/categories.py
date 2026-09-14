@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db import get_db
-from app.schemas.category import CategoryCreate, CategoryOut
+from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
 from app.services import category_service
 
 router = APIRouter(prefix="/categories", tags=["categories"], dependencies=[Depends(get_current_user)])
@@ -24,6 +24,23 @@ def create_category(payload: CategoryCreate, db: Session = Depends(get_db)):
     if existing is not None:
         raise HTTPException(status_code=409, detail=f'Category "{payload.name}" already exists')
     return category_service.create_category(db, payload.name)
+
+
+@router.patch("/{category_id}", response_model=CategoryOut)
+def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)):
+    """
+    Rename a category. The new name also replaces the old one on every
+    item that currently uses it (see category_service.update_category),
+    so item lists and filters stay consistent with the catalog.
+    """
+    existing = category_service.get_category_by_name(db, payload.name)
+    if existing is not None and existing.id != category_id:
+        raise HTTPException(status_code=409, detail=f'Category "{payload.name}" already exists')
+
+    category = category_service.update_category(db, category_id, payload.name)
+    if category is None:
+        raise HTTPException(status_code=404, detail=f"No category found with id {category_id}")
+    return category
 
 
 @router.delete("/{category_id}", status_code=204)

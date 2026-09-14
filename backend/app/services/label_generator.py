@@ -136,6 +136,8 @@ def generate_label_image(
     shelf_position: str,
     barcode_value: str,
     serial: str | None = None,
+    zone_name: str | None = None,
+    box_code: str | None = None,
 ) -> Path:
     """Build the 808x432 1-bit PNG label for 101x54mm thermal paper."""
     settings.labels_dir.mkdir(parents=True, exist_ok=True)
@@ -162,7 +164,21 @@ def generate_label_image(
     draw.text((LABEL_WIDTH - padding - tag_w, y + 4),
               tag_text, fill=0, font=top_right_font)
 
-    shelf_text = _fit_text(f"Shelf: {shelf_position}", meta_font, LABEL_WIDTH - padding - (padding + 260))
+    if box_code:
+        # Generic items stored inside a box (e.g. loose cables) show the
+        # box's code -- their shelf_position is only inherited from the
+        # box for map/aggregate purposes, it's not what's printed here.
+        location_text = f"Box: {box_code}"
+    elif shelf_position:
+        location_text = f"Shelf: {shelf_position}"
+    elif zone_name:
+        # DIRECT_STORAGE zones have no shelf slot at all -- the zone name
+        # is the only location info there is to print.
+        location_text = f"Zone: {zone_name}"
+    else:
+        location_text = "Shelf: —"
+
+    shelf_text = _fit_text(location_text, meta_font, LABEL_WIDTH - padding - (padding + 260))
     shelf_bbox = meta_font.getbbox(shelf_text)
     shelf_w = shelf_bbox[2] - shelf_bbox[0]
     draw.text((LABEL_WIDTH - padding - shelf_w, y + 40),

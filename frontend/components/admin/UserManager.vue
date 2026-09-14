@@ -221,11 +221,15 @@ const badgeSaving = ref(false);
 // Live tap-to-fill: while the badge modal is open, a tap on the reader
 // (via nfc-bridge/bridge.py) fills the UID field automatically. The admin
 // still confirms explicitly with "Save badge" -- a stray tap never assigns
-// anything on its own.
+// anything on its own. A short beep on every tap gives immediate feedback
+// that the reader actually saw something, since the field being filled
+// might not be visible if the admin is looking at the physical badge.
+const { playBeep } = useBeep();
 const { connected: nfcConnected } = useNfcBridge({
   onBadgeTap: (uid) => {
     if (showBadgeModal.value) {
       badgeModalValue.value = uid;
+      playBeep(true);
     }
   },
 });

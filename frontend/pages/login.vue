@@ -100,6 +100,7 @@
 definePageMeta({ layout: "blank" });
 
 const { login, badgeLogin } = useAuth();
+const { playBeep } = useBeep();
 const { onKeydown, onEnter, looksLikeScan } = useBarcodeScanner({
   onScan: handleBadgeScan,
   // A slow, manually-typed Enter in the username field: nothing to do here,
@@ -162,8 +163,10 @@ async function handleBadgeScan(badgeUid: string) {
   username.value = "";
   try {
     await badgeLogin(badgeUid);
+    playBeep(true);
     await navigateTo("/");
   } catch (err: any) {
+    playBeep(false);
     errorMessage.value = err?.data?.detail || "Badge not recognized";
   } finally {
     loading.value = false;

@@ -273,6 +273,7 @@
             :items="zoneItems"
             :loading="loadingZoneItems"
             :show-header="false"
+            disable-boxes
             @close="closeDrilldown"
             @select-item="handleSelectItemFromShelf"
             @info="openInfoModal"

@@ -18,6 +18,14 @@ class CategoryCreate(CategoryBase):
     pass
 
 
+class CategoryUpdate(CategoryBase):
+    """Rename an existing category. Renaming also updates the free-text
+    `category` value on every item currently using the old name, so the
+    catalog and the item list stay in sync (see category_service.update_category)."""
+
+    pass
+
+
 class CategoryOut(CategoryBase):
     id: int
 

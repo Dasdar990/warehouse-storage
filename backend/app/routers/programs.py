@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db import get_db
-from app.schemas.program import ProgramCreate, ProgramOut
+from app.schemas.program import ProgramCreate, ProgramOut, ProgramUpdate
 from app.services import program_service
 
 router = APIRouter(prefix="/programs", tags=["programs"], dependencies=[Depends(get_current_user)])
@@ -24,6 +24,23 @@ def create_program(payload: ProgramCreate, db: Session = Depends(get_db)):
     if existing is not None:
         raise HTTPException(status_code=409, detail=f'Program "{payload.name}" already exists')
     return program_service.create_program(db, payload.name)
+
+
+@router.patch("/{program_id}", response_model=ProgramOut)
+def update_program(program_id: int, payload: ProgramUpdate, db: Session = Depends(get_db)):
+    """
+    Rename a program. The new name also replaces the old one on every
+    item that currently uses it (see program_service.update_program),
+    so item lists and filters stay consistent with the catalog.
+    """
+    existing = program_service.get_program_by_name(db, payload.name)
+    if existing is not None and existing.id != program_id:
+        raise HTTPException(status_code=409, detail=f'Program "{payload.name}" already exists')
+
+    program = program_service.update_program(db, program_id, payload.name)
+    if program is None:
+        raise HTTPException(status_code=404, detail=f"No program found with id {program_id}")
+    return program
 
 
 @router.delete("/{program_id}", status_code=204)

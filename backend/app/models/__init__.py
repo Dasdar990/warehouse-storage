@@ -1,3 +1,4 @@
+from .box import Box
 from .category import Category
 from .item import Item, ItemSize
 from .movement import Movement, MovementAction, MovementSource
@@ -7,6 +8,7 @@ from .user import User, UserRole
 from .zone import Zone
 
 __all__ = [
+    "Box",
     "Category",
     "Door",
     "Item",

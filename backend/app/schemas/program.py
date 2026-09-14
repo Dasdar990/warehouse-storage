@@ -18,6 +18,14 @@ class ProgramCreate(ProgramBase):
     pass
 
 
+class ProgramUpdate(ProgramBase):
+    """Rename an existing program. Renaming also updates the free-text
+    `program` value on every item currently using the old name, so the
+    catalog and the item list stay in sync (see program_service.update_program)."""
+
+    pass
+
+
 class ProgramOut(ProgramBase):
     id: int
 

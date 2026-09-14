@@ -14,7 +14,7 @@
     <!-- Locate on the map -->
     <button
       v-if="showLocate"
-      :disabled="!item.shelf_position"
+      :disabled="!item.shelf_position && !item.zone_id"
       type="button"
       class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent/10"
       title="Locate on the map"
@@ -110,7 +110,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Item } from "~/composables/useWarehouseApi";
+import type { Item } from "../../composables/useWarehouseApi";
+import { useWarehouseApi } from "../../composables/useWarehouseApi";
 
 withDefaults(
   defineProps<{

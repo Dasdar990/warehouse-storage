@@ -364,6 +364,38 @@ def update_item(
     return item
 
 
+@router.delete("/bulk", status_code=200)
+def delete_items_bulk(
+    ids: str = Query(..., description="Comma-separated item ids"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Admin-only: permanently delete several items at once (e.g. every
+    serial in a P/N group picked from the dashboard). Same rules as the
+    single-item delete below -- not a movement, nothing to roll back;
+    Activity Log entries are kept with item_id cleared by the DB.
+    """
+    try:
+        item_ids = [int(i) for i in ids.split(",") if i]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ids parameter")
+
+    if not item_ids:
+        raise HTTPException(status_code=400, detail="No ids provided")
+
+    items = db.query(Item).filter(Item.id.in_(item_ids)).all()
+    items_by_id = {item.id: item for item in items}
+    missing = [i for i in item_ids if i not in items_by_id]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"No item(s) found with id(s) {missing}")
+
+    for item in items:
+        db.delete(item)
+    db.commit()
+    return {"deleted": len(items)}
+
+
 @router.delete("/{item_id}", status_code=204)
 def delete_item(
     item_id: int,

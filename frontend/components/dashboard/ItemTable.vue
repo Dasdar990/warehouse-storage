@@ -4,6 +4,10 @@
       <thead>
         <tr>
           <th
+            v-if="labelSelectMode"
+            class="whitespace-nowrap border-b border-edge px-2 py-2 text-left text-[0.72rem] uppercase tracking-wider text-muted"
+          ></th>
+          <th
             class="whitespace-nowrap border-b border-edge px-2 py-2 text-left text-[0.72rem] uppercase tracking-wider text-muted"
           >
             Name
@@ -57,6 +61,20 @@
             class="cursor-pointer bg-surface-2/30 transition-colors hover:bg-surface-2/60"
             @click="toggleGroup(row.key)"
           >
+            <td
+              v-if="labelSelectMode"
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 cursor-pointer accent-[var(--accent,#3ddc84)]"
+                :checked="groupSelectionState(row.items) === 'all'"
+                :indeterminate="groupSelectionState(row.items) === 'some'"
+                :title="`Select all ${row.items.length} serials in this group`"
+                @change="toggleGroupSelect(row.items)"
+              />
+            </td>
             <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
               <span class="inline-flex items-center gap-1.5">
                 <span
@@ -80,6 +98,15 @@
                 class="ml-1.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[0.68rem] font-bold text-accent"
                 >×{{ row.items.length }} serials</span
               >
+              <button
+                v-if="!labelSelectMode"
+                type="button"
+                class="ml-1.5 rounded-full border border-accent/30 px-2 py-0.5 text-[0.68rem] font-semibold text-accent hover:bg-accent/15"
+                title="Add another serial to this same P/N"
+                @click.stop="emit('add-serial', row.items)"
+              >
+                + Add serial
+              </button>
             </td>
             <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
               <span class="badge badge--category">{{
@@ -131,6 +158,18 @@
               @click="onRowClick(item, $event)"
             >
               <td
+                v-if="labelSelectMode"
+                class="whitespace-nowrap border-b border-[#1c222c] py-2 pl-8 pr-2"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 cursor-pointer accent-[var(--accent,#3ddc84)]"
+                  :checked="isSelected(item.id)"
+                  @change="toggleSelect(item.id)"
+                />
+              </td>
+              <td
                 class="whitespace-nowrap border-b border-[#1c222c] py-2 pl-8 pr-2 text-[0.85rem] text-muted"
               >
                 ↳ S/N {{ item.serial || "—" }}
@@ -158,7 +197,7 @@
                   v-else-if="item.zone_id"
                   class="badge badge--shelf"
                   title="Placed at zone-level, no specific shelf"
-                  >📍 {{ zoneName(item.zone_id) }}</span
+                  >{{ zoneName(item.zone_id) }}</span
                 >
                 <span v-else class="text-[0.82rem] text-muted">—</span>
               </td>
@@ -192,6 +231,18 @@
             }"
             @click="onRowClick(row.item, $event)"
           >
+            <td
+              v-if="labelSelectMode"
+              class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 cursor-pointer accent-[var(--accent,#3ddc84)]"
+                :checked="isSelected(row.item.id)"
+                @change="toggleSelect(row.item.id)"
+              />
+            </td>
             <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
               {{ row.item.name }}
               <div
@@ -224,6 +275,15 @@
               >
                 S/N {{ row.item.serial }}
               </div>
+              <button
+                v-if="!labelSelectMode && row.item.serial"
+                type="button"
+                class="mt-1 block rounded-full border border-accent/30 px-2 py-0.5 text-[0.68rem] font-semibold text-accent hover:bg-accent/15"
+                title="Add another serial to this same P/N"
+                @click.stop="emit('add-serial', [row.item])"
+              >
+                + Add serial
+              </button>
             </td>
             <td class="whitespace-nowrap border-b border-[#1c222c] px-2 py-2.5">
               <span class="badge badge--category">{{ row.item.category }}</span>
@@ -252,7 +312,7 @@
                 v-else-if="row.item.zone_id"
                 class="badge badge--shelf"
                 title="Placed at zone-level, no specific shelf"
-                >📍 {{ zoneName(row.item.zone_id) }}</span
+                >{{ zoneName(row.item.zone_id) }}</span
               >
               <span
                 v-else
@@ -302,8 +362,20 @@ const props = withDefaults(
      *  is already being shown as part of the map drill-down (you're looking
      *  right at the shelf). */
     showLocate?: boolean;
+    /** Show a checkbox column so the operator can pick several serials
+     *  (across groups, across the whole filtered list) and reprint their
+     *  labels together in one batch -- see `selectedIds`/`update:selectedIds`. */
+    labelSelectMode?: boolean;
+    /** IDs currently checked for batch label printing. Controlled by the parent. */
+    selectedIds?: number[];
   }>(),
-  { showShelf: true, selectable: false, showLocate: true },
+  {
+    showShelf: true,
+    selectable: false,
+    showLocate: true,
+    labelSelectMode: false,
+    selectedIds: () => [],
+  },
 );
 
 const { getZones } = useWarehouseApi();
@@ -334,6 +406,8 @@ const emit = defineEmits<{
   locate: [item: Item];
   info: [item: Item];
   relocate: [item: Item];
+  "update:selectedIds": [ids: number[]];
+  "add-serial": [items: Item[]];
 }>();
 
 function onRowClick(item: Item, event: MouseEvent) {
@@ -341,6 +415,36 @@ function onRowClick(item: Item, event: MouseEvent) {
   // Don't hijack clicks on the row's own buttons/links (Deposit, Withdraw, Label).
   if ((event.target as HTMLElement)?.closest("button, a")) return;
   emit("select", item);
+}
+
+// --- Label batch-select: checkboxes on rows and on group headers (which
+// select/deselect every serial in that group at once). ---
+function isSelected(id: number): boolean {
+  return props.selectedIds.includes(id);
+}
+
+function toggleSelect(id: number) {
+  const next = new Set(props.selectedIds);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  emit("update:selectedIds", [...next]);
+}
+
+function groupSelectionState(items: Item[]): "all" | "some" | "none" {
+  const selectedCount = items.filter((i) => isSelected(i.id)).length;
+  if (selectedCount === 0) return "none";
+  if (selectedCount === items.length) return "all";
+  return "some";
+}
+
+function toggleGroupSelect(items: Item[]) {
+  const next = new Set(props.selectedIds);
+  const allSelected = items.every((i) => next.has(i.id));
+  for (const item of items) {
+    if (allSelected) next.delete(item.id);
+    else next.add(item.id);
+  }
+  emit("update:selectedIds", [...next]);
 }
 
 // --- Group same P/N (or, lacking one, same name) items into one collapsible
@@ -408,7 +512,7 @@ const displayRows = computed<Row[]>(() => {
             ? "—"
             : bucket[0].shelf_position
               ? bucket[0].shelf_position
-              : `📍 ${zoneName(bucket[0].zone_id!)}`
+              : `${zoneName(bucket[0].zone_id!)}`
           : `${locations.size} locations`,
     });
   }

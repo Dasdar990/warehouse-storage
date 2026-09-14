@@ -3,6 +3,7 @@ import enum
 
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from app.db import Base
 
@@ -33,5 +34,14 @@ class Item(Base):
     shelf_position = Column(String, index=True, nullable=False)
     zone_id = Column(Integer, ForeignKey(
         "zones.id", ondelete="SET NULL"), nullable=True)
+    # Set when this item is stored inside a Box rather than loose on a
+    # shelf (typical for generic parts like cables that have no room for
+    # their own label). shelf_position is still kept in sync with the
+    # box's own shelf_position so the map/shelf aggregates keep working
+    # unmodified -- see services/box_service.py.
+    box_id = Column(Integer, ForeignKey(
+        "boxes.id", ondelete="SET NULL"), nullable=True)
     tags = Column(String, nullable=True)
     notes = Column(String, nullable=True)
+
+    box = relationship("Box", back_populates="items")

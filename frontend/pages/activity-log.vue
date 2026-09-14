@@ -9,6 +9,6 @@
       </div>
     </section>
 
-    <ActivityLog />
+    <ActivityLog full-page />
   </div>
 </template>

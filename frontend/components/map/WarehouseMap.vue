@@ -30,13 +30,20 @@
           class="relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-lg border text-ink transition duration-[80ms] ease-out hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
           :class="cellClass(n, level)"
           :style="cellStyle(n, level)"
-          :title="`Shelf ${n}${level}${shelfAt(n, level) ? ` — ${shelfAt(n, level)!.item_count} item(s)` : ' — empty'}`"
+          :title="`Shelf ${n}${level}${shelfAt(n, level) ? ` — ${shelfAt(n, level)!.item_count} item(s)${shelfAt(n, level)!.box_count ? `, ${shelfAt(n, level)!.box_count} box(es)` : ''}` : ' — empty'}`"
           @click="emit('select', `${n}${level}`)"
         >
           <span class="text-[0.7rem] font-bold">{{ n }}{{ level }}</span>
           <span v-if="shelfAt(n, level)" class="text-[0.65rem] text-muted">{{
             shelfAt(n, level)!.item_count
           }}</span>
+          <span
+            v-if="shelfAt(n, level)?.box_count"
+            class="absolute right-0.5 top-0.5 text-[0.6rem] leading-none"
+            title="Has box(es)"
+          >
+            📦
+          </span>
         </button>
       </template>
     </div>

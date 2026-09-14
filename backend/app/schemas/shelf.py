@@ -92,6 +92,7 @@ class ShelfMapNode(ShelfNodeBase):
     total_quantity: int = 0
     categories: list[str] = Field(default_factory=list)
     has_low_stock: bool = False
+    box_count: int = Field(default=0, description="Number of boxes sitting on any level of this rack")
 
 
 class ShelfSummary(BaseModel):
@@ -104,6 +105,7 @@ class ShelfSummary(BaseModel):
     total_quantity: int
     categories: list[str]
     has_low_stock: bool
+    box_count: int = Field(default=0, description="Number of boxes sitting on this shelf level")
 
 
 class WarehouseLayout(BaseModel):
@@ -144,6 +146,7 @@ class LevelSummary(BaseModel):
     total_quantity: int
     categories: list[str]
     has_low_stock: bool
+    box_count: int = Field(default=0, description="Number of boxes sitting on this level")
 
 
 class RackLevelsResponse(BaseModel):

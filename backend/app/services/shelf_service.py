@@ -20,6 +20,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.box import Box
 from app.models.item import Item
 from app.models.shelf import Shelf
 from app.models.zone import ZoneKind
@@ -148,8 +149,19 @@ def _aggregate(items: list[Item]) -> dict:
     }
 
 
+def _count_boxes_by_shelf(db: Session) -> dict[str, int]:
+    """How many boxes sit on each shelf_position -- used to badge shelves/
+    racks on the map so boxed generic items (e.g. loose cables) are still
+    visible even though they don't carry their own printed label."""
+    counts: dict[str, int] = {}
+    for (shelf_position,) in db.execute(select(Box.shelf_position)):
+        counts[shelf_position] = counts.get(shelf_position, 0) + 1
+    return counts
+
+
 def build_warehouse_layout(db: Session) -> WarehouseLayout:
     items = db.execute(select(Item)).scalars().all()
+    box_counts = _count_boxes_by_shelf(db)
 
     by_shelf: dict[str, list[Item]] = {}
     for item in items:
@@ -158,6 +170,11 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
         if not item.shelf_position:
             continue
         by_shelf.setdefault(item.shelf_position, []).append(item)
+
+    # Empty boxes (no items in them yet) wouldn't otherwise create a shelf
+    # entry at all -- but the box itself still needs to show up on the map.
+    for shelf_position in box_counts:
+        by_shelf.setdefault(shelf_position, [])
 
     # The fallback grid always includes the configured default size, but
     # expands to cover any real data that falls outside of it (e.g. a shelf
@@ -188,6 +205,7 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
                 total_quantity=agg["total_quantity"],
                 categories=agg["categories"],
                 has_low_stock=agg["has_low_stock"],
+                box_count=box_counts.get(shelf_position, 0),
             )
         )
 
@@ -201,6 +219,9 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
             for item in by_shelf.get(f"{shelf.rack_code}{lvl}", [])
         ]
         agg = _aggregate(rack_items)
+        rack_box_count = sum(
+            box_counts.get(f"{shelf.rack_code}{lvl}", 0) for lvl in rack_levels
+        )
         nodes.append(
             ShelfMapNode(
                 rack_code=shelf.rack_code,
@@ -216,6 +237,7 @@ def build_warehouse_layout(db: Session) -> WarehouseLayout:
                 total_quantity=agg["total_quantity"],
                 categories=agg["categories"],
                 has_low_stock=agg["has_low_stock"],
+                box_count=rack_box_count,
             )
         )
 
@@ -286,6 +308,7 @@ def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
     if shelf is None:
         return None
 
+    box_counts = _count_boxes_by_shelf(db)
     rack_levels = _levels_from_str(shelf.levels)
     result: list[LevelSummary] = []
     for level in rack_levels:
@@ -304,6 +327,7 @@ def build_rack_levels(db: Session, rack_code: str) -> RackLevelsResponse | None:
                 total_quantity=agg["total_quantity"],
                 categories=agg["categories"],
                 has_low_stock=agg["has_low_stock"],
+                box_count=box_counts.get(shelf_position, 0),
             )
         )
 

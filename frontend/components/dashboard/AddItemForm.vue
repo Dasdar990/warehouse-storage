@@ -106,14 +106,44 @@
         <option v-for="cat in categories" :key="cat.id" :value="cat.name">
           {{ cat.name }}
         </option>
+        <option :value="NEW_CATEGORY_VALUE">+ New category…</option>
       </select>
+      <div v-if="creatingCategory" class="mt-1 flex gap-2">
+        <input
+          ref="newCategoryInput"
+          v-model="newCategoryName"
+          type="text"
+          maxlength="60"
+          placeholder="New category name"
+          class="field-input flex-1"
+          :disabled="savingCategory"
+          @keyup.enter="confirmNewCategory"
+          @keyup.esc="cancelNewCategory"
+        />
+        <button
+          type="button"
+          class="btn btn--confirm btn--small whitespace-nowrap text-[#06280f] disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="savingCategory || !newCategoryName.trim()"
+          @click="confirmNewCategory"
+        >
+          {{ savingCategory ? "…" : "Add" }}
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small whitespace-nowrap"
+          :disabled="savingCategory"
+          @click="cancelNewCategory"
+        >
+          Cancel
+        </button>
+      </div>
       <p
-        v-if="!loadingOptions && !categories.length"
+        v-if="!loadingOptions && !categories.length && !creatingCategory"
         class="m-0 text-[0.75rem] text-muted"
       >
-        No categories yet —
+        No categories yet — pick "+ New category…" above, or
         <NuxtLink to="/categories" class="text-accent"
-          >create one first</NuxtLink
+          >manage them here</NuxtLink
         >.
       </p>
     </div>
@@ -132,14 +162,44 @@
         <option v-for="prog in programs" :key="prog.id" :value="prog.name">
           {{ prog.name }}
         </option>
+        <option :value="NEW_PROGRAM_VALUE">+ New program…</option>
       </select>
+      <div v-if="creatingProgram" class="mt-1 flex gap-2">
+        <input
+          ref="newProgramInput"
+          v-model="newProgramName"
+          type="text"
+          maxlength="60"
+          placeholder="New program name"
+          class="field-input flex-1"
+          :disabled="savingProgram"
+          @keyup.enter="confirmNewProgram"
+          @keyup.esc="cancelNewProgram"
+        />
+        <button
+          type="button"
+          class="btn btn--confirm btn--small whitespace-nowrap text-[#06280f] disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="savingProgram || !newProgramName.trim()"
+          @click="confirmNewProgram"
+        >
+          {{ savingProgram ? "…" : "Add" }}
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small whitespace-nowrap"
+          :disabled="savingProgram"
+          @click="cancelNewProgram"
+        >
+          Cancel
+        </button>
+      </div>
       <p
-        v-if="!loadingOptions && !programs.length"
+        v-if="!loadingOptions && !programs.length && !creatingProgram"
         class="m-0 text-[0.75rem] text-muted"
       >
-        No programs yet —
+        No programs yet — pick "+ New program…" above, or
         <NuxtLink to="/categories" class="text-accent"
-          >create one first</NuxtLink
+          >manage them here</NuxtLink
         >.
       </p>
     </div>
@@ -171,13 +231,33 @@
     </div>
 
     <div class="flex flex-col gap-1.5 col-span-full">
-      <label class="text-[0.8rem] text-muted"
-        >Shelf
-        <span class="text-[0.72rem] text-muted"
-          >(required unless quantity is 0)</span
-        ></label
-      >
+      <label class="flex items-center justify-between text-[0.8rem] text-muted">
+        <span
+          >Shelf
+          <span class="text-[0.72rem] text-muted"
+            >(required unless quantity is 0)</span
+          ></span
+        >
+        <button
+          v-if="!boxMode && !bulkMode"
+          type="button"
+          class="text-[0.95rem] text-accent underline-offset-2 hover:underline"
+          @click="openBoxMode"
+        >
+          📦 Put it in a box instead…
+        </button>
+        <button
+          v-else-if="boxMode"
+          type="button"
+          class="text-[0.95rem] text-accent underline-offset-2 hover:underline"
+          @click="closeBoxMode"
+        >
+          Pick a shelf instead
+        </button>
+      </label>
+
       <ShelfPicker
+        v-if="!boxMode"
         v-model="form.shelf_position"
         v-model:zone-id="form.zone_id"
         :options="shelfOptions"
@@ -185,7 +265,7 @@
         :loading="loadingOptions"
       />
       <p
-        v-if="!loadingOptions && !shelfOptions.length && !zones.length"
+        v-if="!boxMode && !loadingOptions && !shelfOptions.length && !zones.length"
         class="m-0 text-[0.75rem] text-muted"
       >
         No shelves configured yet —
@@ -193,6 +273,92 @@
           >set up the warehouse map first</NuxtLink
         >.
       </p>
+
+      <!-- Box mode: for generic items with no room for their own label
+           (e.g. loose cables) -- pick an existing box on any shelf, or
+           create a new one on the spot. Not offered in bulk-serial mode:
+           serialized units are individually identifiable and don't need
+           this. -->
+      <div
+        v-if="boxMode"
+        class="flex flex-col gap-2 rounded-[10px] border border-edge bg-surface px-4 py-3"
+      >
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="btn btn--small"
+            :class="boxChoice === 'existing' ? 'btn--confirm' : 'btn--ghost'"
+            @click="boxChoice = 'existing'"
+          >
+            Use existing box
+          </button>
+          <button
+            type="button"
+            class="btn btn--small"
+            :class="boxChoice === 'new' ? 'btn--confirm' : 'btn--ghost'"
+            @click="boxChoice = 'new'"
+          >
+            + New box
+          </button>
+        </div>
+
+        <template v-if="boxChoice === 'existing'">
+          <input
+            v-model="boxSearch"
+            type="text"
+            placeholder="Find a box — code, name, or shelf…"
+            class="field-input"
+          />
+          <p v-if="loadingBoxes" class="m-0 text-[0.75rem] text-muted">
+            Loading boxes…
+          </p>
+          <p
+            v-else-if="!filteredExistingBoxes.length"
+            class="m-0 text-[0.75rem] text-muted"
+          >
+            No box matches -- switch to "+ New box" to create one.
+          </p>
+          <div v-else class="flex max-h-40 flex-col gap-1 overflow-y-auto">
+            <button
+              v-for="b in filteredExistingBoxes"
+              :key="b.id"
+              type="button"
+              class="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-left text-[0.85rem]"
+              :class="
+                selectedBoxId === b.id
+                  ? 'border-accent bg-accent/10'
+                  : 'border-edge hover:border-accent/50'
+              "
+              @click="selectedBoxId = b.id"
+            >
+              <span
+                ><strong>{{ b.code }}</strong
+                ><template v-if="b.name"> · {{ b.name }}</template></span
+              >
+              <span class="text-muted">Shelf {{ b.shelf_position }}</span>
+            </button>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="flex gap-2">
+            <input
+              v-model="newBoxShelfPosition"
+              type="text"
+              placeholder="Shelf, e.g. 12B"
+              maxlength="12"
+              class="field-input w-32 font-mono uppercase"
+            />
+            <input
+              v-model="newBoxName"
+              type="text"
+              placeholder="Box name (optional)"
+              maxlength="80"
+              class="field-input flex-1"
+            />
+          </div>
+        </template>
+      </div>
     </div>
 
     <div class="flex flex-col gap-1.5 col-span-full">
@@ -345,6 +511,7 @@
 
 <script setup lang="ts">
 import type {
+  Box,
   Category,
   Item,
   Program,
@@ -362,10 +529,15 @@ const {
   generateBarcode,
   listAdminCategories,
   listAdminPrograms,
+  createCategory,
+  createProgram,
   getShelfPositions,
   getZones,
   labelUrl,
   labelBatchUrl,
+  listBoxes,
+  createBox,
+  addItemToBox,
 } = useWarehouseApi();
 const { show } = useToast();
 
@@ -401,6 +573,165 @@ const programs = ref<Program[]>([]);
 const shelfOptions = ref<ShelfPositionOption[]>([]);
 const zones = ref<Zone[]>([]);
 
+// -- Box mode: put the new item straight into a box instead of picking a
+// shelf/zone -- for generic items with no room for their own label (e.g.
+// loose cables). Not offered in bulk-serial mode.
+const boxMode = ref(false);
+const boxChoice = ref<"existing" | "new">("existing");
+const allBoxes = ref<Box[]>([]);
+const loadingBoxes = ref(false);
+const boxSearch = ref("");
+const selectedBoxId = ref<number | null>(null);
+const newBoxShelfPosition = ref("");
+const newBoxName = ref("");
+
+const filteredExistingBoxes = computed(() => {
+  const q = boxSearch.value.trim().toLowerCase();
+  if (!q) return allBoxes.value;
+  return allBoxes.value.filter((b) =>
+    [b.code, b.name, b.shelf_position]
+      .filter(Boolean)
+      .some((f) => f!.toLowerCase().includes(q)),
+  );
+});
+
+async function openBoxMode() {
+  boxMode.value = true;
+  form.value.shelf_position = "";
+  form.value.zone_id = null;
+  if (!allBoxes.value.length) {
+    loadingBoxes.value = true;
+    try {
+      allBoxes.value = await listBoxes();
+    } catch {
+      allBoxes.value = [];
+    } finally {
+      loadingBoxes.value = false;
+    }
+  }
+}
+
+function closeBoxMode() {
+  boxMode.value = false;
+  selectedBoxId.value = null;
+  newBoxShelfPosition.value = "";
+  newBoxName.value = "";
+  boxSearch.value = "";
+}
+
+function resetBoxMode() {
+  boxMode.value = false;
+  boxChoice.value = "existing";
+  selectedBoxId.value = null;
+  newBoxShelfPosition.value = "";
+  newBoxName.value = "";
+  boxSearch.value = "";
+}
+
+/** Resolves box mode to a concrete box (creating it first if needed) and
+ * points `form` at its shelf_position, so the normal item-create payload
+ * already satisfies the "needs a shelf/zone" rule. Returns the box so the
+ * caller can assign the freshly created item to it afterwards. */
+async function resolveTargetBox(): Promise<Box> {
+  if (boxChoice.value === "existing") {
+    const box = allBoxes.value.find((b) => b.id === selectedBoxId.value);
+    if (!box) throw new Error("Pick a box from the list, or create a new one.");
+    return box;
+  }
+  const shelfPosition = newBoxShelfPosition.value.trim();
+  if (!shelfPosition) throw new Error("Enter a shelf position for the new box.");
+  return createBox({
+    name: newBoxName.value.trim() || null,
+    shelf_position: shelfPosition,
+  });
+}
+
+
+// "+ New category…" / "+ New program…" -- create a catalog entry without
+// leaving the form, instead of having to go to /categories first.
+const NEW_CATEGORY_VALUE = "__new_category__";
+const NEW_PROGRAM_VALUE = "__new_program__";
+const creatingCategory = ref(false);
+const newCategoryName = ref("");
+const savingCategory = ref(false);
+const newCategoryInput = ref<HTMLInputElement | null>(null);
+const creatingProgram = ref(false);
+const newProgramName = ref("");
+const savingProgram = ref(false);
+const newProgramInput = ref<HTMLInputElement | null>(null);
+
+watch(
+  () => form.value.category,
+  (value) => {
+    if (value !== NEW_CATEGORY_VALUE) return;
+    creatingCategory.value = true;
+    newCategoryName.value = "";
+    // Fall back to the empty placeholder while the name is being typed, so
+    // the sentinel value never ends up submitted as the item's category.
+    form.value.category = "";
+    nextTick(() => newCategoryInput.value?.focus());
+  },
+);
+
+async function confirmNewCategory() {
+  const name = newCategoryName.value.trim();
+  if (!name) return;
+  savingCategory.value = true;
+  try {
+    const category = await createCategory(name);
+    categories.value = [...categories.value, category].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    form.value.category = category.name;
+    show("success", `Category "${category.name}" created`);
+    cancelNewCategory();
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to create category");
+  } finally {
+    savingCategory.value = false;
+  }
+}
+
+function cancelNewCategory() {
+  creatingCategory.value = false;
+  newCategoryName.value = "";
+}
+
+watch(
+  () => form.value.program,
+  (value) => {
+    if (value !== NEW_PROGRAM_VALUE) return;
+    creatingProgram.value = true;
+    newProgramName.value = "";
+    form.value.program = "";
+    nextTick(() => newProgramInput.value?.focus());
+  },
+);
+
+async function confirmNewProgram() {
+  const name = newProgramName.value.trim();
+  if (!name) return;
+  savingProgram.value = true;
+  try {
+    const program = await createProgram(name);
+    programs.value = [...programs.value, program].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    form.value.program = program.name;
+    show("success", `Program "${program.name}" created`);
+    cancelNewProgram();
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to create program");
+  } finally {
+    savingProgram.value = false;
+  }
+}
+
+function cancelNewProgram() {
+  creatingProgram.value = false;
+  newProgramName.value = "";
+}
+
 // Shown after a successful save so the barcode can be printed onto the
 // physical item right away, without leaving the form.
 const lastCreated = ref<Item | null>(null);
@@ -421,6 +752,12 @@ const hasSerial = computed(
 
 watch(hasSerial, (locked) => {
   if (locked) form.value.quantity = 1;
+});
+
+watch(bulkMode, (locked) => {
+  // Box mode is for a single generic item at a time -- bulk-serial
+  // creation and box placement don't mix, so switching one off the other.
+  if (locked) closeBoxMode();
 });
 
 watch(
@@ -498,6 +835,20 @@ async function suggestBarcode() {
 
 async function submit() {
   error.value = "";
+  let targetBox: Box | null = null;
+  if (boxMode.value) {
+    try {
+      targetBox = await resolveTargetBox();
+    } catch (err: any) {
+      error.value = err?.message || "Pick or create a box first.";
+      return;
+    }
+    // A boxed item's location is the box's own shelf -- fill it in so the
+    // usual "needs a shelf/zone" rule below is naturally satisfied too.
+    form.value.shelf_position = targetBox.shelf_position;
+    form.value.zone_id = null;
+  }
+
   const quantity = Number(form.value.quantity) || 0;
   if (quantity > 0 && !form.value.shelf_position && !form.value.zone_id) {
     error.value =
@@ -537,12 +888,21 @@ async function submit() {
       await suggestBarcode();
       items.forEach((item) => emit("created", item));
     } else {
-      const item = await createItem({ ...form.value, quantity });
+      let item = await createItem({ ...form.value, quantity });
+      if (targetBox) {
+        item = await addItemToBox(targetBox.id, item.id);
+        show(
+          "success",
+          `Item "${item.name}" created and put in box ${targetBox.code}`,
+        );
+      } else {
+        show("success", `Item "${item.name}" created`);
+      }
       lastCreated.value = item;
-      show("success", `Item "${item.name}" created`);
       printLabel(item);
       form.value = { ...EMPTY_FORM };
       duplicates.value = [];
+      resetBoxMode();
       await suggestBarcode();
       emit("created", item);
     }

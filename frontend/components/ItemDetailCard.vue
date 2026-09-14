@@ -162,6 +162,12 @@
             >
               Zone {{ zoneLabel }}
             </div>
+            <div
+              v-if="currentBox"
+              class="mt-1 text-[0.82rem] font-medium text-muted"
+            >
+              📦 Box {{ currentBox.code }}
+            </div>
           </template>
           <template v-else>
             <div class="mt-1 text-[1.22rem] font-bold leading-none text-ink">
@@ -210,6 +216,93 @@
         >Stock</span
       >
       <span class="text-[1.45rem] font-bold text-ink">{{ item.quantity }}</span>
+    </div>
+
+    <!-- Box control: items with no room for their own label (e.g. loose
+         cables) can be stored inside a labeled box instead. Only relevant
+         once the item is on an actual shelf (a box always sits on one). -->
+    <div v-if="item.shelf_position" class="mt-2.5">
+      <div v-if="currentBox" class="flex flex-wrap items-center gap-2">
+        <span class="text-[0.85rem] text-muted"
+          >📦 Stored in box <strong class="text-ink">{{ currentBox.code }}</strong
+          ><template v-if="currentBox.name"> ({{ currentBox.name }})</template></span
+        >
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          :disabled="boxingBusy"
+          @click="takeOutOfBox"
+        >
+          Take out of box
+        </button>
+      </div>
+      <template v-else>
+        <button
+          v-if="!showBoxPicker"
+          type="button"
+          class="btn btn--ghost btn--small"
+          title="Store this item inside a labeled box (useful for generic parts with no room for their own label, e.g. loose cables)"
+          @click="openBoxPicker"
+        >
+          📦 Store in a box…
+        </button>
+        <div
+          v-else
+          class="mt-1 flex flex-col gap-2 rounded-lg border border-edge bg-surface-2 p-3"
+        >
+          <p class="m-0 text-[0.8rem] font-semibold text-ink">
+            Store "{{ item.name }}" in a box
+          </p>
+          <p class="m-0 text-[0.78rem] text-muted">
+            Pick a box already on shelf {{ item.shelf_position }}, or create
+            a new one below.
+          </p>
+          <p v-if="loadingBoxOptions" class="m-0 text-[0.8rem] text-muted">
+            Loading…
+          </p>
+          <p
+            v-else-if="!boxOptions.length"
+            class="m-0 text-[0.8rem] text-muted"
+          >
+            No box on this shelf yet -- create one below.
+          </p>
+          <div v-else class="flex flex-wrap gap-1.5">
+            <button
+              v-for="b in boxOptions"
+              :key="b.id"
+              type="button"
+              class="rounded-full border border-edge px-2.5 py-1 text-[0.8rem] font-semibold text-ink transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="boxingBusy"
+              @click="putInBox(b)"
+            >
+              {{ b.code }}<template v-if="b.name"> · {{ b.name }}</template>
+            </button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <input
+              v-model="newBoxName"
+              type="text"
+              placeholder="New box name (optional)"
+              class="field-input h-9 flex-1 text-[0.82rem]"
+            />
+            <button
+              type="button"
+              class="btn btn--confirm btn--small shrink-0 text-[#06280f]"
+              :disabled="boxingBusy"
+              @click="createAndPutInBox"
+            >
+              + Create &amp; store here
+            </button>
+          </div>
+          <button
+            type="button"
+            class="self-start text-[0.78rem] text-muted underline"
+            @click="showBoxPicker = false"
+          >
+            Cancel
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- Step 1: pick the movement -->
@@ -919,6 +1012,7 @@
 
 <script setup lang="ts">
 import type {
+  Box,
   Item,
   Movement,
   MovementSource,
@@ -953,6 +1047,11 @@ const {
   listItems,
   listAdminCategories,
   listItemPrograms,
+  getBox,
+  listBoxes,
+  createBox,
+  addItemToBox,
+  removeItemFromBox,
 } = useWarehouseApi();
 
 const { show } = useToast();
@@ -980,6 +1079,85 @@ watch(
   { immediate: true },
 );
 const busy = ref(false);
+
+// -- Box (generic items with no label space of their own, e.g. cables) --
+const currentBox = ref<Box | null>(null);
+const showBoxPicker = ref(false);
+const boxOptions = ref<Box[]>([]);
+const loadingBoxOptions = ref(false);
+const boxingBusy = ref(false);
+const newBoxName = ref("");
+
+watch(
+  () => props.item.box_id,
+  (boxId) => {
+    if (!boxId) {
+      currentBox.value = null;
+      return;
+    }
+    getBox(boxId)
+      .then((b) => (currentBox.value = b))
+      .catch(() => (currentBox.value = null));
+  },
+  { immediate: true },
+);
+
+async function openBoxPicker() {
+  showBoxPicker.value = true;
+  newBoxName.value = "";
+  if (!props.item.shelf_position) return;
+  loadingBoxOptions.value = true;
+  try {
+    boxOptions.value = await listBoxes(props.item.shelf_position);
+  } catch {
+    boxOptions.value = [];
+  } finally {
+    loadingBoxOptions.value = false;
+  }
+}
+
+async function putInBox(box: Box) {
+  boxingBusy.value = true;
+  try {
+    const updated = await addItemToBox(box.id, props.item.id);
+    show("success", `"${updated.name}" put in box ${box.code}`);
+    showBoxPicker.value = false;
+    emit("updated", updated);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to put this item in the box");
+  } finally {
+    boxingBusy.value = false;
+  }
+}
+
+async function createAndPutInBox() {
+  if (!props.item.shelf_position) return;
+  boxingBusy.value = true;
+  try {
+    const box = await createBox({
+      name: newBoxName.value.trim() || null,
+      shelf_position: props.item.shelf_position,
+    });
+    await putInBox(box);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to create the box");
+  } finally {
+    boxingBusy.value = false;
+  }
+}
+
+async function takeOutOfBox() {
+  boxingBusy.value = true;
+  try {
+    const updated = await removeItemFromBox(props.item.id);
+    show("success", `"${updated.name}" taken out of its box`);
+    emit("updated", updated);
+  } catch (err: any) {
+    show("error", err?.data?.detail || "Failed to take this item out of the box");
+  } finally {
+    boxingBusy.value = false;
+  }
+}
 
 // -- Form Types & State ----------------------------------------------
 interface EditFormState {
