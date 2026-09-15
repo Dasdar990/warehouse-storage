@@ -69,6 +69,11 @@ const maxWidthClass = computed(
 );
 
 const panelRef = ref<HTMLElement | null>(null);
+const { lock, unlock } = useScrollLock();
+// Tracks whether *this* instance currently holds the lock, so it can
+// never unlock more times than it locked (e.g. a stray extra watcher
+// trigger) and never leaves it locked on unmount.
+let holdingLock = false;
 
 function close() {
   emit("update:modelValue", false);
@@ -89,12 +94,18 @@ watch(
 
     if (open) {
       window.addEventListener("keydown", onKeydown);
-      document.body.style.overflow = "hidden";
+      if (!holdingLock) {
+        lock();
+        holdingLock = true;
+      }
       await nextTick();
       panelRef.value?.focus();
     } else {
       window.removeEventListener("keydown", onKeydown);
-      document.body.style.overflow = "";
+      if (holdingLock) {
+        unlock();
+        holdingLock = false;
+      }
     }
   },
   { immediate: true },
@@ -103,7 +114,10 @@ watch(
 onBeforeUnmount(() => {
   if (typeof window !== "undefined") {
     window.removeEventListener("keydown", onKeydown);
-    if (props.modelValue) document.body.style.overflow = "";
+    if (holdingLock) {
+      unlock();
+      holdingLock = false;
+    }
   }
 });
 </script>

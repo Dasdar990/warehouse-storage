@@ -254,7 +254,7 @@
     </BaseModal>
 
     <BaseModal v-model="showBoxManagerModal" title="Manage boxes" size="lg">
-      <AdminBoxManager />
+      <AdminBoxManager v-if="showBoxManagerModal" />
     </BaseModal>
 
     <BaseModal

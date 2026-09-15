@@ -1,7 +1,10 @@
 <template>
   <div class="flex flex-col gap-4">
-    <form class="flex flex-wrap items-end gap-2.5" @submit.prevent="add">
-      <div class="flex flex-col gap-1.5">
+    <form
+      class="flex flex-wrap items-end gap-2.5"
+      @submit.prevent="add"
+    >
+      <div class="flex w-44 flex-col gap-1.5">
         <label class="text-[0.8rem] text-muted">Shelf position</label>
         <ShelfPicker
           v-model="newShelfPosition"
@@ -56,8 +59,7 @@
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
-            <span
-              class="rounded-full bg-accent/12 px-2.5 py-0.5 font-mono text-[0.78rem] font-bold text-accent"
+            <span class="rounded-full bg-accent/12 px-2.5 py-0.5 font-mono text-[0.78rem] font-bold text-accent"
               >{{ box.code }}</span
             >
 
@@ -82,7 +84,7 @@
                 />
               </div>
               <button
-                class="rounded-lg bg-transparent px-2 py-1 text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-lg bg-transparent px-2 py-1 text-base text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
                 title="Save"
                 :disabled="savingEdit"
                 @click="saveEdit(box)"
@@ -90,7 +92,7 @@
                 ✓
               </button>
               <button
-                class="rounded-lg bg-transparent px-2 py-1 text-muted hover:text-red-300"
+                class="rounded-lg bg-transparent px-2 py-1 text-base text-muted hover:text-red-300"
                 title="Cancel"
                 :disabled="savingEdit"
                 @click="cancelEdit"
@@ -102,49 +104,41 @@
               <span class="truncate font-semibold text-ink">{{
                 box.name || "(unnamed box)"
               }}</span>
-              <span
-                class="shrink-0 rounded-full border border-edge px-2 py-0.5 text-[0.75rem] text-muted"
+              <span class="shrink-0 rounded-full border border-edge px-2 py-0.5 text-[0.75rem] text-muted"
                 >Shelf {{ box.shelf_position }}</span
               >
               <span class="shrink-0 text-[0.78rem] text-muted"
-                >{{ box.item_count }} item(s) ·
-                {{ box.total_quantity }} pcs</span
+                >{{ box.item_count }} item(s) · {{ box.total_quantity }} pcs</span
               >
             </template>
           </div>
 
-          <div
-            v-if="editingId !== box.id"
-            class="flex shrink-0 items-center gap-1"
-          >
+          <div v-if="editingId !== box.id" class="flex shrink-0 items-center gap-1">
             <button
-              class="rounded-lg bg-transparent px-2.5 py-1 text-muted hover:text-accent"
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-accent"
               title="Rename or move this box"
               @click="startEdit(box)"
             >
-              <img
-                src="~/assets/icons/edit.svg"
-                class="w-5 h-auto inline-block mr-1"
-              />
+              ✏️
             </button>
             <a
               :href="boxLabelUrl(box.id)"
               target="_blank"
               rel="noopener"
-              class="rounded-lg bg-transparent px-2.5 py-1 text-muted hover:text-accent"
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-accent"
               title="Print box label"
             >
               🖨
             </a>
             <button
-              class="rounded-lg bg-transparent px-2.5 py-1 text-muted hover:text-accent"
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-accent"
               title="Show items inside"
               @click="toggleExpand(box)"
             >
               {{ expandedId === box.id ? "▲" : "▼" }}
             </button>
             <button
-              class="rounded-lg bg-transparent px-2.5 py-1 text-muted hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg bg-transparent px-2.5 py-1 text-base text-muted hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
               title="Delete empty box"
               :disabled="box.item_count > 0"
               @click="remove(box)"
@@ -154,13 +148,8 @@
           </div>
         </div>
 
-        <div
-          v-if="expandedId === box.id"
-          class="mt-2 border-t border-edge pt-2"
-        >
-          <p v-if="loadingItems" class="m-0 text-[0.8rem] text-muted">
-            Loading…
-          </p>
+        <div v-if="expandedId === box.id" class="mt-2 border-t border-edge pt-2">
+          <p v-if="loadingItems" class="m-0 text-[0.8rem] text-muted">Loading…</p>
           <p v-else-if="!boxItems.length" class="m-0 text-[0.8rem] text-muted">
             Empty box.
           </p>
@@ -189,11 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import type {
-  Box,
-  Item,
-  ShelfPositionOption,
-} from "~/composables/useWarehouseApi";
+import type { Box, Item, ShelfPositionOption } from "~/composables/useWarehouseApi";
 
 const {
   listBoxes,
@@ -355,10 +340,7 @@ async function takeOut(item: Item, box: Box) {
     boxItems.value = await listBoxItems(box.id);
     await load();
   } catch (err: any) {
-    show(
-      "error",
-      err?.data?.detail || "Failed to take this item out of the box",
-    );
+    show("error", err?.data?.detail || "Failed to take this item out of the box");
   }
 }
 
